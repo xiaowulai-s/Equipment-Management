@@ -2,17 +2,20 @@
 自定义控件 - 实时趋势图
 """
 import numpy as np
-from PyQt5.QtWidgets import QWidget
-from PyQt5.QtGui import QPainter, QPen, QColor, QFont, QBrush
-from PyQt5.QtCore import Qt, QRectF, QPointF
+import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
+
+# 配置中文字体
+plt.rcParams['font.sans-serif'] = ['Microsoft YaHei', 'SimHei', 'SimSun', 'KaiTi']
+plt.rcParams['axes.unicode_minus'] = False
 
 
 class RealTimeTrendChart(FigureCanvas):
     """实时趋势图控件"""
 
-    def __init__(self, parent=None, title="实时趋势图", max_points=100):
+    def __init__(self, parent=None, title="Temp Trend", max_points=100):
         self.title = title
         self.max_points = max_points
         self.x_data = np.arange(0, max_points, 1)

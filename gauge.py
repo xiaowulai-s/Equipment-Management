@@ -1,11 +1,10 @@
 """
 自定义控件 - 圆形仪表盘
 """
+import numpy as np
 from PyQt5.QtWidgets import QWidget
-from PyQt5.QtGui import QPainter, QPen, QColor, QFont, QLinearGradient
+from PyQt5.QtGui import QPainter, QPen, QColor, QFont, QBrush
 from PyQt5.QtCore import Qt, QRectF
-from PyQt5.QtChart import QChart, QChartView, QLineSeries, QValueAxis
-from PyQt5.QtCore import pyqtSignal
 
 
 class CircularGauge(QWidget):
@@ -90,7 +89,3 @@ class CircularGauge(QWidget):
             painter.setFont(title_font)
             painter.setPen(QColor("#AAAAAA"))
             painter.drawText(rect.adjusted(0, -35, 0, 0), Qt.AlignCenter, self.title)
-
-
-# 需要numpy计算指针位置
-import numpy as np

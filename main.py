@@ -1,6 +1,7 @@
 """
 设备管理系统 - 工业监控上位机
 主程序入口
+Version: 1.0
 """
 import sys
 import numpy as np
@@ -22,19 +23,19 @@ from modbus_table import ModbusRegisterTable
 
 
 class IndustrialMonitorApp(QMainWindow):
-    """工业监控主窗口"""
+    """Industrial Monitor Main Window"""
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("设备管理系统 - 工业监控")
+        self.setWindowTitle("Equipment Management System")
         self.setGeometry(100, 100, 1400, 900)
         self.setMinimumSize(1200, 700)
 
-        # 初始化数据
+        # Initialize data
         self.init_data()
-        # 初始化UI
+        # Initialize UI
         self.init_ui()
-        # 初始化定时器
+        # Initialize timer
         self.init_timer()
 
     def init_data(self):
@@ -59,7 +60,7 @@ class IndustrialMonitorApp(QMainWindow):
         self.create_content_area(main_layout)
 
     def create_sidebar(self, parent_layout):
-        """创建侧边栏"""
+        """Create sidebar"""
         sidebar = QFrame()
         sidebar.setFixedWidth(260)
         sidebar.setStyleSheet("background-color: #1E1E1E; border-right: 1px solid #2A2A2A;")
@@ -75,10 +76,10 @@ class IndustrialMonitorApp(QMainWindow):
         t_layout.setContentsMargins(15, 0, 15, 0)
 
         t_layout.addWidget(QLabel("🏭"))
-        t_layout.addWidget(QLabel("设备列表").setFont(QFont("Microsoft YaHei", 14, QFont.Bold)))
+        t_layout.addWidget(QLabel("Device List").setFont(QFont("Microsoft YaHei", 14, QFont.Bold)))
         t_layout.addStretch()
 
-        self.device_count = QLabel("6 台设备")
+        self.device_count = QLabel("6 Devices")
         self.device_count.setFont(QFont("Microsoft YaHei", 9))
         self.device_count.setStyleSheet("color: #888888; background-color: #3A3A3A; padding: 3px 10px; border-radius: 10px;")
         t_layout.addWidget(self.device_count)
@@ -94,12 +95,12 @@ class IndustrialMonitorApp(QMainWindow):
         """)
 
         devices = [
-            ("Sensor Node B", "🌡️", "在线"),
-            ("Sensor Node T", "🌡️", "在线"),
-            ("Sensor Node A", "🌡️", "在线"),
-            ("Mirror Node L", "🔒", "离线"),
-            ("WallPump Node S", "💨", "在线"),
-            ("Fansoh Loss", "⚡", "在线"),
+            ("Sensor Node B", "🌡️", "Online"),
+            ("Sensor Node T", "🌡️", "Online"),
+            ("Sensor Node A", "🌡️", "Online"),
+            ("Mirror Node L", "🔒", "Offline"),
+            ("WallPump Node S", "💨", "Online"),
+            ("Fansoh Loss", "⚡", "Online"),
         ]
 
         for name, icon, status in devices:
@@ -117,7 +118,7 @@ class IndustrialMonitorApp(QMainWindow):
 
             s = QLabel(status)
             s.setFont(QFont("Microsoft YaHei", 9))
-            if status == "在线":
+            if status == "Online":
                 s.setStyleSheet("color: #00FFAA; background-color: #1A3A2A; padding: 2px 8px; border-radius: 3px;")
             else:
                 s.setStyleSheet("color: #888888; background-color: #2A2A2A; padding: 2px 8px; border-radius: 3px;")
@@ -138,13 +139,13 @@ class IndustrialMonitorApp(QMainWindow):
         c_layout = QHBoxLayout(conn_bar)
         c_layout.setContentsMargins(15, 0, 15, 0)
 
-        self.conn_status = QLabel("● 串口已连接")
+        self.conn_status = QLabel("● Serial Connected")
         self.conn_status.setFont(QFont("Microsoft YaHei", 10))
         self.conn_status.setStyleSheet("color: #00FFAA;")
         c_layout.addWidget(self.conn_status)
         c_layout.addStretch()
 
-        settings_btn = QPushButton("设置")
+        settings_btn = QPushButton("Settings")
         settings_btn.setFixedSize(50, 28)
         settings_btn.setStyleSheet("QPushButton { background-color: #3A3A3A; color: #FFF; border: none; border-radius: 4px; }")
         c_layout.addWidget(settings_btn)
@@ -153,7 +154,7 @@ class IndustrialMonitorApp(QMainWindow):
         parent_layout.addWidget(sidebar)
 
     def create_content_area(self, parent_layout):
-        """创建内容区"""
+        """Create content area"""
         content = QWidget()
         content.setStyleSheet("background-color: #1A1A1A;")
         v = QVBoxLayout(content)
@@ -179,7 +180,7 @@ class IndustrialMonitorApp(QMainWindow):
         parent_layout.addWidget(content)
 
     def create_top_bar(self, parent_layout):
-        """顶部标题栏"""
+        """Create top bar"""
         bar = QFrame()
         bar.setFixedHeight(70)
         bar.setStyleSheet("background-color: #2A2A2A; border-radius: 8px;")
@@ -207,17 +208,17 @@ class IndustrialMonitorApp(QMainWindow):
         parent_layout.addWidget(bar)
 
     def create_trend_section(self, parent_layout):
-        """趋势图区域"""
+        """Trend section"""
         frame = QFrame()
         frame.setStyleSheet("background-color: #2A2A2A; border-radius: 8px;")
         v = QVBoxLayout(frame)
         v.setContentsMargins(10, 10, 10, 10)
 
         title_h = QHBoxLayout()
-        title_h.addWidget(QLabel("📈 实时趋势图").setFont(QFont("Microsoft YaHei", 12, QFont.Bold)))
+        title_h.addWidget(QLabel("Real-Time Trend").setFont(QFont("Microsoft YaHei", 12, QFont.Bold)))
         title_h.addStretch()
 
-        for text, color in [("温度", "#FF6B6B"), ("压力", "#4ECDC4"), ("清除", "#888888")]:
+        for text, color in [("Temp", "#FF6B6B"), ("Pressure", "#4ECDC4"), ("Clear", "#888888")]:
             btn = QPushButton(text)
             btn.setFixedSize(50, 26)
             btn.setStyleSheet(f"QPushButton {{ background-color: {color}33; color: {color}; border: 1px solid {color}; border-radius: 4px; }}")
@@ -225,19 +226,19 @@ class IndustrialMonitorApp(QMainWindow):
 
         v.addLayout(title_h)
 
-        self.trend_chart = RealTimeTrendChart(title="温度趋势 (°C)")
+        self.trend_chart = RealTimeTrendChart(title="Temperature Trend (C)")
         v.addWidget(self.trend_chart)
 
         parent_layout.addWidget(frame)
 
     def create_gauge_section(self, parent_layout):
-        """仪表盘区域"""
+        """Gauge section"""
         frame = QFrame()
         frame.setStyleSheet("background-color: #2A2A2A; border-radius: 8px;")
         v = QVBoxLayout(frame)
         v.setContentsMargins(10, 10, 10, 10)
 
-        v.addWidget(QLabel("📊 仪表盘").setFont(QFont("Microsoft YaHei", 12, QFont.Bold)))
+        v.addWidget(QLabel("Dashboard").setFont(QFont("Microsoft YaHei", 12, QFont.Bold)))
 
         grid = QGridLayout()
         grid.setSpacing(20)
@@ -256,13 +257,13 @@ class IndustrialMonitorApp(QMainWindow):
         parent_layout.addWidget(frame)
 
     def create_cards_section(self, parent_layout):
-        """数据卡片区域"""
+        """Data cards section"""
         frame = QFrame()
         frame.setStyleSheet("background-color: #2A2A2A; border-radius: 8px;")
         v = QVBoxLayout(frame)
         v.setContentsMargins(10, 10, 10, 10)
 
-        v.addWidget(QLabel("📋 关键数据").setFont(QFont("Microsoft YaHei", 12, QFont.Bold)))
+        v.addWidget(QLabel("Key Data").setFont(QFont("Microsoft YaHei", 12, QFont.Bold)))
 
         grid = QGridLayout()
         grid.setSpacing(15)
@@ -271,7 +272,7 @@ class IndustrialMonitorApp(QMainWindow):
         card_data = [
             ("temperature", "Temperature", "°C", "🌡️"),
             ("pressure", "Pressure", "AsB", "⚡"),
-            ("gas", "Gas Concentration", "cAsB", "💨"),
+            ("gas_concentration", "Gas Concentration", "cAsB", "💨"),
             ("humidity", "Humidity", "%RH", "💧"),
         ]
 
@@ -286,13 +287,13 @@ class IndustrialMonitorApp(QMainWindow):
         parent_layout.addWidget(frame)
 
     def create_modbus_section(self, parent_layout):
-        """Modbus寄存器区域"""
+        """Modbus register section"""
         frame = QFrame()
         frame.setStyleSheet("background-color: #2A2A2A; border-radius: 8px;")
         v = QVBoxLayout(frame)
         v.setContentsMargins(10, 10, 10, 10)
 
-        v.addWidget(QLabel("📜 Modbus寄存器").setFont(QFont("Microsoft YaHei", 12, QFont.Bold)))
+        v.addWidget(QLabel("Modbus Registers").setFont(QFont("Microsoft YaHei", 12, QFont.Bold)))
 
         self.modbus_table = ModbusRegisterTable()
         v.addWidget(self.modbus_table)
@@ -300,27 +301,27 @@ class IndustrialMonitorApp(QMainWindow):
         parent_layout.addWidget(frame)
 
     def init_timer(self):
-        """初始化定时器"""
+        """Initialize timer"""
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_data)
         self.timer.start(1000)
 
     def update_data(self):
-        """更新数据"""
-        # 更新时间
+        """Update data"""
+        # Update time
         now = QDateTime.currentDateTime().toString("yyyy-MM-dd hh:mm:ss")
         self.time_label.setText(now)
 
-        # 更新趋势图
+        # Update trend chart
         self.trend_chart.update_data(self.temperature + np.random.randn() * 2)
 
-        # 更新仪表盘
+        # Update gauges
         for name in self.gauges:
             self.gauge_values[name] += np.random.randn() * 0.5
             self.gauge_values[name] = max(0, min(100, self.gauge_values[name]))
             self.gauges[name].setValue(self.gauge_values[name])
 
-        # 更新数据卡片
+        # Update data cards
         self.temperature += np.random.randn() * 0.3
         self.pressure += np.random.randn() * 0.5
         self.gas_concentration += np.random.randn() * 2
@@ -328,7 +329,7 @@ class IndustrialMonitorApp(QMainWindow):
 
         self.cards["temperature"].setValue(self.temperature)
         self.cards["pressure"].setValue(self.pressure)
-        self.cards["gas"].setValue(self.gas_concentration)
+        self.cards["gas_concentration"].setValue(self.gas_concentration)
         self.cards["humidity"].setValue(self.humidity)
 
 
