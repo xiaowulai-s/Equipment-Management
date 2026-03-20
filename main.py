@@ -1,376 +1,345 @@
+"""
+设备管理系统 - 工业监控上位机
+主程序入口
+"""
 import sys
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
-                            QHBoxLayout, QListWidget, QListWidgetItem, 
-                            QLabel, QFrame, QGridLayout, QTableWidget,
-                            QTableWidgetItem)
-from PyQt5.QtGui import QFont, QIcon, QColor, QPalette
-from PyQt5.QtCore import Qt, QTimer
-import matplotlib.pyplot as plt
+import numpy as np
+from PyQt5.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QListWidget, QListWidgetItem, QLabel, QFrame, QGridLayout,
+    QTableWidget, QTableWidgetItem, QHeaderView, QScrollArea,
+    QPushButton, QComboBox, QProgressBar
+)
+from PyQt5.QtGui import QFont, QColor, QPainter, QPen, QBrush
+from PyQt5.QtCore import Qt, QTimer, QRectF, QDateTime
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-import numpy as np
 
-# 主窗口类
+from gauge import CircularGauge
+from trend_chart import RealTimeTrendChart
+from data_card import DataCard
+from modbus_table import ModbusRegisterTable
+
+
 class IndustrialMonitorApp(QMainWindow):
+    """工业监控主窗口"""
+
     def __init__(self):
         super().__init__()
-        self.initUI()
-        self.initData()
-        self.initTimer()
-
-    # 初始化UI
-    def initUI(self):
-        # 设置窗口属性
-        self.setWindowTitle("设备管理系统")
+        self.setWindowTitle("设备管理系统 - 工业监控")
         self.setGeometry(100, 100, 1400, 900)
-        
-        # 设置深色主题
-        self.setDarkTheme()
+        self.setMinimumSize(1200, 700)
 
-        # 创建主布局
-        main_widget = QWidget()
-        main_layout = QHBoxLayout(main_widget)
+        # 初始化数据
+        self.init_data()
+        # 初始化UI
+        self.init_ui()
+        # 初始化定时器
+        self.init_timer()
+
+    def init_data(self):
+        """初始化数据"""
+        self.temperature = 25.5
+        self.pressure = 123.4
+        self.gas_concentration = 405.0
+        self.humidity = 38.2
+
+        self.gauge_values = {"SQ10": 75.5, "AR2": 115.2, "B": 12.8, "C": 14.8}
+
+    def init_ui(self):
+        """初始化UI"""
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+
+        main_layout = QHBoxLayout(central_widget)
         main_layout.setSpacing(0)
         main_layout.setContentsMargins(0, 0, 0, 0)
 
-        # 左侧设备列表
+        self.create_sidebar(main_layout)
+        self.create_content_area(main_layout)
+
+    def create_sidebar(self, parent_layout):
+        """创建侧边栏"""
+        sidebar = QFrame()
+        sidebar.setFixedWidth(260)
+        sidebar.setStyleSheet("background-color: #1E1E1E; border-right: 1px solid #2A2A2A;")
+
+        layout = QVBoxLayout(sidebar)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        # 标题栏
+        title_bar = QFrame()
+        title_bar.setFixedHeight(70)
+        title_bar.setStyleSheet("background-color: #252525; border-bottom: 1px solid #2A2A2A;")
+        t_layout = QHBoxLayout(title_bar)
+        t_layout.setContentsMargins(15, 0, 15, 0)
+
+        t_layout.addWidget(QLabel("🏭"))
+        t_layout.addWidget(QLabel("设备列表").setFont(QFont("Microsoft YaHei", 14, QFont.Bold)))
+        t_layout.addStretch()
+
+        self.device_count = QLabel("6 台设备")
+        self.device_count.setFont(QFont("Microsoft YaHei", 9))
+        self.device_count.setStyleSheet("color: #888888; background-color: #3A3A3A; padding: 3px 10px; border-radius: 10px;")
+        t_layout.addWidget(self.device_count)
+        layout.addWidget(title_bar)
+
+        # 设备列表
         self.device_list = QListWidget()
-        self.device_list.setFixedWidth(250)
-        self.device_list.setStyleSheet("""QListWidget {
-            background-color: #1E1E1E;
-            border: 1px solid #2A2A2A;
-            border-radius: 0;
-        }
-        QListWidgetItem {
-            padding: 15px;
-            margin: 5px;
-            background-color: #2A2A2A;
-            border-radius: 5px;
-            color: white;
-            font-size: 14px;
-        }
-        QListWidgetItem:hover {
-            background-color: #3A3A3A;
-        }
-        QListWidget::item:selected {
-            background-color: #00AAFF;
-        }""")
+        self.device_list.setStyleSheet("""
+            QListWidget { background-color: #1E1E1E; border: none; }
+            QListWidget::item { padding: 15px; margin: 5px 10px; background-color: #252525; border-radius: 6px; color: #FFF; }
+            QListWidget::item:hover { background-color: #2D2D2D; }
+            QListWidget::item:selected { background-color: #0078D4; }
+        """)
 
-        # 主内容区
-        self.content_area = QWidget()
-        self.content_layout = QVBoxLayout(self.content_area)
-        self.content_layout.setSpacing(10)
-        self.content_layout.setContentsMargins(10, 10, 10, 10)
-
-        # 添加到主布局
-        main_layout.addWidget(self.device_list)
-        main_layout.addWidget(self.content_area)
-
-        # 设置中心部件
-        self.setCentralWidget(main_widget)
-
-        # 创建顶部标题栏
-        self.createTitleBar()
-        
-        # 创建实时趋势图
-        self.createTrendChart()
-        
-        # 创建仪表盘区域
-        self.createGauges()
-        
-        # 创建数据卡片
-        self.createDataCards()
-        
-        # 创建Modbus寄存器表格
-        self.createRegisterTable()
-
-    # 设置深色主题
-    def setDarkTheme(self):
-        palette = QPalette()
-        palette.setColor(QPalette.Window, QColor(30, 30, 30))
-        palette.setColor(QPalette.WindowText, QColor(255, 255, 255))
-        palette.setColor(QPalette.Base, QColor(40, 40, 40))
-        palette.setColor(QPalette.AlternateBase, QColor(50, 50, 50))
-        palette.setColor(QPalette.ToolTipBase, QColor(30, 30, 30))
-        palette.setColor(QPalette.ToolTipText, QColor(255, 255, 255))
-        palette.setColor(QPalette.Text, QColor(255, 255, 255))
-        palette.setColor(QPalette.Button, QColor(50, 50, 50))
-        palette.setColor(QPalette.ButtonText, QColor(255, 255, 255))
-        palette.setColor(QPalette.BrightText, QColor(255, 0, 0))
-        palette.setColor(QPalette.Link, QColor(0, 150, 255))
-        palette.setColor(QPalette.Highlight, QColor(0, 150, 255))
-        palette.setColor(QPalette.HighlightedText, QColor(0, 0, 0))
-        self.setPalette(palette)
-
-    # 创建顶部标题栏
-    def createTitleBar(self):
-        title_frame = QFrame()
-        title_frame.setFixedHeight(60)
-        title_frame.setStyleSheet("background-color: #2A2A2A; border-radius: 5px;")
-        title_layout = QHBoxLayout(title_frame)
-        title_layout.setContentsMargins(20, 0, 20, 0)
-
-        # 标题
-        title_label = QLabel("⛽ Pump Station A")
-        title_label.setFont(QFont("Arial", 16, QFont.Bold))
-        title_label.setStyleSheet("color: #00AAFF;")
-        title_layout.addWidget(title_label)
-
-        # 右侧操作按钮
-        buttons_frame = QFrame()
-        buttons_layout = QHBoxLayout(buttons_frame)
-        buttons_layout.setSpacing(15)
-
-        for icon in ["👤", "📊", "🔔", "⚙️", "📋"]:
-            btn = QLabel(icon)
-            btn.setFont(QFont("Arial", 16))
-            btn.setFixedSize(40, 40)
-            btn.setAlignment(Qt.AlignCenter)
-            btn.setStyleSheet("border-radius: 20px; background-color: #3A3A3A;")
-            buttons_layout.addWidget(btn)
-
-        title_layout.addStretch()
-        title_layout.addWidget(buttons_frame)
-
-        self.content_layout.addWidget(title_frame)
-
-    # 创建实时趋势图
-    def createTrendChart(self):
-        chart_frame = QFrame()
-        chart_frame.setStyleSheet("background-color: #2A2A2A; border-radius: 5px;")
-        chart_layout = QVBoxLayout(chart_frame)
-
-        # 图表标题
-        chart_title = QLabel("实时趋势图")
-        chart_title.setFont(QFont("Arial", 12, QFont.Bold))
-        chart_title.setStyleSheet("color: white; padding: 10px;")
-        chart_layout.addWidget(chart_title)
-
-        # 创建Matplotlib图表
-        self.figure = Figure(figsize=(10, 4), dpi=100, facecolor='#2A2A2A')
-        self.canvas = FigureCanvas(self.figure)
-        self.canvas.setStyleSheet("border: none;")
-        
-        self.ax = self.figure.add_subplot(111, facecolor='#2A2A2A')
-        self.ax.tick_params(axis='both', colors='#888888')
-        self.ax.spines['bottom'].set_color('#888888')
-        self.ax.spines['left'].set_color('#888888')
-        self.ax.spines['right'].set_color('#888888')
-        self.ax.spines['top'].set_color('#888888')
-        
-        # 生成初始数据
-        self.x_data = np.arange(0, 100, 1)
-        self.y_data = np.random.randn(100).cumsum() + 100
-        
-        # 绘制图表
-        self.line, = self.ax.plot(self.x_data, self.y_data, color='#00FFAA', linewidth=2)
-        
-        chart_layout.addWidget(self.canvas)
-        self.content_layout.addWidget(chart_frame)
-
-    # 创建仪表盘区域
-    def createGauges(self):
-        gauge_frame = QFrame()
-        gauge_frame.setStyleSheet("background-color: #2A2A2A; border-radius: 5px;")
-        gauge_layout = QVBoxLayout(gauge_frame)
-
-        # 仪表盘标题
-        gauge_title = QLabel("仪表盘")
-        gauge_title.setFont(QFont("Arial", 12, QFont.Bold))
-        gauge_title.setStyleSheet("color: white; padding: 10px;")
-        gauge_layout.addWidget(gauge_title)
-
-        # 仪表盘网格
-        gauges_grid = QGridLayout()
-        gauges_grid.setSpacing(20)
-        gauges_grid.setContentsMargins(20, 0, 20, 20)
-
-        # 创建4个仪表盘
-        self.gauge_labels = []
-        for i, name in enumerate(["SQ10", "AR2", "B", ""]):
-            gauge_container = QFrame()
-            gauge_container.setStyleSheet("background-color: #3A3A3A; border-radius: 50px;")
-            gauge_container.setFixedSize(120, 120)
-            gauge_container_layout = QVBoxLayout(gauge_container)
-            gauge_container_layout.setAlignment(Qt.AlignCenter)
-            
-            # 数值显示
-            value_label = QLabel("0.0")
-            value_label.setFont(QFont("Arial", 18, QFont.Bold))
-            value_label.setStyleSheet("color: #00FFAA;")
-            value_label.setAlignment(Qt.AlignCenter)
-            
-            # 名称显示
-            name_label = QLabel(name)
-            name_label.setFont(QFont("Arial", 10))
-            name_label.setStyleSheet("color: white;")
-            name_label.setAlignment(Qt.AlignCenter)
-            
-            gauge_container_layout.addWidget(value_label)
-            gauge_container_layout.addWidget(name_label)
-            
-            gauges_grid.addWidget(gauge_container, 0, i)
-            self.gauge_labels.append(value_label)
-
-        gauge_layout.addLayout(gauges_grid)
-        self.content_layout.addWidget(gauge_frame)
-
-    # 创建数据卡片
-    def createDataCards(self):
-        cards_frame = QFrame()
-        cards_frame.setStyleSheet("background-color: #2A2A2A; border-radius: 5px;")
-        cards_layout = QVBoxLayout(cards_frame)
-
-        # 卡片标题
-        cards_title = QLabel("关键数据")
-        cards_title.setFont(QFont("Arial", 12, QFont.Bold))
-        cards_title.setStyleSheet("color: white; padding: 10px;")
-        cards_layout.addWidget(cards_title)
-
-        # 卡片网格
-        cards_grid = QGridLayout()
-        cards_grid.setSpacing(15)
-        cards_grid.setContentsMargins(15, 0, 15, 15)
-
-        # 创建3个数据卡片
-        self.card_labels = []
-        for i, (name, value) in enumerate([("Temperature", "25.5°C"),
-                                           ("Pressure", "123 AsB"),
-                                           ("Gas Concentration", "405 cAsB (123°C)")]):
-            card = QFrame()
-            card.setStyleSheet("background-color: #3A3A3A; border-radius: 5px;")
-            card_layout = QVBoxLayout(card)
-            card_layout.setContentsMargins(15, 15, 15, 15)
-            
-            # 卡片名称
-            card_name = QLabel(name)
-            card_name.setFont(QFont("Arial", 12))
-            card_name.setStyleSheet("color: #AAAAAA;")
-            
-            # 卡片数值
-            card_value = QLabel(value)
-            card_value.setFont(QFont("Arial", 24, QFont.Bold))
-            card_value.setStyleSheet("color: #00FFAA;")
-            
-            card_layout.addWidget(card_name)
-            card_layout.addWidget(card_value)
-            
-            cards_grid.addWidget(card, 0, i)
-            self.card_labels.append(card_value)
-
-        cards_layout.addLayout(cards_grid)
-        self.content_layout.addWidget(cards_frame)
-
-    # 创建Modbus寄存器表格
-    def createRegisterTable(self):
-        table_frame = QFrame()
-        table_frame.setStyleSheet("background-color: #2A2A2A; border-radius: 5px;")
-        table_layout = QVBoxLayout(table_frame)
-
-        # 表格标题
-        table_title = QLabel("Modbus寄存器")
-        table_title.setFont(QFont("Arial", 12, QFont.Bold))
-        table_title.setStyleSheet("color: white; padding: 10px;")
-        table_layout.addWidget(table_title)
-
-        # 创建表格
-        self.register_table = QTableWidget()
-        self.register_table.setRowCount(3)
-        self.register_table.setColumnCount(4)
-        self.register_table.setHorizontalHeaderLabels(["address", "valate", "value", "status"])
-        
-        # 设置表格样式
-        self.register_table.setStyleSheet("""QTableWidget {
-            background-color: #3A3A3A;
-            border: none;
-            color: white;
-        }
-        QHeaderView::section {
-            background-color: #2A2A2A;
-            color: white;
-            padding: 8px;
-            border: 1px solid #4A4A4A;
-        }
-        QTableWidgetItem {
-            background-color: #3A3A3A;
-            color: white;
-            padding: 8px;
-            border: 1px solid #4A4A4A;
-        }""")
-        
-        # 设置列宽
-        self.register_table.setColumnWidth(0, 100)
-        self.register_table.setColumnWidth(1, 100)
-        self.register_table.setColumnWidth(2, 150)
-        self.register_table.setColumnWidth(3, 100)
-        
-        table_layout.addWidget(self.register_table)
-        self.content_layout.addWidget(table_frame)
-
-    # 初始化数据
-    def initData(self):
-        # 初始化设备列表
-        devices = ["Sensor Node B", "Sensor Node T", "Sensor Node A",
-                  "Mirmor Node L", "LwllmpNode S", "Fansoh Loss"]
-        
-        for device in devices:
-            item = QListWidgetItem(device)
-            item.setFont(QFont("Arial", 14))
-            item.setForeground(QColor("white"))
-            item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
-            self.device_list.addItem(item)
-        
-        # 默认选中第一个设备
-        if self.device_list.count() > 0:
-            self.device_list.setCurrentRow(0)
-
-        # 初始化仪表盘数据
-        self.gauge_values = [75.5, 115.2, 12.8, 14.8]
-        for i, value in enumerate(self.gauge_values):
-            self.gauge_labels[i].setText(f"{value:.1f}")
-
-        # 初始化Modbus寄存器数据
-        register_data = [
-            ["0x0001", "06", "25.5", "OK"],
-            ["0x0001", "24", "20:25", "OK"],
-            ["0x0001", "1", "10:55", "OK"]
+        devices = [
+            ("Sensor Node B", "🌡️", "在线"),
+            ("Sensor Node T", "🌡️", "在线"),
+            ("Sensor Node A", "🌡️", "在线"),
+            ("Mirror Node L", "🔒", "离线"),
+            ("WallPump Node S", "💨", "在线"),
+            ("Fansoh Loss", "⚡", "在线"),
         ]
-        
-        for row, data in enumerate(register_data):
-            for col, value in enumerate(data):
-                item = QTableWidgetItem(value)
-                if col == 3:  # Status column
-                    item.setForeground(QColor("#00FFAA"))
-                self.register_table.setItem(row, col, item)
 
-    # 初始化定时器
-    def initTimer(self):
+        for name, icon, status in devices:
+            item = QListWidgetItem()
+            item.setData(Qt.UserRole, name)
+
+            w = QWidget()
+            v = QVBoxLayout(w)
+            v.setContentsMargins(10, 8, 10, 8)
+
+            h = QHBoxLayout()
+            h.addWidget(QLabel(icon))
+            h.addWidget(QLabel(name).setFont(QFont("Microsoft YaHei", 12)))
+            h.addStretch()
+
+            s = QLabel(status)
+            s.setFont(QFont("Microsoft YaHei", 9))
+            if status == "在线":
+                s.setStyleSheet("color: #00FFAA; background-color: #1A3A2A; padding: 2px 8px; border-radius: 3px;")
+            else:
+                s.setStyleSheet("color: #888888; background-color: #2A2A2A; padding: 2px 8px; border-radius: 3px;")
+            h.addWidget(s)
+
+            v.addLayout(h)
+            item.setSizeHint(w.sizeHint())
+            self.device_list.addItem(item)
+            self.device_list.setItemWidget(item, w)
+
+        self.device_list.setCurrentRow(0)
+        layout.addWidget(self.device_list)
+
+        # 连接状态栏
+        conn_bar = QFrame()
+        conn_bar.setFixedHeight(60)
+        conn_bar.setStyleSheet("background-color: #252525; border-top: 1px solid #2A2A2A;")
+        c_layout = QHBoxLayout(conn_bar)
+        c_layout.setContentsMargins(15, 0, 15, 0)
+
+        self.conn_status = QLabel("● 串口已连接")
+        self.conn_status.setFont(QFont("Microsoft YaHei", 10))
+        self.conn_status.setStyleSheet("color: #00FFAA;")
+        c_layout.addWidget(self.conn_status)
+        c_layout.addStretch()
+
+        settings_btn = QPushButton("设置")
+        settings_btn.setFixedSize(50, 28)
+        settings_btn.setStyleSheet("QPushButton { background-color: #3A3A3A; color: #FFF; border: none; border-radius: 4px; }")
+        c_layout.addWidget(settings_btn)
+
+        layout.addWidget(conn_bar)
+        parent_layout.addWidget(sidebar)
+
+    def create_content_area(self, parent_layout):
+        """创建内容区"""
+        content = QWidget()
+        content.setStyleSheet("background-color: #1A1A1A;")
+        v = QVBoxLayout(content)
+        v.setSpacing(10)
+        v.setContentsMargins(15, 15, 15, 15)
+
+        self.create_top_bar(v)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("border: none;")
+        scroll_content = QWidget()
+        sv = QVBoxLayout(scroll_content)
+        sv.setSpacing(10)
+
+        self.create_trend_section(sv)
+        self.create_gauge_section(sv)
+        self.create_cards_section(sv)
+        self.create_modbus_section(sv)
+
+        scroll.setWidget(scroll_content)
+        v.addWidget(scroll)
+        parent_layout.addWidget(content)
+
+    def create_top_bar(self, parent_layout):
+        """顶部标题栏"""
+        bar = QFrame()
+        bar.setFixedHeight(70)
+        bar.setStyleSheet("background-color: #2A2A2A; border-radius: 8px;")
+        h = QHBoxLayout(bar)
+        h.setContentsMargins(20, 0, 20, 0)
+
+        h.addWidget(QLabel("⛽"))
+        self.device_title = QLabel("Pump Station A")
+        self.device_title.setFont(QFont("Microsoft YaHei", 16, QFont.Bold))
+        self.device_title.setStyleSheet("color: #00AAFF;")
+        h.addWidget(self.device_title)
+        h.addStretch()
+
+        for icon in ["👤", "📊", "🔔", "⚙️"]:
+            btn = QPushButton(icon)
+            btn.setFixedSize(40, 40)
+            btn.setStyleSheet("QPushButton { background-color: #3A3A3A; border: none; border-radius: 20px; }")
+            h.addWidget(btn)
+
+        self.time_label = QLabel()
+        self.time_label.setFont(QFont("Consolas", 12))
+        self.time_label.setStyleSheet("color: #888888;")
+        h.addWidget(self.time_label)
+
+        parent_layout.addWidget(bar)
+
+    def create_trend_section(self, parent_layout):
+        """趋势图区域"""
+        frame = QFrame()
+        frame.setStyleSheet("background-color: #2A2A2A; border-radius: 8px;")
+        v = QVBoxLayout(frame)
+        v.setContentsMargins(10, 10, 10, 10)
+
+        title_h = QHBoxLayout()
+        title_h.addWidget(QLabel("📈 实时趋势图").setFont(QFont("Microsoft YaHei", 12, QFont.Bold)))
+        title_h.addStretch()
+
+        for text, color in [("温度", "#FF6B6B"), ("压力", "#4ECDC4"), ("清除", "#888888")]:
+            btn = QPushButton(text)
+            btn.setFixedSize(50, 26)
+            btn.setStyleSheet(f"QPushButton {{ background-color: {color}33; color: {color}; border: 1px solid {color}; border-radius: 4px; }}")
+            title_h.addWidget(btn)
+
+        v.addLayout(title_h)
+
+        self.trend_chart = RealTimeTrendChart(title="温度趋势 (°C)")
+        v.addWidget(self.trend_chart)
+
+        parent_layout.addWidget(frame)
+
+    def create_gauge_section(self, parent_layout):
+        """仪表盘区域"""
+        frame = QFrame()
+        frame.setStyleSheet("background-color: #2A2A2A; border-radius: 8px;")
+        v = QVBoxLayout(frame)
+        v.setContentsMargins(10, 10, 10, 10)
+
+        v.addWidget(QLabel("📊 仪表盘").setFont(QFont("Microsoft YaHei", 12, QFont.Bold)))
+
+        grid = QGridLayout()
+        grid.setSpacing(20)
+
+        self.gauges = {}
+        gauge_data = [("SQ10", 0, 150, "bar"), ("AR2", 0, 200, "psi"),
+                       ("B", 0, 50, "kPa"), ("C", 0, 30, "°C")]
+
+        for i, (name, min_v, max_v, unit) in enumerate(gauge_data):
+            gauge = CircularGauge(min_value=min_v, max_value=max_v, unit=unit, title=name)
+            gauge.setValue(self.gauge_values[name])
+            self.gauges[name] = gauge
+            grid.addWidget(gauge, 0, i)
+
+        v.addLayout(grid)
+        parent_layout.addWidget(frame)
+
+    def create_cards_section(self, parent_layout):
+        """数据卡片区域"""
+        frame = QFrame()
+        frame.setStyleSheet("background-color: #2A2A2A; border-radius: 8px;")
+        v = QVBoxLayout(frame)
+        v.setContentsMargins(10, 10, 10, 10)
+
+        v.addWidget(QLabel("📋 关键数据").setFont(QFont("Microsoft YaHei", 12, QFont.Bold)))
+
+        grid = QGridLayout()
+        grid.setSpacing(15)
+
+        self.cards = {}
+        card_data = [
+            ("temperature", "Temperature", "°C", "🌡️"),
+            ("pressure", "Pressure", "AsB", "⚡"),
+            ("gas", "Gas Concentration", "cAsB", "💨"),
+            ("humidity", "Humidity", "%RH", "💧"),
+        ]
+
+        for i, (key, title, unit, icon) in enumerate(card_data):
+            card = DataCard(title=title, unit=unit, icon=icon)
+            value = getattr(self, key)
+            card.setValue(value)
+            self.cards[key] = card
+            grid.addWidget(card, 0, i)
+
+        v.addLayout(grid)
+        parent_layout.addWidget(frame)
+
+    def create_modbus_section(self, parent_layout):
+        """Modbus寄存器区域"""
+        frame = QFrame()
+        frame.setStyleSheet("background-color: #2A2A2A; border-radius: 8px;")
+        v = QVBoxLayout(frame)
+        v.setContentsMargins(10, 10, 10, 10)
+
+        v.addWidget(QLabel("📜 Modbus寄存器").setFont(QFont("Microsoft YaHei", 12, QFont.Bold)))
+
+        self.modbus_table = ModbusRegisterTable()
+        v.addWidget(self.modbus_table)
+
+        parent_layout.addWidget(frame)
+
+    def init_timer(self):
+        """初始化定时器"""
         self.timer = QTimer(self)
-        self.timer.timeout.connect(self.updateData)
-        self.timer.start(1000)  # 每秒更新一次
+        self.timer.timeout.connect(self.update_data)
+        self.timer.start(1000)
 
-    # 更新实时数据
-    def updateData(self):
-        # 更新趋势图数据
-        self.y_data = np.roll(self.y_data, -1)
-        self.y_data[-1] = self.y_data[-2] + (np.random.randn() * 2 - 1)
-        self.line.set_ydata(self.y_data)
-        self.ax.relim()
-        self.ax.autoscale_view()
-        self.canvas.draw()
+    def update_data(self):
+        """更新数据"""
+        # 更新时间
+        now = QDateTime.currentDateTime().toString("yyyy-MM-dd hh:mm:ss")
+        self.time_label.setText(now)
 
-        # 更新仪表盘数据
-        for i in range(len(self.gauge_values)):
-            self.gauge_values[i] += (np.random.randn() * 0.5)
-            self.gauge_values[i] = max(0, min(100, self.gauge_values[i]))
-            self.gauge_labels[i].setText(f"{self.gauge_values[i]:.1f}")
+        # 更新趋势图
+        self.trend_chart.update_data(self.temperature + np.random.randn() * 2)
+
+        # 更新仪表盘
+        for name in self.gauges:
+            self.gauge_values[name] += np.random.randn() * 0.5
+            self.gauge_values[name] = max(0, min(100, self.gauge_values[name]))
+            self.gauges[name].setValue(self.gauge_values[name])
 
         # 更新数据卡片
-        # 这里可以添加更复杂的数据更新逻辑
+        self.temperature += np.random.randn() * 0.3
+        self.pressure += np.random.randn() * 0.5
+        self.gas_concentration += np.random.randn() * 2
+        self.humidity += np.random.randn() * 0.2
 
-# 主程序入口
+        self.cards["temperature"].setValue(self.temperature)
+        self.cards["pressure"].setValue(self.pressure)
+        self.cards["gas"].setValue(self.gas_concentration)
+        self.cards["humidity"].setValue(self.humidity)
+
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    app.setStyle("Fusion")
+
+    # 设置深色主题
+    palette = QColor(30, 30, 30)
+    app.setPalette(palette)
+
     window = IndustrialMonitorApp()
     window.show()
     sys.exit(app.exec_())
