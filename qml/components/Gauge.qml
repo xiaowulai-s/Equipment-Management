@@ -24,6 +24,7 @@ Item {
     readonly property color colorWarning: "#FFC107"
     readonly property color colorError: "#F44336"
     readonly property color colorPrimary: "#2196F3"
+    readonly property color colorAccent: "#00BCD4"
     readonly property color colorBgRaised: "#161B22"
     readonly property color colorBorder: "#30363D"
     readonly property color textPrimary: "#E6EDF3"
@@ -41,6 +42,40 @@ Item {
     width: 160
     height: 180
 
+    // 外发光效果层
+    Rectangle {
+        id: glowLayer
+        anchors.centerIn: gaugeBackground
+        anchors.verticalCenterOffset: -10
+        width: 130
+        height: 130
+        radius: width / 2
+        color: "transparent"
+
+        // 外发光
+        Rectangle {
+            anchors.centerIn: parent
+            width: parent.width + 20
+            height: parent.height + 20
+            radius: width / 2
+            color: "transparent"
+            border.width: 4
+            border.color: getStatusColor(status, value, maxValue)
+            opacity: 0.25
+        }
+
+        Rectangle {
+            anchors.centerIn: parent
+            width: parent.width + 12
+            height: parent.height + 12
+            radius: width / 2
+            color: "transparent"
+            border.width: 2
+            border.color: getStatusColor(status, value, maxValue)
+            opacity: 0.4
+        }
+    }
+
     // 仪表盘背景圆
     Rectangle {
         id: gaugeBackground
@@ -52,18 +87,6 @@ Item {
         color: colorBgRaised
         border.width: 1
         border.color: colorBorder
-
-        // 外发光效果
-        Rectangle {
-            anchors.centerIn: parent
-            width: parent.width + 16
-            height: parent.height + 16
-            radius: width / 2
-            color: "transparent"
-            border.width: 3
-            border.color: getStatusColor(status, value, maxValue)
-            opacity: 0.2
-        }
 
         // 进度圆弧
         Canvas {
@@ -79,6 +102,7 @@ Item {
                 var startAngle = Math.PI * 0.75
                 var endAngle = Math.PI * 2.25
                 var currentAngle = startAngle + (endAngle - startAngle) * (percentage / 100)
+                var statusColor = getStatusColor(status, value, maxValue)
 
                 // 背景弧线
                 ctx.clearRect(0, 0, width, height)
@@ -91,10 +115,10 @@ Item {
 
                 // 进度弧线 (带渐变)
                 if (percentage > 0) {
-                    // 创建渐变
+                    // 创建渐变 - 从主色到状态色
                     var gradient = ctx.createLinearGradient(0, 0, width, 0)
-                    var statusColor = getStatusColor(status, value, maxValue)
                     gradient.addColorStop(0, colorPrimary)
+                    gradient.addColorStop(0.5, colorAccent)
                     gradient.addColorStop(1, statusColor)
 
                     ctx.beginPath()
@@ -103,6 +127,19 @@ Item {
                     ctx.strokeStyle = gradient
                     ctx.lineCap = "round"
                     ctx.stroke()
+
+                    // 发光效果
+                    ctx.shadowColor = statusColor
+                    ctx.shadowBlur = 8
+                    ctx.beginPath()
+                    ctx.arc(centerX, centerY, radius, startAngle, currentAngle)
+                    ctx.lineWidth = 8
+                    ctx.strokeStyle = statusColor
+                    ctx.lineCap = "round"
+                    ctx.globalAlpha = 0.3
+                    ctx.stroke()
+                    ctx.globalAlpha = 1.0
+                    ctx.shadowBlur = 0
                 }
 
                 // 中心数值
@@ -186,7 +223,10 @@ Item {
 
     // 更新绑定
     onPercentageChanged: arcCanvas.requestPaint()
-    onStatusChanged: arcCanvas.requestPaint()
+    onStatusChanged: {
+        arcCanvas.requestPaint()
+        glowLayer.opacity = 1
+    }
     onValueChanged: arcCanvas.requestPaint()
 
     Component.onCompleted: arcCanvas.requestPaint()

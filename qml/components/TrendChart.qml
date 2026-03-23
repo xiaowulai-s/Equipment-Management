@@ -80,40 +80,244 @@ Item {
 
                     Item { width: 1; height: 1; anchors.fill: parent }
 
-                    // 时间范围按钮
+                    // 时间范围按钮（使用Canvas绘制SVG风格图标）
                     Row {
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: 8
 
-                        Repeater {
-                            model: [
-                                { label: "1H", value: 1 },
-                                { label: "6H", value: 6 },
-                                { label: "24H", value: 24 },
-                                { label: "ALL", value: 0 }
-                            ]
+                        // 1H 按钮
+                        Item {
+                            width: 44
+                            height: 28
 
                             Rectangle {
-                                width: 44
-                                height: 28
+                                anchors.fill: parent
                                 radius: 6
-                                color: timeRange === modelData.value ? colorPrimary : "transparent"
+                                color: timeRange === 1 ? colorPrimary : "transparent"
                                 border.width: 1
-                                border.color: timeRange === modelData.value ? colorPrimary : colorBorder
+                                border.color: timeRange === 1 ? colorPrimary : colorBorder
 
-                                Text {
+                                Canvas {
                                     anchors.centerIn: parent
-                                    text: modelData.label
-                                    color: timeRange === modelData.value ? "white" : textSecondary
-                                    font.pixelSize: 12
-                                    font.family: "Inter, sans-serif"
-                                    font.weight: Font.Medium
+                                    width: 32
+                                    height: 14
+
+                                    onPaint: {
+                                        var ctx = getContext("2d")
+                                        ctx.clearRect(0, 0, width, height)
+
+                                        // 绘制时钟图标
+                                        ctx.strokeStyle = timeRange === 1 ? "white" : textSecondary
+                                        ctx.lineWidth = 1.5
+                                        ctx.lineCap = "round"
+
+                                        // 时钟圆
+                                        ctx.beginPath()
+                                        ctx.arc(7, 7, 5, 0, Math.PI * 2)
+                                        ctx.stroke()
+
+                                        // 时钟指针
+                                        ctx.beginPath()
+                                        ctx.moveTo(7, 7)
+                                        ctx.lineTo(7, 4)
+                                        ctx.moveTo(7, 7)
+                                        ctx.lineTo(9, 7)
+                                        ctx.stroke()
+
+                                        // 文字 "1H"
+                                        ctx.font = "10px Inter, sans-serif"
+                                        ctx.fillStyle = timeRange === 1 ? "white" : textSecondary
+                                        ctx.textAlign = "left"
+                                        ctx.fillText("1H", 16, 10)
+                                    }
                                 }
 
                                 MouseArea {
                                     anchors.fill: parent
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: timeRange = modelData.value
+                                    onClicked: timeRange = 1
+                                }
+                            }
+                        }
+
+                        // 6H 按钮
+                        Item {
+                            width: 44
+                            height: 28
+
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: 6
+                                color: timeRange === 6 ? colorPrimary : "transparent"
+                                border.width: 1
+                                border.color: timeRange === 6 ? colorPrimary : colorBorder
+
+                                Canvas {
+                                    anchors.centerIn: parent
+                                    width: 38
+                                    height: 14
+
+                                    onPaint: {
+                                        var ctx = getContext("2d")
+                                        ctx.clearRect(0, 0, width, height)
+
+                                        ctx.strokeStyle = timeRange === 6 ? "white" : textSecondary
+                                        ctx.lineWidth = 1.5
+                                        ctx.lineCap = "round"
+
+                                        // 时钟圆
+                                        ctx.beginPath()
+                                        ctx.arc(7, 7, 5, 0, Math.PI * 2)
+                                        ctx.stroke()
+
+                                        // 时钟指针
+                                        ctx.beginPath()
+                                        ctx.moveTo(7, 7)
+                                        ctx.lineTo(7, 4)
+                                        ctx.moveTo(7, 7)
+                                        ctx.lineTo(9, 7)
+                                        ctx.stroke()
+
+                                        // 文字 "6H"
+                                        ctx.font = "10px Inter, sans-serif"
+                                        ctx.fillStyle = timeRange === 6 ? "white" : textSecondary
+                                        ctx.textAlign = "left"
+                                        ctx.fillText("6H", 16, 10)
+                                    }
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: timeRange = 6
+                                }
+                            }
+                        }
+
+                        // 24H 按钮
+                        Item {
+                            width: 52
+                            height: 28
+
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: 6
+                                color: timeRange === 24 ? colorPrimary : "transparent"
+                                border.width: 1
+                                border.color: timeRange === 24 ? colorPrimary : colorBorder
+
+                                Canvas {
+                                    anchors.centerIn: parent
+                                    width: 42
+                                    height: 14
+
+                                    onPaint: {
+                                        var ctx = getContext("2d")
+                                        ctx.clearRect(0, 0, width, height)
+
+                                        ctx.strokeStyle = timeRange === 24 ? "white" : textSecondary
+                                        ctx.lineWidth = 1.5
+                                        ctx.lineCap = "round"
+
+                                        // 时钟圆
+                                        ctx.beginPath()
+                                        ctx.arc(7, 7, 5, 0, Math.PI * 2)
+                                        ctx.stroke()
+
+                                        // 时钟指针 - 指向24点位置
+                                        ctx.beginPath()
+                                        ctx.moveTo(7, 7)
+                                        ctx.lineTo(7, 3)
+                                        ctx.moveTo(7, 7)
+                                        ctx.lineTo(10, 7)
+                                        ctx.stroke()
+
+                                        // 文字 "24H"
+                                        ctx.font = "10px Inter, sans-serif"
+                                        ctx.fillStyle = timeRange === 24 ? "white" : textSecondary
+                                        ctx.textAlign = "left"
+                                        ctx.fillText("24H", 16, 10)
+                                    }
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: timeRange = 24
+                                }
+                            }
+                        }
+
+                        // ALL 按钮
+                        Item {
+                            width: 44
+                            height: 28
+
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: 6
+                                color: timeRange === 0 ? colorPrimary : "transparent"
+                                border.width: 1
+                                border.color: timeRange === 0 ? colorPrimary : colorBorder
+
+                                Canvas {
+                                    anchors.centerIn: parent
+                                    width: 32
+                                    height: 14
+
+                                    onPaint: {
+                                        var ctx = getContext("2d")
+                                        ctx.clearRect(0, 0, width, height)
+
+                                        ctx.strokeStyle = timeRange === 0 ? "white" : textSecondary
+                                        ctx.lineWidth = 1.5
+                                        ctx.lineCap = "round"
+                                        ctx.lineJoin = "round"
+
+                                        // 展开/全屏图标 - 四个角
+                                        var s = 3
+                                        var offset = 2
+
+                                        // 左上角
+                                        ctx.beginPath()
+                                        ctx.moveTo(offset, offset + s)
+                                        ctx.lineTo(offset, offset)
+                                        ctx.lineTo(offset + s, offset)
+                                        ctx.stroke()
+
+                                        // 右上角
+                                        ctx.beginPath()
+                                        ctx.moveTo(width - offset - s, offset)
+                                        ctx.lineTo(width - offset, offset)
+                                        ctx.lineTo(width - offset, offset + s)
+                                        ctx.stroke()
+
+                                        // 右下角
+                                        ctx.beginPath()
+                                        ctx.moveTo(width - offset, height - offset - s)
+                                        ctx.lineTo(width - offset, height - offset)
+                                        ctx.lineTo(width - offset - s, height - offset)
+                                        ctx.stroke()
+
+                                        // 左下角
+                                        ctx.beginPath()
+                                        ctx.moveTo(offset + s, height - offset)
+                                        ctx.lineTo(offset, height - offset)
+                                        ctx.lineTo(offset, height - offset - s)
+                                        ctx.stroke()
+
+                                        // 文字 "ALL"
+                                        ctx.font = "9px Inter, sans-serif"
+                                        ctx.fillStyle = timeRange === 0 ? "white" : textSecondary
+                                        ctx.textAlign = "left"
+                                        ctx.fillText("ALL", 14, 10)
+                                    }
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: timeRange = 0
                                 }
                             }
                         }

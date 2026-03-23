@@ -10,6 +10,7 @@ Item {
 
     property int selectedIndex: 0
     property int selectedDeviceIndex: 0
+    property var expandedGroups: [true, true]  // 跟踪每个分组的展开状态
 
     // 颜色定义
     readonly property color colorSuccess: "#4CAF50"
@@ -87,6 +88,21 @@ Item {
         return count
     }
 
+    function getWarningCount() {
+        var count = 0
+        for (var g = 0; g < deviceGroups.length; g++) {
+            var devices = deviceGroups[g].devices
+            for (var d = 0; d < devices.length; d++) {
+                if (devices[d].status === 1) count++
+            }
+        }
+        return count
+    }
+
+    function toggleGroup(index) {
+        expandedGroups[index] = !expandedGroups[index]
+    }
+
     width: 260
     height: 400
 
@@ -159,6 +175,41 @@ Item {
                             }
                         }
                     }
+
+                    // 警告设备徽章（如果存在）
+                    Rectangle {
+                        height: 24
+                        radius: 12
+                        color: getWarningCount() > 0 ? Qt.rgba(255/255, 193/255, 7/255, 0.15) : "transparent"
+                        border.width: getWarningCount() > 0 ? 1 : 0
+                        border.color: Qt.rgba(255/255, 193/255, 7/255, 0.3)
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: getWarningCount() > 0
+
+                        Row {
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.left: parent.left
+                            anchors.leftMargin: 10
+                            spacing: 6
+
+                            Rectangle {
+                                width: 6
+                                height: 6
+                                radius: 3
+                                color: colorWarning
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+
+                            Text {
+                                text: getWarningCount()
+                                color: colorWarning
+                                font.pixelSize: 12
+                                font.family: "Inter, sans-serif"
+                                font.weight: Font.Medium
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                        }
+                    }
                 }
             }
 
@@ -188,7 +239,7 @@ Item {
             anchors.rightMargin: 8
             anchors.topMargin: 8
 
-            // 分组标题
+            // 分组标题（可点击展开/折叠）
             Rectangle {
                 id: groupHeader
                 width: parent.width
@@ -201,12 +252,39 @@ Item {
                     anchors.leftMargin: 12
                     spacing: 8
 
-                    Text {
+                    // 展开/折叠图标（使用Canvas绘制）
+                    Canvas {
+                        id: expandIcon
+                        width: 12
+                        height: 12
                         anchors.verticalCenter: parent.verticalCenter
-                        text: "\u25BC"  // 展开图标
-                        color: textSecondary
-                        font.pixelSize: 10
-                        rotation: 0
+
+                        onPaint: {
+                            var ctx = getContext("2d")
+                            ctx.clearRect(0, 0, width, height)
+                            ctx.strokeStyle = textSecondary
+                            ctx.lineWidth = 2
+                            ctx.lineCap = "round"
+                            ctx.lineJoin = "round"
+
+                            var isExpanded = index < expandedGroups.length ? expandedGroups[index] : true
+
+                            if (isExpanded) {
+                                // 向上箭头
+                                ctx.beginPath()
+                                ctx.moveTo(2, 8)
+                                ctx.lineTo(6, 4)
+                                ctx.lineTo(10, 8)
+                                ctx.stroke()
+                            } else {
+                                // 向下箭头
+                                ctx.beginPath()
+                                ctx.moveTo(2, 4)
+                                ctx.lineTo(6, 8)
+                                ctx.lineTo(10, 4)
+                                ctx.stroke()
+                            }
+                        }
                     }
 
                     Text {
@@ -232,12 +310,24 @@ Item {
                     cursorShape: Qt.PointingHandCursor
                     onEntered: groupHeader.color = colorBgHover
                     onExited: groupHeader.color = "transparent"
+                    onClicked: {
+                        toggleGroup(index)
+                        expandIcon.requestPaint()
+                    }
                 }
             }
 
-            // 设备项列表
+            // 设备项列表（根据展开状态显示/隐藏）
             Column {
                 anchors.leftMargin: 8
+                visible: index < expandedGroups.length ? expandedGroups[index] : true
+
+                Behavior on visible {
+                    NumberAnimation {
+                        duration: 200
+                        easing.type: Easing.Out
+                    }
+                }
 
                 Repeater {
                     model: deviceGroups[index].devices.length
@@ -276,7 +366,7 @@ Item {
                                 color: getStatusColor(deviceData.status)
                                 anchors.verticalCenter: parent.verticalCenter
 
-                                // 在线状态发光效果
+                                // 发光效果
                                 Rectangle {
                                     anchors.centerIn: parent
                                     width: parent.width * 2.5

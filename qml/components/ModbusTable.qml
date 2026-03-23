@@ -25,6 +25,8 @@ Item {
     // 属性
     property int currentPage: 1
     property int pageSize: 5
+    property int sortColumn: -1  // -1 表示未排序
+    property bool sortAscending: true
 
     // 数据模型
     property var tableData: [
@@ -79,48 +81,168 @@ Item {
         Column {
             anchors.fill: parent
 
-            // 表头
+            // 表头（Sticky）
             Rectangle {
+                id: tableHeader
                 anchors.top: parent.top
                 anchors.left: parent.left
                 anchors.right: parent.right
                 height: 44
                 color: colorBgRaised
                 radius: 8
+                z: 10  // 确保在其他内容之上
+
+                // 表头底部阴影
+                Rectangle {
+                    anchors.bottom: parent.bottom
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    height: 1
+                    color: colorBorder
+                }
 
                 Row {
                     anchors.fill: parent
                     anchors.leftMargin: 16
 
-                    // 地址列
-                    Rectangle {
+                    // 地址列（可排序）
+                    Item {
                         width: 80
                         height: parent.height
-                        color: "transparent"
 
-                        Text {
+                        Row {
                             anchors.centerIn: parent
-                            text: "地址"
-                            color: textSecondary
-                            font.pixelSize: 13
-                            font.family: "Inter, sans-serif"
-                            font.weight: Font.SemiBold
+                            spacing: 4
+
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: "地址"
+                                color: sortColumn === 0 ? colorPrimary : textSecondary
+                                font.pixelSize: 13
+                                font.family: "Inter, sans-serif"
+                                font.weight: Font.SemiBold
+                            }
+
+                            // 排序指示器
+                            Rectangle {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 12
+                                height: 12
+                                color: "transparent"
+
+                                Canvas {
+                                    anchors.fill: parent
+                                    visible: sortColumn === 0
+
+                                    onPaint: {
+                                        var ctx = getContext("2d")
+                                        ctx.clearRect(0, 0, width, height)
+                                        ctx.strokeStyle = colorPrimary
+                                        ctx.lineWidth = 1.5
+                                        ctx.lineCap = "round"
+
+                                        if (sortAscending) {
+                                            // 向上箭头
+                                            ctx.beginPath()
+                                            ctx.moveTo(6, 9)
+                                            ctx.lineTo(10, 4)
+                                            ctx.lineTo(2, 4)
+                                            ctx.closePath()
+                                            ctx.stroke()
+                                        } else {
+                                            // 向下箭头
+                                            ctx.beginPath()
+                                            ctx.moveTo(6, 3)
+                                            ctx.lineTo(10, 8)
+                                            ctx.lineTo(2, 8)
+                                            ctx.closePath()
+                                            ctx.stroke()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                if (sortColumn === 0) {
+                                    sortAscending = !sortAscending
+                                } else {
+                                    sortColumn = 0
+                                    sortAscending = true
+                                }
+                            }
                         }
                     }
 
-                    // 功能码列
-                    Rectangle {
+                    // 功能码列（可排序）
+                    Item {
                         width: 70
                         height: parent.height
-                        color: "transparent"
 
-                        Text {
+                        Row {
                             anchors.centerIn: parent
-                            text: "功能码"
-                            color: textSecondary
-                            font.pixelSize: 13
-                            font.family: "Inter, sans-serif"
-                            font.weight: Font.SemiBold
+                            spacing: 4
+
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: "功能码"
+                                color: sortColumn === 1 ? colorPrimary : textSecondary
+                                font.pixelSize: 13
+                                font.family: "Inter, sans-serif"
+                                font.weight: Font.SemiBold
+                            }
+
+                            Rectangle {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 12
+                                height: 12
+                                color: "transparent"
+
+                                Canvas {
+                                    anchors.fill: parent
+                                    visible: sortColumn === 1
+
+                                    onPaint: {
+                                        var ctx = getContext("2d")
+                                        ctx.clearRect(0, 0, width, height)
+                                        ctx.strokeStyle = colorPrimary
+                                        ctx.lineWidth = 1.5
+                                        ctx.lineCap = "round"
+
+                                        if (sortAscending) {
+                                            ctx.beginPath()
+                                            ctx.moveTo(6, 9)
+                                            ctx.lineTo(10, 4)
+                                            ctx.lineTo(2, 4)
+                                            ctx.closePath()
+                                            ctx.stroke()
+                                        } else {
+                                            ctx.beginPath()
+                                            ctx.moveTo(6, 3)
+                                            ctx.lineTo(10, 8)
+                                            ctx.lineTo(2, 8)
+                                            ctx.closePath()
+                                            ctx.stroke()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                if (sortColumn === 1) {
+                                    sortAscending = !sortAscending
+                                } else {
+                                    sortColumn = 1
+                                    sortAscending = true
+                                }
+                            }
                         }
                     }
 
@@ -140,19 +262,72 @@ Item {
                         }
                     }
 
-                    // 数值列
-                    Rectangle {
+                    // 数值列（可排序）
+                    Item {
                         width: 100
                         height: parent.height
-                        color: "transparent"
 
-                        Text {
+                        Row {
                             anchors.centerIn: parent
-                            text: "数值"
-                            color: textSecondary
-                            font.pixelSize: 13
-                            font.family: "Inter, sans-serif"
-                            font.weight: Font.SemiBold
+                            spacing: 4
+
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: "数值"
+                                color: sortColumn === 3 ? colorPrimary : textSecondary
+                                font.pixelSize: 13
+                                font.family: "Inter, sans-serif"
+                                font.weight: Font.SemiBold
+                            }
+
+                            Rectangle {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 12
+                                height: 12
+                                color: "transparent"
+
+                                Canvas {
+                                    anchors.fill: parent
+                                    visible: sortColumn === 3
+
+                                    onPaint: {
+                                        var ctx = getContext("2d")
+                                        ctx.clearRect(0, 0, width, height)
+                                        ctx.strokeStyle = colorPrimary
+                                        ctx.lineWidth = 1.5
+                                        ctx.lineCap = "round"
+
+                                        if (sortAscending) {
+                                            ctx.beginPath()
+                                            ctx.moveTo(6, 9)
+                                            ctx.lineTo(10, 4)
+                                            ctx.lineTo(2, 4)
+                                            ctx.closePath()
+                                            ctx.stroke()
+                                        } else {
+                                            ctx.beginPath()
+                                            ctx.moveTo(6, 3)
+                                            ctx.lineTo(10, 8)
+                                            ctx.lineTo(2, 8)
+                                            ctx.closePath()
+                                            ctx.stroke()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                if (sortColumn === 3) {
+                                    sortAscending = !sortAscending
+                                } else {
+                                    sortColumn = 3
+                                    sortAscending = true
+                                }
+                            }
                         }
                     }
 
@@ -233,11 +408,24 @@ Item {
                             border.width: 1
                             border.color: colorBorder
 
-                            Text {
+                            Canvas {
                                 anchors.centerIn: parent
-                                text: "\u276E"
-                                color: currentPage > 1 ? textPrimary : textSecondary
-                                font.pixelSize: 14
+                                width: 14
+                                height: 14
+
+                                onPaint: {
+                                    var ctx = getContext("2d")
+                                    ctx.clearRect(0, 0, width, height)
+                                    ctx.strokeStyle = currentPage > 1 ? textPrimary : textSecondary
+                                    ctx.lineWidth = 2
+                                    ctx.lineCap = "round"
+                                    ctx.lineJoin = "round"
+                                    ctx.beginPath()
+                                    ctx.moveTo(9, 3)
+                                    ctx.lineTo(4, 7)
+                                    ctx.lineTo(9, 11)
+                                    ctx.stroke()
+                                }
                             }
 
                             MouseArea {
@@ -267,11 +455,24 @@ Item {
                             border.width: 1
                             border.color: colorBorder
 
-                            Text {
+                            Canvas {
                                 anchors.centerIn: parent
-                                text: "\u276F"
-                                color: currentPage < totalPages ? textPrimary : textSecondary
-                                font.pixelSize: 14
+                                width: 14
+                                height: 14
+
+                                onPaint: {
+                                    var ctx = getContext("2d")
+                                    ctx.clearRect(0, 0, width, height)
+                                    ctx.strokeStyle = currentPage < totalPages ? textPrimary : textSecondary
+                                    ctx.lineWidth = 2
+                                    ctx.lineCap = "round"
+                                    ctx.lineJoin = "round"
+                                    ctx.beginPath()
+                                    ctx.moveTo(5, 3)
+                                    ctx.lineTo(10, 7)
+                                    ctx.lineTo(5, 11)
+                                    ctx.stroke()
+                                }
                             }
 
                             MouseArea {
@@ -409,6 +610,26 @@ Item {
                             radius: 3
                             color: getStatusColor(modelData.status)
                             anchors.verticalCenter: parent.verticalCenter
+
+                            // 脉冲动画
+                            Rectangle {
+                                anchors.centerIn: parent
+                                width: parent.width * 2
+                                height: parent.height * 2
+                                radius: width / 2
+                                color: "transparent"
+                                border.width: 1
+                                border.color: getStatusColor(modelData.status)
+                                opacity: modelData.status === 0 ? 0.4 : 0
+                                visible: modelData.status === 0
+
+                                NumberAnimation on opacity {
+                                    loops: -1
+                                    from: 0.4
+                                    to: 0.1
+                                    duration: 1500
+                                }
+                            }
                         }
 
                         Text {

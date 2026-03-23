@@ -1,3 +1,6 @@
+// 工业设备管理系统 - 数据卡片组件
+// Data Card Component - 基于UI设计方案.md
+
 import QtQuick 2.15
 
 Rectangle {
@@ -6,9 +9,9 @@ Rectangle {
     property string label: "温度"
     property real value: 25.5
     property string unit: "°C"
-    property string trend: "up"
+    property string trend: "up"  // up, down, stable
     property real trendValue: 2.3
-    property int status: 0
+    property int status: 0  // 0: online, 1: warning, 2: offline
     property int decimals: 1
 
     width: 200
@@ -18,6 +21,209 @@ Rectangle {
     border.color: "#30363D"
     border.width: 1
     clip: true
+
+    // 悬停状态
+    property bool isHovered: false
+
+    // 动画状态
+    property real hoverOffset: 0
+
+    // 阴影效果
+    Rectangle {
+        id: shadowRect
+        anchors.centerIn: hoverContainer
+        anchors.horizontalCenterOffset: 0
+        anchors.verticalCenterOffset: 8
+        width: root.width
+        height: root.height
+        radius: root.radius
+        color: Qt.rgba(33/255, 150/255, 243/255, 0.16)
+        visible: root.isHovered
+        z: -1
+    }
+
+    // 悬停容器（用于translateY动画）
+    Item {
+        id: hoverContainer
+        anchors.fill: parent
+        transform: Translate {
+            y: root.hoverOffset
+        }
+        Behavior on y {
+            NumberAnimation {
+                duration: 250
+                easing.type: Easing.Out
+            }
+        }
+
+        // 渐变顶部条
+        Rectangle {
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: 3
+            gradient: Gradient {
+                GradientStop { position: 0.0; color: "#2196F3" }
+                GradientStop { position: 1.0; color: "#00BCD4" }
+            }
+        }
+
+        // 状态指示灯
+        Rectangle {
+            id: statusDot
+            anchors.top: parent.top
+            anchors.right: parent.right
+            anchors.topMargin: 16
+            anchors.rightMargin: 16
+            width: 10
+            height: 10
+            radius: 5
+            color: getStatusColor()
+
+            // 发光效果
+            Rectangle {
+                anchors.centerIn: parent
+                width: parent.width * 2.5
+                height: parent.height * 2.5
+                radius: width / 2
+                color: "transparent"
+                border.width: 1
+                border.color: getStatusColor()
+                opacity: status === 0 ? 0.4 : (status === 1 ? 0.3 : 0)
+            }
+
+            NumberAnimation on opacity {
+                running: status !== 2
+                loops: -1
+                from: 1
+                to: 0.5
+                duration: 2000
+            }
+        }
+
+        // 标签文本
+        Text {
+            id: labelText
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.topMargin: 24
+            anchors.leftMargin: 20
+            text: label.toUpperCase()
+            color: "#8B949E"
+            font.pixelSize: 13
+            font.family: "Inter, sans-serif"
+            font.weight: Font.Medium
+            Behavior on color {
+                ColorAnimation { duration: 250 }
+            }
+        }
+
+        // 数值行
+        Row {
+            id: valueRow
+            anchors.top: labelText.bottom
+            anchors.left: parent.left
+            anchors.topMargin: 8
+            anchors.leftMargin: 20
+            spacing: 4
+
+            Text {
+                id: valueText
+                text: value.toFixed(decimals)
+                color: "#E6EDF3"
+                font.pixelSize: 24
+                font.family: "JetBrains Mono, Consolas, monospace"
+                font.weight: Font.Bold
+                Behavior on color {
+                    ColorAnimation { duration: 250 }
+                }
+            }
+
+            Text {
+                id: unitText
+                anchors.verticalCenter: parent.verticalCenter
+                text: unit
+                color: "#8B949E"
+                font.pixelSize: 14
+                font.family: "Inter, sans-serif"
+            }
+        }
+
+        // 趋势指示器
+        Row {
+            id: trendRow
+            anchors.bottom: parent.bottom
+            anchors.left: parent.left
+            anchors.bottomMargin: 20
+            anchors.leftMargin: 20
+            spacing: 4
+
+            // 趋势图标（使用Canvas绘制SVG风格箭头）
+            Canvas {
+                id: trendIconCanvas
+                width: 14
+                height: 14
+                anchors.verticalCenter: parent.verticalCenter
+
+                onPaint: {
+                    var ctx = getContext("2d")
+                    ctx.clearRect(0, 0, width, height)
+                    ctx.strokeStyle = getTrendColor()
+                    ctx.lineWidth = 2
+                    ctx.lineCap = "round"
+                    ctx.lineJoin = "round"
+
+                    if (trend === "up") {
+                        ctx.beginPath()
+                        ctx.moveTo(3, 10)
+                        ctx.lineTo(7, 4)
+                        ctx.lineTo(11, 10)
+                        ctx.stroke()
+                    } else if (trend === "down") {
+                        ctx.beginPath()
+                        ctx.moveTo(3, 4)
+                        ctx.lineTo(7, 10)
+                        ctx.lineTo(11, 4)
+                        ctx.stroke()
+                    } else {
+                        ctx.beginPath()
+                        ctx.moveTo(3, 7)
+                        ctx.lineTo(11, 7)
+                        ctx.stroke()
+                    }
+                }
+            }
+
+            Text {
+                id: trendValueText
+                text: trend !== "stable" ? (trend === "up" ? "+" : "-") + trendValue.toFixed(1) + "%" : "稳定"
+                color: getTrendColor()
+                font.pixelSize: 13
+                font.family: "Inter, sans-serif"
+            }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+
+            onEntered: {
+                root.isHovered = true
+                root.hoverOffset = -4
+                root.border.color = "#2196F3"
+                labelText.color = "#BBC4CF"
+                valueText.color = "#FFFFFF"
+            }
+
+            onExited: {
+                root.isHovered = false
+                root.hoverOffset = 0
+                root.border.color = "#30363D"
+                labelText.color = "#8B949E"
+                valueText.color = "#E6EDF3"
+            }
+        }
+    }
 
     function getStatusColor() {
         switch (status) {
@@ -32,114 +238,5 @@ Rectangle {
         if (trend === "up") return "#4CAF50"
         if (trend === "down") return "#F44336"
         return "#8B949E"
-    }
-
-    Rectangle {
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.right: parent.right
-        height: 3
-        gradient: Gradient {
-            GradientStop { position: 0.0; color: "#2196F3" }
-            GradientStop { position: 1.0; color: "#00BCD4" }
-        }
-    }
-
-    Rectangle {
-        id: statusDot
-        anchors.top: parent.top
-        anchors.right: parent.right
-        anchors.topMargin: 16
-        anchors.rightMargin: 16
-        width: 10
-        height: 10
-        radius: 5
-        color: getStatusColor()
-
-        NumberAnimation on opacity {
-            running: status !== 2
-            loops: -1
-            from: 1
-            to: 0.5
-            duration: 2000
-        }
-    }
-
-    Text {
-        id: labelText
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: 24
-        anchors.leftMargin: 20
-        text: label.toUpperCase()
-        color: "#8B949E"
-        font.pixelSize: 13
-        font.family: "Inter, sans-serif"
-        font.weight: Font.Medium
-    }
-
-    Row {
-        id: valueRow
-        anchors.top: labelText.bottom
-        anchors.left: parent.left
-        anchors.topMargin: 8
-        anchors.leftMargin: 20
-        spacing: 4
-
-        Text {
-            id: valueText
-            text: value.toFixed(decimals)
-            color: "#E6EDF3"
-            font.pixelSize: 24
-            font.family: "JetBrains Mono, Consolas, monospace"
-            font.weight: Font.Bold
-        }
-
-        Text {
-            id: unitText
-            anchors.verticalCenter: parent.verticalCenter
-            text: unit
-            color: "#8B949E"
-            font.pixelSize: 14
-            font.family: "Inter, sans-serif"
-        }
-    }
-
-    Row {
-        id: trendRow
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: 20
-        anchors.leftMargin: 20
-        spacing: 4
-
-        Text {
-            id: trendIcon
-            text: trend === "up" ? "▲" : (trend === "down" ? "▼" : "–")
-            color: getTrendColor()
-            font.pixelSize: 12
-            font.family: "Inter, sans-serif"
-        }
-
-        Text {
-            id: trendValueText
-            text: trend !== "stable" ? trendValue.toFixed(1) + "%" : "稳定"
-            color: getTrendColor()
-            font.pixelSize: 13
-            font.family: "Inter, sans-serif"
-        }
-    }
-
-    MouseArea {
-        anchors.fill: parent
-        hoverEnabled: true
-
-        onEntered: {
-            root.border.color = "#2196F3"
-        }
-
-        onExited: {
-            root.border.color = "#30363D"
-        }
     }
 }
