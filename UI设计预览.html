@@ -115,31 +115,40 @@
     
     /* 深色主题 */
     [data-theme="dark"] {
-      --bg-primary: #0F1419;
-      --bg-secondary: #161B22;
-      --bg-tertiary: #1C2128;
-      --bg-hover: #21262D;
-      --bg-active: #30363D;
-      --text-primary: #E6EDF3;
-      --text-secondary: #8B949E;
-      --text-tertiary: #6E7681;
-      --border-default: #30363D;
-      --border-muted: #21262D;
-      --border-accent: #388BFD;
+      --bg-base: #0F1419;           /* 最深层 */
+      --bg-raised: #161B22;         /* 卡片/面板 */
+      --bg-overlay: #1C2128;        /* 弹窗/下拉 */
+      --bg-hover: #21262D;          /* 悬停态 */
+      --bg-primary: #161B22;        /* 主背景 */
+      --bg-secondary: #0F1419;      /* 次背景 */
+      --bg-tertiary: #1C2128;       /* 第三背景 */
+      
+      --text-primary: #E6EDF3;      /* 主要文本 */
+      --text-secondary: #8B949E;    /* 次要文本 */
+      --text-tertiary: #6E7681;     /* 禁用/提示 */
+      
+      --border-default: #30363D;    /* 默认边框 */
+      --border-muted: #21262D;      /* 弱边框 */
+      --border-accent: #388BFD;     /* 强调边框 */
     }
     
+    /* 浅色主题 */
     [data-theme="light"] {
-      --bg-primary: #FFFFFF;
-      --bg-secondary: #F6F8FA;
-      --bg-tertiary: #FFFFFF;
-      --bg-hover: #F3F4F6;
-      --bg-active: #E5E7EB;
-      --text-primary: #1F2937;
-      --text-secondary: #6B7280;
-      --text-tertiary: #9CA3AF;
-      --border-default: #D1D5DB;
-      --border-muted: #E5E7EB;
-      --border-accent: #2563EB;
+      --bg-base: #FFFFFF;           /* 最深层 */
+      --bg-raised: #F6F8FA;         /* 卡片/面板 */
+      --bg-overlay: #F3F4F6;        /* 弹窗/下拉 */
+      --bg-hover: #F0F2F5;          /* 悬停态 */
+      --bg-primary: #FFFFFF;        /* 主背景 */
+      --bg-secondary: #F9FAFB;      /* 次背景 */
+      --bg-tertiary: #F3F4F6;       /* 第三背景 */
+      
+      --text-primary: #1F2937;      /* 主要文本 */
+      --text-secondary: #6B7280;    /* 次要文本 */
+      --text-tertiary: #9CA3AF;     /* 禁用/提示 */
+      
+      --border-default: #D1D5DB;    /* 默认边框 */
+      --border-muted: #E5E7EB;      /* 弱边框 */
+      --border-accent: #2563EB;     /* 强调边框 */
     }
     
     /* ==================== 基础样式 ==================== */
@@ -166,7 +175,7 @@
     }
     
     .header {
-      background: var(--bg-primary);
+      background: var(--bg-raised);
       border-bottom: 1px solid var(--border-default);
       padding: var(--space-4) var(--space-6);
       display: flex;
@@ -214,7 +223,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      background: var(--bg-secondary);
+      background: var(--bg-overlay);
       border: 1px solid var(--border-default);
       cursor: pointer;
       transition: all var(--duration-fast) var(--ease-out);
@@ -262,7 +271,7 @@
       border-radius: var(--radius-lg);
       overflow: hidden;
       border: 1px solid var(--border-default);
-      background: var(--bg-primary);
+      background: var(--bg-raised);
     }
     
     .color-swatch {
@@ -321,9 +330,9 @@
     }
     
     .btn-secondary {
-      background: var(--bg-secondary);
+      background: var(--bg-raised);
       color: var(--text-primary);
-      border-color: var(--border-default);
+      border: 1px solid var(--border-default);
     }
     
     .btn-secondary:hover {
@@ -376,7 +385,7 @@
       padding: var(--space-2) var(--space-3);
       font-family: var(--font-sans);
       font-size: var(--text-body);
-      background: var(--bg-primary);
+      background: var(--bg-raised);
       border: 1px solid var(--border-default);
       border-radius: var(--radius-md);
       color: var(--text-primary);
@@ -513,10 +522,16 @@
     
     /* ==================== 卡片 ==================== */
     .card {
-      background: var(--bg-primary);
+      background: var(--bg-raised);
       border: 1px solid var(--border-default);
       border-radius: var(--radius-lg);
       overflow: hidden;
+      transition: var(--transition-colors);
+    }
+    
+    .card:hover {
+      border-color: var(--border-muted);
+      box-shadow: var(--shadow-md);
     }
     
     .card-header {
@@ -539,7 +554,7 @@
     
     /* 数据卡片 */
     .data-card {
-      background: linear-gradient(135deg, var(--bg-primary), var(--bg-tertiary));
+      background: linear-gradient(135deg, var(--bg-raised), var(--bg-overlay));
       border: 1px solid var(--border-default);
       border-radius: var(--radius-xl);
       padding: var(--space-5);
@@ -593,6 +608,10 @@
     @keyframes pulse {
       0%, 100% { opacity: 1; }
       50% { opacity: 0.5; }
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
     }
     
     .data-card-label {
@@ -684,12 +703,22 @@
       border-radius: 50%;
       background: currentColor;
     }
+
+    .badge-dot.pulse {
+      animation: badge-pulse 1.5s infinite;
+    }
+
+    @keyframes badge-pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.2); opacity: 0.7; }
+    }
     
     /* ==================== 表格 ==================== */
     .table-wrapper {
       overflow-x: auto;
       border: 1px solid var(--border-default);
       border-radius: var(--radius-lg);
+      background: var(--bg-raised);
     }
     
     .data-table {
@@ -706,8 +735,11 @@
       color: var(--text-secondary);
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      background: var(--bg-secondary);
+      background: var(--bg-base);
       border-bottom: 1px solid var(--border-default);
+      position: sticky;
+      top: 0;
+      z-index: 1;
     }
     
     .data-table td {
@@ -753,10 +785,16 @@
       flex-direction: column;
       align-items: center;
       padding: var(--space-4);
-      background: var(--bg-primary);
+      background: var(--bg-raised);
       border: 1px solid var(--border-default);
       border-radius: var(--radius-xl);
       position: relative;
+      transition: var(--transition-colors);
+    }
+    
+    .gauge:hover {
+      border-color: var(--border-muted);
+      box-shadow: var(--shadow-md);
     }
     
     .gauge-ring {
@@ -864,6 +902,8 @@
       font-weight: 600;
       padding: 2px 8px;
       border-radius: var(--radius-full);
+      min-width: 20px;
+      text-align: center;
     }
     
     /* 设备树 */
@@ -881,6 +921,7 @@
       font-weight: 500;
       cursor: pointer;
       border-radius: var(--radius-md);
+      transition: all var(--duration-fast) var(--ease-out);
     }
     
     .device-group-header:hover {
@@ -932,7 +973,7 @@
       align-items: flex-start;
       gap: var(--space-3);
       padding: var(--space-3) var(--space-4);
-      background: var(--bg-tertiary);
+      background: var(--bg-overlay);
       border: 1px solid var(--border-default);
       border-radius: var(--radius-lg);
       box-shadow: var(--shadow-lg);
@@ -980,7 +1021,7 @@
     
     /* ==================== 趋势图 ==================== */
     .trend-chart {
-      background: var(--bg-primary);
+      background: var(--bg-raised);
       border: 1px solid var(--border-default);
       border-radius: var(--radius-lg);
       overflow: hidden;
@@ -1075,7 +1116,7 @@
     
     /* ==================== 预览区域 ==================== */
     .preview-area {
-      background: var(--bg-primary);
+      background: var(--bg-raised);
       border: 1px solid var(--border-default);
       border-radius: var(--radius-lg);
       padding: var(--space-6);
@@ -1089,9 +1130,10 @@
     }
     
     .preview-sidebar {
-      background: var(--bg-secondary);
+      background: var(--bg-base);
       border-radius: var(--radius-lg);
       overflow: hidden;
+      border: 1px solid var(--border-default);
     }
     
     .preview-main {
@@ -1119,8 +1161,9 @@
       align-items: center;
       gap: var(--space-4);
       padding: var(--space-2) var(--space-4);
-      background: var(--bg-secondary);
-      border-top: 1px solid var(--border-default);
+      background: var(--bg-overlay);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-lg);
       font-size: var(--text-caption);
       color: var(--text-secondary);
     }
@@ -1181,8 +1224,12 @@
   <svg width="0" height="0" style="position: absolute;">
     <defs>
       <linearGradient id="gauge-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-        <stop offset="0%" stop-color="var(--color-primary-500)" />
-        <stop offset="100%" stop-color="var(--color-accent-500)" />
+        <stop offset="0%" stop-color="#2196F3" />
+        <stop offset="100%" stop-color="#00BCD4" />
+      </linearGradient>
+      <linearGradient id="primary-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#2196F3" />
+        <stop offset="100%" stop-color="#1E88E5" />
       </linearGradient>
     </defs>
   </svg>
