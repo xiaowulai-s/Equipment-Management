@@ -25,7 +25,7 @@ Item {
     Rectangle {
         id: badgeRect
         anchors.fill: parent
-        radius: themeManager.radiusSm
+        radius: 4
         color: getBadgeColors().bgAlpha
         border.width: 1
         border.color: getBadgeColors().border
@@ -34,7 +34,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             anchors.left: parent.left
             anchors.leftMargin: showDot ? 8 : 10
-            spacing: themeManager.space1
+            spacing: 4
 
             Rectangle {
                 id: dotRect
@@ -59,7 +59,7 @@ Item {
                 text: root.text
                 color: getBadgeColors().text
                 font.pixelSize: 13
-                font.family: themeManager.fontSans
+                font.family: "Inter, sans-serif"
                 font.weight: Font.Medium
                 textTransform: Text.Uppercase
                 letterSpacing: 0.8
