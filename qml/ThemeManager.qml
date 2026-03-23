@@ -1,6 +1,3 @@
-// 工业设备管理系统 - 主题管理器
-// Theme Manager - Supports Dark/Light Theme Switching
-
 import QtQuick 2.15
 
 QtObject {
@@ -8,46 +5,7 @@ QtObject {
 
     property bool isDarkTheme: true
 
-    // ==================== 深色主题颜色 ====================
-    readonly property color darkBgBase:       "#0F1419"
-    readonly property color darkBgRaised:     "#161B22"
-    readonly property color darkBgOverlay:     "#1C2128"
-    readonly property color darkBgHover:       "#21262D"
-    readonly property color darkBgActive:      "#30363D"
-    readonly property color darkTextPrimary:   "#E6EDF3"
-    readonly property color darkTextSecondary: "#8B949E"
-    readonly property color darkTextTertiary: "#6E7681"
-    readonly property color darkBorderDefault: "#30363D"
-    readonly property color darkBorderMuted:   "#21262D"
-    readonly property color darkBorderAccent:  "#388BFD"
-
-    // ==================== 浅色主题颜色 ====================
-    readonly property color lightBgBase:       "#FFFFFF"
-    readonly property color lightBgRaised:     "#F6F8FA"
-    readonly property color lightBgOverlay:     "#FFFFFF"
-    readonly property color lightBgHover:       "#F3F4F6"
-    readonly property color lightBgActive:      "#E5E7EB"
-    readonly property color lightTextPrimary:   "#1F2937"
-    readonly property color lightTextSecondary: "#6B7280"
-    readonly property color lightTextTertiary: "#9CA3AF"
-    readonly property color lightBorderDefault: "#D1D5DB"
-    readonly property color lightBorderMuted:   "#E5E7EB"
-    readonly property color lightBorderAccent: "#2563EB"
-
-    // ==================== 当前主题颜色 ====================
-    property color bgBase:       isDarkTheme ? darkBgBase : lightBgBase
-    property color bgRaised:     isDarkTheme ? darkBgRaised : lightBgRaised
-    property color bgOverlay:     isDarkTheme ? darkBgOverlay : lightBgOverlay
-    property color bgHover:       isDarkTheme ? darkBgHover : lightBgHover
-    property color bgActive:      isDarkTheme ? darkBgActive : lightBgActive
-    property color textPrimary:   isDarkTheme ? darkTextPrimary : lightTextPrimary
-    property color textSecondary: isDarkTheme ? darkTextSecondary : lightTextSecondary
-    property color textTertiary:  isDarkTheme ? darkTextTertiary : lightTextTertiary
-    property color borderDefault:  isDarkTheme ? darkBorderDefault : lightBorderDefault
-    property color borderMuted:    isDarkTheme ? darkBorderMuted : lightBorderMuted
-    property color borderAccent:   isDarkTheme ? darkBorderAccent : lightBorderAccent
-
-    // ==================== 主色调 (两者相同) ====================
+    // ==================== 主色调 (Primary Colors) ====================
     readonly property color primary50:  "#E3F2FD"
     readonly property color primary100: "#BBDEFB"
     readonly property color primary200: "#90CAF9"
@@ -59,30 +17,85 @@ QtObject {
     readonly property color primary800: "#1565C0"
     readonly property color primary900: "#0D47A1"
 
-    // ==================== 辅助色 ====================
     readonly property color accent400: "#26C6DA"
     readonly property color accent500: "#00BCD4"
     readonly property color accent600: "#00ACC1"
 
-    // ==================== 功能色 ====================
+    // ==================== 功能色 (Semantic Colors) ====================
     readonly property color success50:  "#E8F5E9"
+    readonly property color success100: "#C8E6C9"
     readonly property color success400: "#66BB6A"
     readonly property color success500: "#4CAF50"
     readonly property color success600: "#43A047"
 
     readonly property color warning50:  "#FFF8E1"
+    readonly property color warning100: "#FFECB3"
     readonly property color warning400: "#FFCA28"
     readonly property color warning500: "#FFC107"
     readonly property color warning600: "#FFB300"
 
     readonly property color error50:    "#FFEBEE"
+    readonly property color error100:   "#FFCDD2"
     readonly property color error400:   "#EF5350"
     readonly property color error500:   "#F44336"
     readonly property color error600:   "#E53935"
 
-    readonly property color info50:     "#E3F2FD"
-    readonly property color info400:    "#42A5F5"
     readonly property color info500:    "#2196F3"
+
+    // ==================== 灰度系统 (Neutral Colors) ====================
+    readonly property color gray25:   "#FCFCFD"
+    readonly property color gray50:   "#F9FAFB"
+    readonly property color gray100:  "#F3F4F6"
+    readonly property color gray200:  "#E5E7EB"
+    readonly property color gray300:  "#D1D5DB"
+    readonly property color gray400:  "#9CA3AF"
+    readonly property color gray500:  "#6B7280"
+    readonly property color gray600:  "#4B5563"
+    readonly property color gray700:  "#374151"
+    readonly property color gray800:  "#1F2937"
+    readonly property color gray900:  "#111827"
+
+    // ==================== 深色主题背景 ====================
+    readonly property color darkBgBase:       "#0F1419"
+    readonly property color darkBgRaised:     "#161B22"
+    readonly property color darkBgOverlay:     "#1C2128"
+    readonly property color darkBgHover:       "#21262D"
+    readonly property color darkBgActive:      "#30363D"
+    readonly property color darkTextPrimary:   "#E6EDF3"
+    readonly property color darkTextSecondary: "#8B949E"
+    readonly property color darkTextTertiary:  "#6E7681"
+    readonly property color darkTextInverse:   "#0D1117"
+    readonly property color darkBorderDefault: "#30363D"
+    readonly property color darkBorderMuted:   "#21262D"
+    readonly property color darkBorderAccent:  "#388BFD"
+
+    // ==================== 浅色主题背景 ====================
+    readonly property color lightBgBase:       "#FFFFFF"
+    readonly property color lightBgRaised:     "#F6F8FA"
+    readonly property color lightBgOverlay:     "#FFFFFF"
+    readonly property color lightBgHover:       "#F3F4F6"
+    readonly property color lightBgActive:      "#E5E7EB"
+    readonly property color lightTextPrimary:   "#1F2937"
+    readonly property color lightTextSecondary: "#6B7280"
+    readonly property color lightTextTertiary:  "#9CA3AF"
+    readonly property color lightTextInverse:   "#FFFFFF"
+    readonly property color lightBorderDefault: "#D1D5DB"
+    readonly property color lightBorderMuted:   "#E5E7EB"
+    readonly property color lightBorderAccent:  "#2563EB"
+
+    // ==================== 当前主题颜色 ====================
+    property color bgBase:       isDarkTheme ? darkBgBase : lightBgBase
+    property color bgRaised:     isDarkTheme ? darkBgRaised : lightBgRaised
+    property color bgOverlay:     isDarkTheme ? darkBgOverlay : lightBgOverlay
+    property color bgHover:       isDarkTheme ? darkBgHover : lightBgHover
+    property color bgActive:      isDarkTheme ? darkBgActive : lightBgActive
+    property color textPrimary:   isDarkTheme ? darkTextPrimary : lightTextPrimary
+    property color textSecondary: isDarkTheme ? darkTextSecondary : lightTextSecondary
+    property color textTertiary:  isDarkTheme ? darkTextTertiary : lightTextTertiary
+    property color textInverse:   isDarkTheme ? darkTextInverse : lightTextInverse
+    property color borderDefault:  isDarkTheme ? darkBorderDefault : lightBorderDefault
+    property color borderMuted:    isDarkTheme ? darkBorderMuted : lightBorderMuted
+    property color borderAccent:   isDarkTheme ? darkBorderAccent : lightBorderAccent
 
     // ==================== 状态指示灯 ====================
     readonly property color statusOnline:  "#3FB950"

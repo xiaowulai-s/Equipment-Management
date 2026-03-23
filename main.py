@@ -83,55 +83,6 @@ def main():
         # 注册QML路径
         engine.addImportPath(str(QML_DIR))
 
-        # 创建Theme单例对象并注入到QML
-        class Theme(QObject):
-            # 主色调
-            primary500 = "#2196F3"
-            primary400 = "#42A5F5"
-            primary600 = "#1E88E5"
-            accent500 = "#00BCD4"
-            # 功能色
-            success500 = "#4CAF50"
-            warning500 = "#FFC107"
-            error500 = "#F44336"
-            # 深色主题
-            bgBase = "#0F1419"
-            bgRaised = "#161B22"
-            bgOverlay = "#1C2128"
-            bgHover = "#21262D"
-            bgActive = "#30363D"
-            # 文本色
-            textPrimary = "#E6EDF3"
-            textSecondary = "#8B949E"
-            textTertiary = "#6E7681"
-            # 边框色
-            borderDefault = "#30363D"
-            # 字体
-            fontSans = "Inter, -apple-system, sans-serif"
-            fontMono = "JetBrains Mono, monospace"
-            # 字号
-            fontH4 = 18
-            fontH3 = 20
-            fontBody = 15
-            fontBodySm = 14
-            fontCaption = 13
-            fontDataLg = 32
-            fontData = 24
-            # 间距
-            space1 = 4
-            space2 = 8
-            space3 = 12
-            space4 = 16
-            space5 = 20
-            space6 = 24
-            space8 = 32
-            # 圆角
-            radiusMd = 6
-            radiusLg = 8
-
-        theme = Theme()
-        engine.rootContext().setContextProperty("Theme", theme)
-
         # 加载主界面
         main_qml_url = QUrl.fromLocalFile(str(main_qml.absolute()))
         engine.load(main_qml_url)

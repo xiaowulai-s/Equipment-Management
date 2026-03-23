@@ -1,5 +1,5 @@
 // 工业设备管理系统 - 仪表盘组件
-// Gauge Component
+// Gauge Component - 基于UI设计方案.md
 
 import QtQuick 2.15
 import QtQuick.Controls 2.15
@@ -9,26 +9,26 @@ Item {
 
     // 属性定义
     property string title: "仪表"
-    property real value: 0.0        // 当前值 0-100
+    property real value: 0.0
     property real minValue: 0.0
     property real maxValue: 100.0
     property string unit: "%"
-    property int status: 0          // 0: normal, 1: warning, 2: danger
+    property int status: 0  // 0: normal, 1: warning, 2: danger
     property int decimals: 0
 
     // 计算百分比
     property real percentage: (value - minValue) / (maxValue - minValue) * 100
 
-    // 颜色常量
+    // 颜色定义
     readonly property color colorSuccess: "#4CAF50"
     readonly property color colorWarning: "#FFC107"
     readonly property color colorError: "#F44336"
     readonly property color colorPrimary: "#2196F3"
     readonly property color colorBgRaised: "#161B22"
     readonly property color colorBorder: "#30363D"
-    readonly property color colorTextPrimary: "#E6EDF3"
-    readonly property color colorTextSecondary: "#8B949E"
-    readonly property color colorTextTertiary: "#6E7681"
+    readonly property color textPrimary: "#E6EDF3"
+    readonly property color textSecondary: "#8B949E"
+    readonly property color textTertiary: "#6E7681"
 
     // 状态颜色
     function getStatusColor(status, value, max) {
@@ -56,8 +56,8 @@ Item {
         // 外发光效果
         Rectangle {
             anchors.centerIn: parent
-            width: parent.width + 10
-            height: parent.height + 10
+            width: parent.width + 16
+            height: parent.height + 16
             radius: width / 2
             color: "transparent"
             border.width: 3
@@ -75,7 +75,7 @@ Item {
                 var ctx = getContext("2d")
                 var centerX = width / 2
                 var centerY = height / 2
-                var radius = (width / 2) - 8
+                var radius = (width / 2) - 10
                 var startAngle = Math.PI * 0.75
                 var endAngle = Math.PI * 2.25
                 var currentAngle = startAngle + (endAngle - startAngle) * (percentage / 100)
@@ -84,33 +84,51 @@ Item {
                 ctx.clearRect(0, 0, width, height)
                 ctx.beginPath()
                 ctx.arc(centerX, centerY, radius, startAngle, endAngle)
-                ctx.lineWidth = 10
+                ctx.lineWidth = 12
                 ctx.strokeStyle = colorBorder
                 ctx.lineCap = "round"
                 ctx.stroke()
 
-                // 进度弧线
+                // 进度弧线 (带渐变)
                 if (percentage > 0) {
+                    // 创建渐变
+                    var gradient = ctx.createLinearGradient(0, 0, width, 0)
+                    var statusColor = getStatusColor(status, value, maxValue)
+                    gradient.addColorStop(0, colorPrimary)
+                    gradient.addColorStop(1, statusColor)
+
                     ctx.beginPath()
                     ctx.arc(centerX, centerY, radius, startAngle, currentAngle)
-                    ctx.lineWidth = 10
-                    ctx.strokeStyle = getStatusColor(status, value, maxValue)
+                    ctx.lineWidth = 12
+                    ctx.strokeStyle = gradient
                     ctx.lineCap = "round"
                     ctx.stroke()
                 }
 
                 // 中心数值
                 ctx.font = "bold 24px JetBrains Mono, monospace"
-                ctx.fillStyle = colorTextPrimary
+                ctx.fillStyle = textPrimary
                 ctx.textAlign = "center"
                 ctx.textBaseline = "middle"
                 ctx.fillText(value.toFixed(decimals), centerX, centerY - 5)
 
                 // 单位
                 ctx.font = "12px Inter, sans-serif"
-                ctx.fillStyle = colorTextSecondary
+                ctx.fillStyle = textSecondary
                 ctx.fillText(unit, centerX, centerY + 18)
             }
+        }
+
+        // 内圈装饰
+        Rectangle {
+            anchors.centerIn: parent
+            width: parent.width - 30
+            height: parent.height - 30
+            radius: width / 2
+            color: "transparent"
+            border.width: 1
+            border.color: colorBorder
+            opacity: 0.5
         }
     }
 
@@ -127,7 +145,7 @@ Item {
                 width: 2
                 height: 4
                 radius: 1
-                color: colorTextTertiary
+                color: textTertiary
             }
         }
     }
@@ -141,14 +159,14 @@ Item {
 
         Text {
             text: minValue.toFixed(0)
-            color: colorTextTertiary
+            color: textTertiary
             font.pixelSize: 13
             font.family: "Inter, sans-serif"
         }
 
         Text {
             text: maxValue.toFixed(0)
-            color: colorTextTertiary
+            color: textTertiary
             font.pixelSize: 13
             font.family: "Inter, sans-serif"
         }
@@ -158,8 +176,9 @@ Item {
     Text {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
+        anchors.bottomMargin: 0
         text: title
-        color: colorTextPrimary
+        color: textPrimary
         font.pixelSize: 14
         font.family: "Inter, sans-serif"
         font.weight: Font.Medium

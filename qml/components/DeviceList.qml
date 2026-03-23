@@ -1,5 +1,5 @@
 // 工业设备管理系统 - 设备列表组件
-// Device List Component
+// Device List Component - 基于UI设计方案.md
 
 import QtQuick 2.15
 import QtQuick.Controls 2.15
@@ -11,16 +11,26 @@ Item {
     property int selectedIndex: 0
     property int selectedDeviceIndex: 0
 
+    // 颜色定义
+    readonly property color colorSuccess: "#4CAF50"
+    readonly property color colorWarning: "#FFC107"
+    readonly property color colorError: "#F44336"
+    readonly property color colorPrimary: "#2196F3"
+    readonly property color colorBgBase: "#0F1419"
+    readonly property color colorBgRaised: "#161B22"
+    readonly property color colorBgOverlay: "#1C2128"
+    readonly property color colorBgHover: "#21262D"
+    readonly property color colorBorder: "#30363D"
+    readonly property color colorBorderAccent: "#388BFD"
+    readonly property color textPrimary: "#E6EDF3"
+    readonly property color textSecondary: "#8B949E"
+    readonly property color textTertiary: "#6E7681"
+
     // 模拟数据模型
     ListModel {
         id: deviceModel
-
-        ListElement {
-            groupName: "泵站A区"
-        }
-        ListElement {
-            groupName: "泵站B区"
-        }
+        ListElement { groupName: "泵站A区" }
+        ListElement { groupName: "泵站B区" }
     }
 
     // 分组设备数据
@@ -44,10 +54,10 @@ Item {
 
     // 状态颜色
     function getStatusColor(status) {
-        if (status === 0) return "#4CAF50"  // 在线
-        if (status === 1) return "#FFC107"  // 警告
-        if (status === 2) return "#F44336"   // 故障/离线
-        return "#6E7681"
+        if (status === 0) return colorSuccess
+        if (status === 1) return colorWarning
+        if (status === 2) return colorError
+        return textTertiary
     }
 
     // 状态文字
@@ -58,7 +68,6 @@ Item {
         return "未知"
     }
 
-    // 计算在线设备数
     function getOnlineCount() {
         var count = 0
         for (var g = 0; g < deviceGroups.length; g++) {
@@ -70,7 +79,6 @@ Item {
         return count
     }
 
-    // 计算总设备数
     function getTotalCount() {
         var count = 0
         for (var g = 0; g < deviceGroups.length; g++) {
@@ -85,10 +93,10 @@ Item {
     // 设备列表容器
     Rectangle {
         anchors.fill: parent
-        color: "#0F1419"
+        color: colorBgBase
         radius: 8
         border.width: 1
-        border.color: "#30363D"
+        border.color: colorBorder
 
         Column {
             anchors.fill: parent
@@ -99,41 +107,57 @@ Item {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 height: 48
-                color: "#161B22"
+                color: colorBgRaised
                 radius: 8
 
                 Row {
                     anchors.fill: parent
                     anchors.margins: 16
-                    layoutDirection: Qt.RightToLeft
 
-                    // 在线设备数
-                    Rectangle {
-                        width: 60
-                        height: 24
-                        radius: 9999
-                        color: "#4CAF50"
-                        anchors.verticalCenter: parent.verticalCenter
-
-                        Text {
-                            anchors.centerIn: parent
-                            text: getOnlineCount() + "/" + getTotalCount() + " 在线"
-                            color: "white"
-                            font.pixelSize: 13
-                            font.family: "Inter, sans-serif"
-                            font.weight: Font.Medium
-                        }
-                    }
-
+                    // 标题
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
-                        anchors.right: parent.right
-                        anchors.rightMargin: 16
                         text: "设备列表"
-                        color: "#E6EDF3"
+                        color: textPrimary
                         font.pixelSize: 15
                         font.family: "Inter, sans-serif"
                         font.weight: Font.SemiBold
+                    }
+
+                    Item { width: 1; height: 1; anchors.fill: parent }
+
+                    // 在线设备徽章
+                    Rectangle {
+                        height: 24
+                        radius: 12
+                        color: Qt.rgba(76/255, 175/255, 80/255, 0.15)
+                        border.width: 1
+                        border.color: Qt.rgba(76/255, 175/255, 80/255, 0.3)
+                        anchors.verticalCenter: parent.verticalCenter
+
+                        Row {
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.left: parent.left
+                            anchors.leftMargin: 10
+                            spacing: 6
+
+                            Rectangle {
+                                width: 6
+                                height: 6
+                                radius: 3
+                                color: colorSuccess
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+
+                            Text {
+                                text: getOnlineCount() + "/" + getTotalCount()
+                                color: colorSuccess
+                                font.pixelSize: 12
+                                font.family: "Inter, sans-serif"
+                                font.weight: Font.Medium
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                        }
                     }
                 }
             }
@@ -141,11 +165,14 @@ Item {
             // 分组列表
             ListView {
                 id: deviceListView
-                anchors.fill: parent
+                anchors.top: parent.top
                 anchors.topMargin: 48
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
                 clip: true
                 model: deviceGroups.length
-                spacing: 8
+                spacing: 4
                 delegate: deviceGroupDelegate
             }
         }
@@ -159,6 +186,7 @@ Item {
             width: parent ? parent.width - 16 : 0
             anchors.leftMargin: 8
             anchors.rightMargin: 8
+            anchors.topMargin: 8
 
             // 分组标题
             Rectangle {
@@ -171,33 +199,30 @@ Item {
                 Row {
                     anchors.fill: parent
                     anchors.leftMargin: 12
-                    anchors.rightMargin: 12
                     spacing: 8
 
-                    // 展开/折叠图标
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: "\u25BC"  // 下箭头
-                        color: "#8B949E"
+                        text: "\u25BC"  // 展开图标
+                        color: textSecondary
                         font.pixelSize: 10
-                        font.family: "Inter, sans-serif"
                         rotation: 0
                     }
 
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         text: deviceGroups[index].name
-                        color: "#8B949E"
-                        font.pixelSize: 14
+                        color: textSecondary
+                        font.pixelSize: 13
                         font.family: "Inter, sans-serif"
-                        font.weight: Font.Medium
+                        font.weight: Font.SemiBold
                     }
 
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         text: "(" + deviceGroups[index].devices.length + ")"
-                        color: "#6E7681"
-                        font.pixelSize: 14
+                        color: textTertiary
+                        font.pixelSize: 13
                         font.family: "Inter, sans-serif"
                     }
                 }
@@ -205,12 +230,14 @@ Item {
                 MouseArea {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
+                    onEntered: groupHeader.color = colorBgHover
+                    onExited: groupHeader.color = "transparent"
                 }
             }
 
             // 设备项列表
             Column {
-                anchors.leftMargin: 16
+                anchors.leftMargin: 8
 
                 Repeater {
                     model: deviceGroups[index].devices.length
@@ -219,11 +246,18 @@ Item {
                         id: deviceItem
                         width: parent.width
                         height: 36
-                        color: index === root.selectedDeviceIndex && groupName === getCurrentGroup() ?
-                               "#42A5F5" + "20" : "transparent"
+                        color: "transparent"
                         radius: 6
-                        border.width: index === root.selectedDeviceIndex && groupName === getCurrentGroup() ? 1 : 0
-                        border.color: "#42A5F5"
+
+                        // 选中状态边框
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: parent.radius
+                            color: "transparent"
+                            border.width: 1
+                            border.color: "transparent"
+                            visible: index === root.selectedDeviceIndex && groupName === getCurrentGroup()
+                        }
 
                         property string groupName: deviceGroups[index].name
                         property var deviceData: deviceGroups[index].devices[modelData]
@@ -245,8 +279,8 @@ Item {
                                 // 在线状态发光效果
                                 Rectangle {
                                     anchors.centerIn: parent
-                                    width: parent.width * 2
-                                    height: parent.height * 2
+                                    width: parent.width * 2.5
+                                    height: parent.height * 2.5
                                     radius: width / 2
                                     color: "transparent"
                                     border.width: 1
@@ -259,12 +293,10 @@ Item {
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: deviceData.name
-                                color: index === root.selectedDeviceIndex && groupName === getCurrentGroup() ?
-                                       "#42A5F5" : "#E6EDF3"
+                                color: textPrimary
                                 font.pixelSize: 14
                                 font.family: "Inter, sans-serif"
-                                font.weight: index === root.selectedDeviceIndex && groupName === getCurrentGroup() ?
-                                            Font.Medium : Font.Normal
+                                font.weight: index === root.selectedDeviceIndex && groupName === getCurrentGroup() ? Font.Medium : Font.Normal
                             }
 
                             // IP地址
@@ -272,15 +304,26 @@ Item {
                                 anchors.verticalCenter: parent.verticalCenter
                                 anchors.right: parent.right
                                 text: deviceData.ip
-                                color: "#6E7681"
-                                font.pixelSize: 13
+                                color: textTertiary
+                                font.pixelSize: 12
                                 font.family: "JetBrains Mono, monospace"
                             }
                         }
 
+                        // 悬停和选中效果
                         MouseArea {
                             anchors.fill: parent
+                            hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
+
+                            onEntered: {
+                                parent.color = "#2196F3" + "15"
+                            }
+
+                            onExited: {
+                                parent.color = "transparent"
+                            }
+
                             onClicked: {
                                 root.selectedDeviceIndex = modelData
                                 root.selectedIndex = index

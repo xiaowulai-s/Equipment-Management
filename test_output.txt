@@ -1,0 +1,12 @@
+============================================================
+Testing PySide6 QML Loading
+============================================================
+QML Directory: E:\下载\app\equipment management\qml
+Exists: True
+
+Loading: E:\下载\app\equipment management\qml\MainView.qml
+View status: Status.Error
+
+ERROR: QML failed to load, status=Status.Error
+  Error: file:///E:/下载/app/equipment management/qml/MainView.qml:246:13: Type DeviceList unavailable
+  Error: file:///E:/下载/app/equipment management/qml/components/DeviceList.qml:133:32: Invalid property assignment: color expected

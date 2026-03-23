@@ -1,5 +1,5 @@
 // 工业设备管理系统 - Modbus表格组件
-// Modbus Table Component
+// Modbus Table Component - 基于UI设计方案.md
 
 import QtQuick 2.15
 import QtQuick.Controls 2.15
@@ -8,7 +8,7 @@ import QtQuick.Layouts 1.15
 Item {
     id: root
 
-    // 颜色常量
+    // 颜色定义
     readonly property color colorSuccess: "#4CAF50"
     readonly property color colorWarning: "#FFC107"
     readonly property color colorError: "#F44336"
@@ -19,8 +19,8 @@ Item {
     readonly property color colorBgOverlay: "#1C2128"
     readonly property color colorBorder: "#30363D"
     readonly property color colorBorderMuted: "#21262D"
-    readonly property color colorTextPrimary: "#E6EDF3"
-    readonly property color colorTextSecondary: "#8B949E"
+    readonly property color textPrimary: "#E6EDF3"
+    readonly property color textSecondary: "#8B949E"
 
     // 属性
     property int currentPage: 1
@@ -46,11 +46,27 @@ Item {
         if (status === 0) return colorSuccess
         if (status === 1) return colorWarning
         if (status === 2) return colorError
-        return colorTextSecondary
+        return textSecondary
+    }
+
+    // 状态徽章背景色
+    function getBadgeBgColor(status) {
+        if (status === 0) return "rgba(76, 175, 80, 0.15)"
+        if (status === 1) return "rgba(255, 193, 7, 0.15)"
+        if (status === 2) return "rgba(244, 67, 54, 0.15)"
+        return "#1C2128"
+    }
+
+    // 状态徽章边框色
+    function getBadgeBorderColor(status) {
+        if (status === 0) return "rgba(76, 175, 80, 0.3)"
+        if (status === 1) return "rgba(255, 193, 7, 0.3)"
+        if (status === 2) return "rgba(244, 67, 54, 0.3)"
+        return "#30363D"
     }
 
     width: 500
-    height: 320
+    height: 360
 
     // 表格容器
     Rectangle {
@@ -68,15 +84,31 @@ Item {
                 anchors.top: parent.top
                 anchors.left: parent.left
                 anchors.right: parent.right
-                height: 40
+                height: 44
                 color: colorBgRaised
                 radius: 8
 
                 Row {
                     anchors.fill: parent
-                    anchors.leftMargin: 8
+                    anchors.leftMargin: 16
 
                     // 地址列
+                    Rectangle {
+                        width: 80
+                        height: parent.height
+                        color: "transparent"
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "地址"
+                            color: textSecondary
+                            font.pixelSize: 13
+                            font.family: "Inter, sans-serif"
+                            font.weight: Font.SemiBold
+                        }
+                    }
+
+                    // 功能码列
                     Rectangle {
                         width: 70
                         height: parent.height
@@ -84,27 +116,11 @@ Item {
 
                         Text {
                             anchors.centerIn: parent
-                            text: "地址"
-                            color: colorTextSecondary
-                            font.pixelSize: 13
-                            font.family: "Inter, sans-serif"
-                            font.weight: Font.Medium
-                        }
-                    }
-
-                    // 功能码列
-                    Rectangle {
-                        width: 60
-                        height: parent.height
-                        color: "transparent"
-
-                        Text {
-                            anchors.centerIn: parent
                             text: "功能码"
-                            color: colorTextSecondary
+                            color: textSecondary
                             font.pixelSize: 13
                             font.family: "Inter, sans-serif"
-                            font.weight: Font.Medium
+                            font.weight: Font.SemiBold
                         }
                     }
 
@@ -117,42 +133,42 @@ Item {
                         Text {
                             anchors.centerIn: parent
                             text: "变量名"
-                            color: colorTextSecondary
+                            color: textSecondary
                             font.pixelSize: 13
                             font.family: "Inter, sans-serif"
-                            font.weight: Font.Medium
+                            font.weight: Font.SemiBold
                         }
                     }
 
                     // 数值列
                     Rectangle {
-                        width: 80
+                        width: 100
                         height: parent.height
                         color: "transparent"
 
                         Text {
                             anchors.centerIn: parent
                             text: "数值"
-                            color: colorTextSecondary
+                            color: textSecondary
                             font.pixelSize: 13
                             font.family: "Inter, sans-serif"
-                            font.weight: Font.Medium
+                            font.weight: Font.SemiBold
                         }
                     }
 
                     // 状态列
                     Rectangle {
-                        width: 80
+                        width: 100
                         height: parent.height
                         color: "transparent"
 
                         Text {
                             anchors.centerIn: parent
                             text: "状态"
-                            color: colorTextSecondary
+                            color: textSecondary
                             font.pixelSize: 13
                             font.family: "Inter, sans-serif"
-                            font.weight: Font.Medium
+                            font.weight: Font.SemiBold
                         }
                     }
                 }
@@ -161,11 +177,11 @@ Item {
             // 表格数据区
             Rectangle {
                 anchors.top: parent.top
-                anchors.topMargin: 40
+                anchors.topMargin: 44
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
-                anchors.bottomMargin: 44
+                anchors.bottomMargin: 52
                 color: "transparent"
                 clip: true
 
@@ -184,43 +200,44 @@ Item {
                 anchors.bottom: parent.bottom
                 anchors.left: parent.left
                 anchors.right: parent.right
-                height: 44
+                height: 52
                 color: colorBgRaised
                 radius: 8
 
                 Row {
                     anchors.fill: parent
                     anchors.margins: 12
-                    layoutDirection: Qt.RightToLeft
-                    spacing: 12
 
-                    // 分页信息
+                    // 总行数
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: "第 " + currentPage + " / " + totalPages + " 页"
-                        color: colorTextSecondary
+                        text: "共 " + totalRows + " 条"
+                        color: textSecondary
                         font.pixelSize: 14
                         font.family: "Inter, sans-serif"
                     }
 
+                    Item { width: 1; height: 1 }
+
                     // 分页按钮
                     Row {
-                        spacing: 4
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 8
 
                         // 上一页
                         Rectangle {
-                            width: 28
-                            height: 28
-                            radius: 4
-                            color: currentPage > 1 ? colorBgRaised : colorBgOverlay
+                            width: 32
+                            height: 32
+                            radius: 6
+                            color: currentPage > 1 ? colorBgOverlay : "transparent"
                             border.width: 1
                             border.color: colorBorder
 
                             Text {
                                 anchors.centerIn: parent
                                 text: "\u276E"
-                                color: currentPage > 1 ? colorTextPrimary : colorTextSecondary
-                                font.pixelSize: 12
+                                color: currentPage > 1 ? textPrimary : textSecondary
+                                font.pixelSize: 14
                             }
 
                             MouseArea {
@@ -230,20 +247,31 @@ Item {
                             }
                         }
 
+                        // 页码显示
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: currentPage + " / " + totalPages
+                            color: textPrimary
+                            font.pixelSize: 14
+                            font.family: "Inter, sans-serif"
+                            font.weight: Font.Medium
+                            anchors.verticalCenterOffset: 1
+                        }
+
                         // 下一页
                         Rectangle {
-                            width: 28
-                            height: 28
-                            radius: 4
-                            color: currentPage < totalPages ? colorBgRaised : colorBgOverlay
+                            width: 32
+                            height: 32
+                            radius: 6
+                            color: currentPage < totalPages ? colorBgOverlay : "transparent"
                             border.width: 1
                             border.color: colorBorder
 
                             Text {
                                 anchors.centerIn: parent
                                 text: "\u276F"
-                                color: currentPage < totalPages ? colorTextPrimary : colorTextSecondary
-                                font.pixelSize: 12
+                                color: currentPage < totalPages ? textPrimary : textSecondary
+                                font.pixelSize: 14
                             }
 
                             MouseArea {
@@ -254,12 +282,14 @@ Item {
                         }
                     }
 
-                    // 总行数
+                    Item { width: 1; height: 1 }
+
+                    // 每页条数
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: "共 " + totalRows + " 条"
-                        color: colorTextSecondary
-                        font.pixelSize: 14
+                        text: "每页 " + pageSize + " 条"
+                        color: textSecondary
+                        font.pixelSize: 13
                         font.family: "Inter, sans-serif"
                     }
                 }
@@ -285,14 +315,29 @@ Item {
                 color: colorBorderMuted
             }
 
+            // 悬停效果
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+
+                onEntered: {
+                    parent.color = "#2196F3" + "15"
+                }
+
+                onExited: {
+                    parent.color = index % 2 === 0 ? colorBgBase : colorBgOverlay
+                }
+            }
+
             Row {
                 anchors.fill: parent
-                anchors.leftMargin: 8
+                anchors.leftMargin: 16
 
                 // 地址列
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    width: 70
+                    width: 80
                     text: modelData.address
                     color: colorPrimaryLight
                     font.pixelSize: 14
@@ -303,9 +348,9 @@ Item {
                 // 功能码列
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    width: 60
+                    width: 70
                     text: modelData.functionCode
-                    color: colorTextPrimary
+                    color: textPrimary
                     font.pixelSize: 14
                     font.family: "JetBrains Mono, monospace"
                 }
@@ -315,7 +360,7 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     width: 120
                     text: modelData.variableName
-                    color: colorTextPrimary
+                    color: textPrimary
                     font.pixelSize: 14
                     font.family: "Inter, sans-serif"
                 }
@@ -323,12 +368,12 @@ Item {
                 // 数值列
                 Row {
                     anchors.verticalCenter: parent.verticalCenter
-                    width: 80
-                    spacing: 2
+                    width: 100
+                    spacing: 4
 
                     Text {
                         text: modelData.value
-                        color: colorTextPrimary
+                        color: textPrimary
                         font.pixelSize: 14
                         font.family: "JetBrains Mono, monospace"
                         font.weight: Font.Medium
@@ -336,50 +381,45 @@ Item {
 
                     Text {
                         text: modelData.unit
-                        color: colorTextSecondary
+                        color: textSecondary
                         font.pixelSize: 13
                         font.family: "Inter, sans-serif"
                         anchors.verticalCenter: parent.verticalCenter
                     }
                 }
 
-                // 状态列
-                Row {
+                // 状态列 - 徽章样式
+                Rectangle {
                     anchors.verticalCenter: parent.verticalCenter
-                    width: 80
-                    spacing: 8
+                    width: 72
+                    height: 26
+                    radius: 4
+                    color: getBadgeBgColor(modelData.status)
+                    border.width: 1
+                    border.color: getBadgeBorderColor(modelData.status)
 
-                    // 状态指示点
-                    Rectangle {
-                        width: 6
-                        height: 6
-                        radius: 3
-                        color: getStatusColor(modelData.status)
-                        anchors.verticalCenter: parent.verticalCenter
+                    Row {
+                        anchors.centerIn: parent
+                        spacing: 4
+
+                        // 状态点
+                        Rectangle {
+                            width: 6
+                            height: 6
+                            radius: 3
+                            color: getStatusColor(modelData.status)
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+
+                        Text {
+                            text: modelData.statusText
+                            color: getStatusColor(modelData.status)
+                            font.pixelSize: 12
+                            font.family: "Inter, sans-serif"
+                            font.weight: Font.Medium
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
                     }
-
-                    Text {
-                        text: modelData.statusText
-                        color: getStatusColor(modelData.status)
-                        font.pixelSize: 14
-                        font.family: "Inter, sans-serif"
-                        font.weight: Font.Medium
-                    }
-                }
-            }
-
-            // 悬停效果
-            MouseArea {
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-
-                onEntered: {
-                    parent.color = "#42A5F5" + "20"
-                }
-
-                onExited: {
-                    parent.color = index % 2 === 0 ? colorBgBase : colorBgOverlay
                 }
             }
         }

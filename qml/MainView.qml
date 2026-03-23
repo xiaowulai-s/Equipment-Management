@@ -1,5 +1,5 @@
 // 工业设备管理系统 - 主界面
-// Main View
+// Main View - 基于UI设计方案.md
 
 import QtQuick 2.15
 import QtQuick.Controls 2.15
@@ -14,27 +14,26 @@ ApplicationWindow {
     minimumWidth: 1024
     minimumHeight: 600
     title: "工业设备管理系统 v1.0"
-    background: themeManager.bgBase
+    background: Rectangle { color: "#0F1419" }
 
-    ThemeManager {
-        id: themeManager
-    }
+    // ==================== 颜色定义 ====================
+    readonly property color colorPrimary: "#2196F3"
+    readonly property color colorPrimaryLight: "#42A5F5"
+    readonly property color colorSuccess: "#4CAF50"
+    readonly property color colorWarning: "#FFC107"
+    readonly property color colorError: "#F44336"
+    readonly property color colorBgBase: "#0F1419"
+    readonly property color colorBgRaised: "#161B22"
+    readonly property color colorBgOverlay: "#1C2128"
+    readonly property color colorBgHover: "#21262D"
+    readonly property color colorBgActive: "#30363D"
+    readonly property color colorBorder: "#30363D"
+    readonly property color colorBorderAccent: "#388BFD"
+    readonly property color textPrimary: "#E6EDF3"
+    readonly property color textSecondary: "#8B949E"
+    readonly property color textTertiary: "#6E7681"
 
-    Toast {
-        id: toast
-        anchors.top: parent.top
-        anchors.right: parent.right
-        anchors.topMargin: 16
-        anchors.rightMargin: 16
-        z: 1000
-    }
-
-    ModalDialog {
-        id: modalDialog
-        anchors.fill: parent
-        modal: true
-    }
-
+    // ==================== 模拟数据 ====================
     property real temperature: 25.5
     property real pressure: 1.23
     property real flowRate: 50.3
@@ -54,16 +53,14 @@ ApplicationWindow {
     property string connectionStatus: "已连接"
     property int onlineCount: 5
     property int totalCount: 6
-    property string lastUpdate: "2026-03-23 09:47:00"
-    property bool deviceRunning: false
+    property string lastUpdate: "2026-03-23 10:30:00"
 
+    // ==================== 定时器 ====================
     Timer {
         id: dataTimer
         interval: 2000
         repeat: true
-        onTriggered: {
-            updateSimulationData()
-        }
+        onTriggered: updateSimulationData()
     }
 
     function updateSimulationData() {
@@ -81,11 +78,6 @@ ApplicationWindow {
 
         trendChart.addDataPoint(temperature, pressure, flowRate)
 
-        gauge1.value = gauge1Value
-        gauge2.value = gauge2Value
-        gauge3.value = gauge3Value
-        gauge4.value = gauge4Value
-
         dataCard1.value = temperature
         dataCard2.value = pressure
         dataCard3.value = flowRate
@@ -100,62 +92,42 @@ ApplicationWindow {
                      String(now.getSeconds()).padStart(2, '0')
     }
 
-    function showToast(type, title, message) {
-        toast.show(type, title, message)
-    }
-
-    function handleDeviceStart() {
-        deviceRunning = true
-        controlPanel.setRunning(true)
-        controlPanel.setLoading(false)
-        showToast("success", "操作成功", "设备启动成功")
-    }
-
-    function handleDeviceStop() {
-        deviceRunning = false
-        controlPanel.setRunning(false)
-        controlPanel.setLoading(false)
-        showToast("info", "设备停止", "设备已停止运行")
-    }
-
-    function handleDeviceReset() {
-        controlPanel.setLoading(false)
-        showToast("warning", "设备复位", "设备已复位")
-    }
-
+    // ==================== 侧边栏 ====================
     Rectangle {
         id: sidebar
         width: 260
         anchors.top: parent.top
         anchors.bottom: parent.bottom
-        color: themeManager.bgRaised
+        color: colorBgBase
         border.width: 1
-        border.color: themeManager.borderDefault
+        border.color: colorBorder
 
         Column {
             anchors.fill: parent
 
+            // Logo区域
             Rectangle {
                 height: 64
                 anchors.top: parent.top
                 anchors.left: parent.left
                 anchors.right: parent.right
-                color: themeManager.bgOverlay
+                color: colorBgOverlay
 
                 Row {
                     anchors.fill: parent
-                    anchors.leftMargin: themeManager.space5
+                    anchors.leftMargin: 20
                     anchors.verticalCenter: parent.verticalCenter
-                    spacing: themeManager.space3
+                    spacing: 12
 
+                    // Logo图标
                     Rectangle {
                         width: 36
                         height: 36
-                        radius: themeManager.radiusLg
+                        radius: 8
                         gradient: Gradient {
                             orientation: Gradient.Horizontal
-                            GradientStop { position: 0.0; color: themeManager.primary500 }
-                            GradientStop { position: 1.0; color: themeManager.accent500 }
+                            GradientStop { position: 0.0; color: colorPrimary }
+                            GradientStop { position: 1.0; color: "#00BCD4" }
                         }
 
                         Text {
@@ -169,49 +141,62 @@ ApplicationWindow {
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         text: "工业设备管理"
-                        color: themeManager.textPrimary
-                        font.pixelSize: themeManager.fontH4
-                        font.family: themeManager.fontSans
+                        color: textPrimary
+                        font.pixelSize: 18
+                        font.family: "Inter, sans-serif"
                         font.weight: Font.SemiBold
                     }
                 }
             }
 
+            // 导航菜单
             Column {
                 anchors.top: parent.top
                 anchors.topMargin: 64
                 width: parent.width
-                spacing: themeManager.space1
+                spacing: 4
+                anchors.leftMargin: 12
+                anchors.rightMargin: 12
 
+                // 仪表盘 (选中状态 - 带右侧高亮条)
                 Rectangle {
                     width: parent.width
                     height: 40
-                    color: themeManager.primary500 + "20"
-                    radius: themeManager.radiusMd
+                    color: Qt.rgba(33/255, 150/255, 243/255, 0.1)
+                    radius: 6
+                    // 右侧选中指示条
+                    Rectangle {
+                        anchors.right: parent.right
+                        width: 3
+                        height: parent.height
+                        color: colorPrimary
+                        radius: 0
+                    }
 
                     Row {
                         anchors.fill: parent
-                        anchors.leftMargin: themeManager.space5
-                        spacing: themeManager.space3
+                        anchors.leftMargin: 12
+                        spacing: 12
 
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
                             text: "\u25A6"
-                            color: themeManager.primary400
+                            color: colorPrimaryLight
                             font.pixelSize: 16
                         }
 
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
                             text: "仪表盘"
-                            color: themeManager.primary400
-                            font.pixelSize: themeManager.fontBody
-                            font.family: themeManager.fontSans
+                            color: colorPrimaryLight
+                            font.pixelSize: 15
+                            font.family: "Inter, sans-serif"
                             font.weight: Font.Medium
                         }
                     }
                 }
 
+                // 其他导航项
                 Repeater {
                     model: [
                         { icon: "\u25A9", text: "设备监控" },
@@ -224,378 +209,396 @@ ApplicationWindow {
                         width: parent.width
                         height: 40
                         color: "transparent"
-                        radius: themeManager.radiusMd
+                        radius: 6
 
                         Row {
                             anchors.fill: parent
-                            anchors.leftMargin: themeManager.space5
-                            spacing: themeManager.space3
+                            anchors.leftMargin: 12
+                            spacing: 12
 
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: modelData.icon
-                                color: themeManager.textSecondary
+                                color: textSecondary
                                 font.pixelSize: 16
                             }
 
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: modelData.text
-                                color: themeManager.textSecondary
-                                font.pixelSize: themeManager.fontBody
-                                font.family: themeManager.fontSans
+                                color: textSecondary
+                                font.pixelSize: 15
+                                font.family: "Inter, sans-serif"
                             }
                         }
 
                         MouseArea {
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
-                            onEntered: parent.color = themeManager.bgHover
+                            onEntered: parent.color = colorBgHover
                             onExited: parent.color = "transparent"
                         }
                     }
                 }
             }
 
-            Rectangle {
+            // 设备列表区域
+            DeviceList {
                 anchors.top: parent.top
                 anchors.topMargin: 300
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
-                anchors.bottomMargin: themeManager.space4
-                color: "transparent"
-
-                DeviceList {
-                    id: deviceList
-                    anchors.fill: parent
-                }
+                anchors.bottomMargin: 16
+                anchors.leftMargin: 12
+                anchors.rightMargin: 12
             }
         }
     }
 
+    // ==================== 主内容区 ====================
     Column {
         anchors.left: sidebar.right
         anchors.right: parent.right
         anchors.top: parent.top
         anchors.bottom: parent.bottom
-        spacing: themeManager.space4
+        spacing: 16
 
+        // 顶部信息栏
         Rectangle {
             id: topBar
             height: 56
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            anchors.leftMargin: themeManager.space4
-            anchors.rightMargin: themeManager.space4
-            anchors.topMargin: themeManager.space4
-            color: themeManager.bgRaised
-            radius: themeManager.radiusLg
+            anchors.leftMargin: 16
+            anchors.rightMargin: 16
+            anchors.topMargin: 16
+            color: colorBgRaised
+            radius: 8
             border.width: 1
-            border.color: themeManager.borderDefault
+            border.color: colorBorder
 
             Row {
                 anchors.fill: parent
-                anchors.margins: themeManager.space4
+                anchors.margins: 16
                 layoutDirection: Qt.RightToLeft
-                spacing: themeManager.space4
+                spacing: 16
 
+                // 主题切换按钮
                 Rectangle {
                     width: 36
                     height: 36
-                    radius: themeManager.radiusMd
-                    color: themeManager.bgOverlay
+                    radius: 6
+                    color: colorBgOverlay
                     border.width: 1
-                    border.color: themeManager.borderDefault
+                    border.color: colorBorder
 
                     Text {
-                        id: themeIcon
                         anchors.centerIn: parent
-                        text: "\u2600"
-                        color: themeManager.textSecondary
+                        text: "\u263D"
+                        color: textSecondary
                         font.pixelSize: 18
                     }
 
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            themeManager.toggleTheme()
-                            if (themeManager.isDarkTheme) {
-                                themeIcon.text = "\u2600"
-                            } else {
-                                themeIcon.text = "\u263E"
-                            }
-                            showToast("info", "主题切换", themeManager.isDarkTheme ? "已切换到深色主题" : "已切换到浅色主题")
-                        }
+                        onEntered: parent.color = colorBgHover
+                        onExited: parent.color = colorBgOverlay
                     }
                 }
 
+                // 连接状态徽章
                 Row {
-                    spacing: themeManager.space2
+                    spacing: 8
                     anchors.verticalCenter: parent.verticalCenter
 
                     Rectangle {
                         width: 8
                         height: 8
                         radius: 4
-                        color: themeManager.success500
+                        color: colorSuccess
+
+                        // 发光效果
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: parent.width * 2
+                            height: parent.height * 2
+                            radius: width / 2
+                            color: "transparent"
+                            border.width: 1
+                            border.color: colorSuccess
+                            opacity: 0.5
+                        }
                     }
 
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         text: connectionStatus
-                        color: themeManager.success500
-                        font.pixelSize: themeManager.fontBodySm
-                        font.family: themeManager.fontSans
+                        color: colorSuccess
+                        font.pixelSize: 14
+                        font.family: "Inter, sans-serif"
+                        font.weight: Font.Medium
                     }
                 }
 
+                // 设备标题
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     anchors.right: parent.right
-                    anchors.rightMargin: themeManager.space4
+                    anchors.rightMargin: 16
                     text: "Pump-01 监控面板"
-                    color: themeManager.textPrimary
-                    font.pixelSize: themeManager.fontH3
-                    font.family: themeManager.fontSans
+                    color: textPrimary
+                    font.pixelSize: 20
+                    font.family: "Inter, sans-serif"
                     font.weight: Font.SemiBold
                 }
             }
         }
 
+        // 主要内容区域
         Rectangle {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: topBar.bottom
             anchors.bottom: statusBar.top
-            anchors.leftMargin: themeManager.space4
-            anchors.rightMargin: themeManager.space4
+            anchors.leftMargin: 16
+            anchors.rightMargin: 16
             color: "transparent"
 
-            Column {
+            Row {
                 anchors.fill: parent
-                spacing: themeManager.space4
+                spacing: 16
 
-                Row {
-                    width: parent.width
-                    height: 60
-                    spacing: themeManager.space4
+                // 左侧区域 - 趋势图
+                Column {
+                    width: 500
+                    height: parent.height
+                    spacing: 16
 
-                    DeviceControlPanel {
-                        id: controlPanel
-                        width: 400
-                        height: 60
-                        isRunning: deviceRunning
-                        onStartClicked: handleDeviceStart()
-                        onStopClicked: handleDeviceStop()
-                        onResetClicked: handleDeviceReset()
+                    TrendChart {
+                        id: trendChart
+                        width: parent.width
+                        height: 280
+                        chartTitle: "实时趋势"
+                        series1Name: "温度"
+                        series2Name: "压力"
+                        series3Name: "流量"
+                        series1Unit: "\u00B0C"
+                        series2Unit: "MPa"
+                        series3Unit: "m\u00B3/h"
+                    }
+
+                    Row {
+                        width: parent.width
+                        height: 180
+                        spacing: 16
+
+                        Gauge {
+                            id: gauge1
+                            title: "SQ10"
+                            value: 75
+                            maxValue: 100
+                            unit: "%"
+                            status: 0
+                        }
+
+                        Gauge {
+                            id: gauge2
+                            title: "AR2"
+                            value: 85
+                            maxValue: 100
+                            unit: "%"
+                            status: 1
+                        }
+
+                        Gauge {
+                            id: gauge3
+                            title: "B"
+                            value: 90
+                            maxValue: 100
+                            unit: "%"
+                            status: 2
+                        }
+
+                        Gauge {
+                            id: gauge4
+                            title: "C"
+                            value: 50
+                            maxValue: 100
+                            unit: "%"
+                            status: 0
+                        }
                     }
                 }
 
-                Row {
-                    width: parent.width
-                    height: 280
-                    spacing: themeManager.space4
+                // 右侧区域 - 数据卡片和表格
+                Column {
+                    width: parent.width - 532
+                    height: parent.height
+                    spacing: 16
 
-                    Column {
-                        width: 500
-                        height: parent.height
-                        spacing: themeManager.space4
+                    Row {
+                        width: parent.width
+                        height: 140
+                        spacing: 16
 
-                        TrendChart {
-                            id: trendChart
-                            width: parent.width
-                            height: 180
-                            chartTitle: "实时趋势"
-                            series1Name: "温度"
-                            series2Name: "压力"
-                            series3Name: "流量"
-                            series1Unit: "\u00B0C"
-                            series2Unit: "MPa"
-                            series3Unit: "m\u00B3/h"
+                        DataCard {
+                            id: dataCard1
+                            label: "温度"
+                            value: 25.5
+                            unit: "\u00B0C"
+                            trend: "up"
+                            trendValue: 2.3
+                            status: 0
+                            decimals: 1
+                            width: (parent.width - 48) / 4
+                            height: parent.height
                         }
 
-                        Row {
-                            width: parent.width
-                            height: 80
-                            spacing: themeManager.space4
+                        DataCard {
+                            id: dataCard2
+                            label: "压力"
+                            value: 1.23
+                            unit: "MPa"
+                            trend: "down"
+                            trendValue: 0.5
+                            status: 0
+                            decimals: 2
+                            width: (parent.width - 48) / 4
+                            height: parent.height
+                        }
 
-                            Gauge {
-                                id: gauge1
-                                title: "SQ10"
-                                value: 75
-                                maxValue: 100
-                                unit: "%"
-                                status: 0
-                            }
+                        DataCard {
+                            id: dataCard3
+                            label: "流量"
+                            value: 50.3
+                            unit: "m\u00B3/h"
+                            trend: "stable"
+                            status: 1
+                            decimals: 1
+                            width: (parent.width - 48) / 4
+                            height: parent.height
+                        }
 
-                            Gauge {
-                                id: gauge2
-                                title: "AR2"
-                                value: 85
-                                maxValue: 100
-                                unit: "%"
-                                status: 1
-                            }
-
-                            Gauge {
-                                id: gauge3
-                                title: "B"
-                                value: 90
-                                maxValue: 100
-                                unit: "%"
-                                status: 2
-                            }
-
-                            Gauge {
-                                id: gauge4
-                                title: "C"
-                                value: 50
-                                maxValue: 100
-                                unit: "%"
-                                status: 0
-                            }
+                        DataCard {
+                            id: dataCard4
+                            label: "功率"
+                            value: 15.2
+                            unit: "kW"
+                            trend: "up"
+                            trendValue: 5.1
+                            status: 0
+                            decimals: 1
+                            width: (parent.width - 48) / 4
+                            height: parent.height
                         }
                     }
 
-                    Column {
-                        width: parent.width - 520
-                        height: parent.height
-                        spacing: themeManager.space4
-
-                        Row {
-                            width: parent.width
-                            height: 120
-                            spacing: themeManager.space4
-
-                            DataCard {
-                                id: dataCard1
-                                label: "温度"
-                                value: 25.5
-                                unit: "\u00B0C"
-                                trend: "up"
-                                trendValue: 2.3
-                                status: 0
-                                decimals: 1
-                                width: (parent.width - themeManager.space4 * 3) / 4
-                            }
-
-                            DataCard {
-                                id: dataCard2
-                                label: "压力"
-                                value: 1.23
-                                unit: "MPa"
-                                trend: "down"
-                                trendValue: 0.5
-                                status: 0
-                                decimals: 2
-                                width: (parent.width - themeManager.space4 * 3) / 4
-                            }
-
-                            DataCard {
-                                id: dataCard3
-                                label: "流量"
-                                value: 50.3
-                                unit: "m\u00B3/h"
-                                trend: "stable"
-                                status: 1
-                                decimals: 1
-                                width: (parent.width - themeManager.space4 * 3) / 4
-                            }
-
-                            DataCard {
-                                id: dataCard4
-                                label: "功率"
-                                value: 15.2
-                                unit: "kW"
-                                trend: "up"
-                                trendValue: 5.1
-                                status: 0
-                                decimals: 1
-                                width: (parent.width - themeManager.space4 * 3) / 4
-                            }
-                        }
-
-                        ModbusTable {
-                            id: modbusTable
-                            width: parent.width
-                            height: parent.height - 120 - themeManager.space4
-                        }
+                    ModbusTable {
+                        width: parent.width
+                        height: parent.height - 156
                     }
                 }
             }
         }
 
+        // 底部状态栏
         Rectangle {
             id: statusBar
-            height: 28
+            height: 32
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
-            anchors.leftMargin: themeManager.space4
-            anchors.rightMargin: themeManager.space4
-            anchors.bottomMargin: themeManager.space4
-            color: themeManager.bgRaised
-            radius: themeManager.radiusMd
+            anchors.leftMargin: 16
+            anchors.rightMargin: 16
+            anchors.bottomMargin: 16
+            color: colorBgRaised
+            radius: 6
 
             Row {
                 anchors.fill: parent
-                anchors.leftMargin: themeManager.space4
-                anchors.rightMargin: themeManager.space4
-                spacing: themeManager.space6
+                anchors.leftMargin: 16
+                anchors.rightMargin: 16
+                spacing: 24
 
+                // 连接状态
                 Row {
-                    spacing: themeManager.space2
+                    spacing: 8
                     anchors.verticalCenter: parent.verticalCenter
 
                     Rectangle {
                         width: 8
                         height: 8
                         radius: 4
-                        color: themeManager.success500
+                        color: colorSuccess
                     }
 
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         text: "\u2022 已连接"
-                        color: themeManager.success500
-                        font.pixelSize: themeManager.fontCaption
-                        font.family: themeManager.fontSans
+                        color: colorSuccess
+                        font.pixelSize: 13
+                        font.family: "Inter, sans-serif"
                     }
                 }
 
+                // 分隔线
+                Rectangle {
+                    width: 1
+                    height: 16
+                    color: colorBorder
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+
+                // 在线设备数
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     text: "在线: " + onlineCount + "/" + totalCount
-                    color: themeManager.textSecondary
-                    font.pixelSize: themeManager.fontCaption
-                    font.family: themeManager.fontSans
+                    color: textSecondary
+                    font.pixelSize: 13
+                    font.family: "Inter, sans-serif"
                 }
 
+                // 分隔线
+                Rectangle {
+                    width: 1
+                    height: 16
+                    color: colorBorder
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+
+                // 最后更新时间
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     text: "最后更新: " + lastUpdate
-                    color: themeManager.textSecondary
-                    font.pixelSize: themeManager.fontCaption
-                    font.family: themeManager.fontSans
+                    color: textSecondary
+                    font.pixelSize: 13
+                    font.family: "Inter, sans-serif"
                 }
 
+                // 分隔线
+                Rectangle {
+                    width: 1
+                    height: 16
+                    color: colorBorder
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+
+                // 版本信息
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     anchors.right: parent.right
                     text: "v1.0.0"
-                    color: themeManager.textTertiary
-                    font.pixelSize: themeManager.fontCaption
-                    font.family: themeManager.fontSans
+                    color: textTertiary
+                    font.pixelSize: 13
+                    font.family: "Inter, sans-serif"
                 }
             }
         }
     }
 
-    Component.onCompleted: {
-        dataTimer.start()
-        showToast("success", "系统启动", "工业设备管理系统已成功启动")
-    }
+    // 启动时开始数据更新
+    Component.onCompleted: dataTimer.start()
 }
