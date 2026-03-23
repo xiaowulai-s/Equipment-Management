@@ -1,6 +1,3 @@
-// 工业设备管理系统 - 主界面
-// Main View - 基于UI设计方案.md
-
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
@@ -16,7 +13,6 @@ ApplicationWindow {
     title: "工业设备管理系统 v1.0"
     background: Rectangle { color: "#0F1419" }
 
-    // ==================== 颜色定义 ====================
     readonly property color colorPrimary: "#2196F3"
     readonly property color colorPrimaryLight: "#42A5F5"
     readonly property color colorSuccess: "#4CAF50"
@@ -33,7 +29,6 @@ ApplicationWindow {
     readonly property color textSecondary: "#8B949E"
     readonly property color textTertiary: "#6E7681"
 
-    // ==================== 模拟数据 ====================
     property real temperature: 25.5
     property real pressure: 1.23
     property real flowRate: 50.3
@@ -55,7 +50,6 @@ ApplicationWindow {
     property int totalCount: 6
     property string lastUpdate: "2026-03-23 10:30:00"
 
-    // ==================== 定时器 ====================
     Timer {
         id: dataTimer
         interval: 2000
@@ -92,7 +86,6 @@ ApplicationWindow {
                      String(now.getSeconds()).padStart(2, '0')
     }
 
-    // ==================== 侧边栏 ====================
     Rectangle {
         id: sidebar
         width: 260
@@ -102,178 +95,172 @@ ApplicationWindow {
         border.width: 1
         border.color: colorBorder
 
-        Column {
-            anchors.fill: parent
+        Rectangle {
+            id: logoArea
+            height: 64
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            color: colorBgOverlay
 
-            // Logo区域
-            Rectangle {
-                height: 64
-                anchors.top: parent.top
+            Row {
                 anchors.left: parent.left
-                anchors.right: parent.right
-                color: colorBgOverlay
+                anchors.leftMargin: 20
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 12
+
+                Rectangle {
+                    width: 36
+                    height: 36
+                    radius: 8
+                    gradient: Gradient {
+                        orientation: Gradient.Horizontal
+                        GradientStop { position: 0.0; color: colorPrimary }
+                        GradientStop { position: 1.0; color: "#00BCD4" }
+                    }
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "📊"
+                        color: "white"
+                        font.pixelSize: 18
+                    }
+                }
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "工业设备管理"
+                    color: textPrimary
+                    font.pixelSize: 18
+                    font.family: "Inter, sans-serif"
+                    font.weight: Font.Bold
+                }
+            }
+        }
+
+        Column {
+            id: navColumn
+            anchors.top: logoArea.bottom
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.topMargin: 16
+            anchors.leftMargin: 12
+            anchors.rightMargin: 12
+            spacing: 4
+
+            Rectangle {
+                width: parent.width
+                height: 40
+                color: Qt.rgba(33/255, 150/255, 243/255, 0.1)
+                radius: 6
+
+                Rectangle {
+                    anchors.right: parent.right
+                    width: 3
+                    height: parent.height
+                    color: colorPrimary
+                }
 
                 Row {
-                    anchors.fill: parent
-                    anchors.leftMargin: 20
+                    anchors.left: parent.left
+                    anchors.leftMargin: 12
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 12
 
-                    // Logo图标
-                    Rectangle {
-                        width: 36
-                        height: 36
-                        radius: 8
-                        gradient: Gradient {
-                            orientation: Gradient.Horizontal
-                            GradientStop { position: 0.0; color: colorPrimary }
-                            GradientStop { position: 1.0; color: "#00BCD4" }
-                        }
-
-                        Text {
-                            anchors.centerIn: parent
-                            text: "\u2630"
-                            color: "white"
-                            font.pixelSize: 18
-                        }
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "📈"
+                        color: colorPrimaryLight
+                        font.pixelSize: 16
                     }
 
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: "工业设备管理"
-                        color: textPrimary
-                        font.pixelSize: 18
+                        text: "仪表盘"
+                        color: colorPrimaryLight
+                        font.pixelSize: 15
                         font.family: "Inter, sans-serif"
-                        font.weight: Font.SemiBold
+                        font.weight: Font.Bold
                     }
                 }
             }
 
-            // 导航菜单
-            Column {
-                anchors.top: parent.top
-                anchors.topMargin: 64
-                width: parent.width
-                spacing: 4
-                anchors.leftMargin: 12
-                anchors.rightMargin: 12
+            Repeater {
+                model: [
+                    { icon: "🖥️", text: "设备监控" },
+                    { icon: "⚙️", text: "设备管理" },
+                    { icon: "📊", text: "数据分析" },
+                    { icon: "🔧", text: "系统设置" }
+                ]
 
-                // 仪表盘 (选中状态 - 带右侧高亮条)
                 Rectangle {
                     width: parent.width
                     height: 40
-                    color: Qt.rgba(33/255, 150/255, 243/255, 0.1)
+                    color: "transparent"
                     radius: 6
-                    // 右侧选中指示条
-                    Rectangle {
-                        anchors.right: parent.right
-                        width: 3
-                        height: parent.height
-                        color: colorPrimary
-                        radius: 0
-                    }
 
                     Row {
-                        anchors.fill: parent
+                        anchors.left: parent.left
                         anchors.leftMargin: 12
+                        anchors.verticalCenter: parent.verticalCenter
                         spacing: 12
 
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: "\u25A6"
-                            color: colorPrimaryLight
+                            text: modelData.icon
+                            color: textSecondary
                             font.pixelSize: 16
                         }
 
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: "仪表盘"
-                            color: colorPrimaryLight
+                            text: modelData.text
+                            color: textSecondary
                             font.pixelSize: 15
                             font.family: "Inter, sans-serif"
-                            font.weight: Font.Medium
+                            font.weight: Font.Bold
                         }
                     }
-                }
 
-                // 其他导航项
-                Repeater {
-                    model: [
-                        { icon: "\u25A9", text: "设备监控" },
-                        { icon: "\u2699", text: "设备管理" },
-                        { icon: "\u2261", text: "数据分析" },
-                        { icon: "\u2630", text: "系统设置" }
-                    ]
-
-                    Rectangle {
-                        width: parent.width
-                        height: 40
-                        color: "transparent"
-                        radius: 6
-
-                        Row {
-                            anchors.fill: parent
-                            anchors.leftMargin: 12
-                            spacing: 12
-
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: modelData.icon
-                                color: textSecondary
-                                font.pixelSize: 16
-                            }
-
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: modelData.text
-                                color: textSecondary
-                                font.pixelSize: 15
-                                font.family: "Inter, sans-serif"
-                            }
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-                            onEntered: parent.color = colorBgHover
-                            onExited: parent.color = "transparent"
-                        }
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onEntered: parent.color = colorBgHover
+                        onExited: parent.color = "transparent"
                     }
                 }
             }
+        }
 
-            // 设备列表区域
-            DeviceList {
-                anchors.top: parent.top
-                anchors.topMargin: 300
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.bottom: parent.bottom
-                anchors.bottomMargin: 16
-                anchors.leftMargin: 12
-                anchors.rightMargin: 12
-            }
+        DeviceList {
+            id: deviceList
+            anchors.top: navColumn.bottom
+            anchors.bottom: parent.bottom
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.topMargin: 16
+            anchors.leftMargin: 12
+            anchors.rightMargin: 12
+            anchors.bottomMargin: 16
         }
     }
 
-    // ==================== 主内容区 ====================
     Column {
+        id: mainContent
         anchors.left: sidebar.right
         anchors.right: parent.right
         anchors.top: parent.top
         anchors.bottom: parent.bottom
+        anchors.leftMargin: 16
+        anchors.rightMargin: 16
+        anchors.topMargin: 16
+        anchors.bottomMargin: 16
         spacing: 16
 
-        // 顶部信息栏
         Rectangle {
             id: topBar
             height: 56
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            anchors.leftMargin: 16
-            anchors.rightMargin: 16
-            anchors.topMargin: 16
+            width: parent.width
             color: colorBgRaised
             radius: 8
             border.width: 1
@@ -281,35 +268,24 @@ ApplicationWindow {
 
             Row {
                 anchors.fill: parent
-                anchors.margins: 16
-                layoutDirection: Qt.RightToLeft
+                anchors.leftMargin: 16
+                anchors.rightMargin: 16
+                anchors.verticalCenter: parent.verticalCenter
                 spacing: 16
 
-                // 主题切换按钮
-                Rectangle {
-                    width: 36
-                    height: 36
-                    radius: 6
-                    color: colorBgOverlay
-                    border.width: 1
-                    border.color: colorBorder
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: "\u263D"
-                        color: textSecondary
-                        font.pixelSize: 18
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onEntered: parent.color = colorBgHover
-                        onExited: parent.color = colorBgOverlay
-                    }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Pump-01 监控面板"
+                    color: textPrimary
+                    font.pixelSize: 20
+                    font.family: "Inter, sans-serif"
+                    font.weight: Font.Bold
                 }
 
-                // 连接状态徽章
+                Item {
+                    Layout.fillWidth: true
+                }
+
                 Row {
                     spacing: 8
                     anchors.verticalCenter: parent.verticalCenter
@@ -320,7 +296,6 @@ ApplicationWindow {
                         radius: 4
                         color: colorSuccess
 
-                        // 发光效果
                         Rectangle {
                             anchors.centerIn: parent
                             width: parent.width * 2
@@ -339,39 +314,44 @@ ApplicationWindow {
                         color: colorSuccess
                         font.pixelSize: 14
                         font.family: "Inter, sans-serif"
-                        font.weight: Font.Medium
+                        font.weight: Font.Bold
                     }
                 }
 
-                // 设备标题
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    anchors.right: parent.right
-                    anchors.rightMargin: 16
-                    text: "Pump-01 监控面板"
-                    color: textPrimary
-                    font.pixelSize: 20
-                    font.family: "Inter, sans-serif"
-                    font.weight: Font.SemiBold
+                Rectangle {
+                    width: 36
+                    height: 36
+                    radius: 6
+                    color: colorBgOverlay
+                    border.width: 1
+                    border.color: colorBorder
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "🌙"
+                        color: textSecondary
+                        font.pixelSize: 18
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onEntered: parent.color = colorBgHover
+                        onExited: parent.color = colorBgOverlay
+                    }
                 }
             }
         }
 
-        // 主要内容区域
-        Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: topBar.bottom
-            anchors.bottom: statusBar.top
-            anchors.leftMargin: 16
-            anchors.rightMargin: 16
-            color: "transparent"
+        Item {
+            id: contentArea
+            width: parent.width
+            height: parent.height - 56 - 32 - 16
 
             Row {
                 anchors.fill: parent
                 spacing: 16
 
-                // 左侧区域 - 趋势图
                 Column {
                     width: 500
                     height: parent.height
@@ -433,7 +413,6 @@ ApplicationWindow {
                     }
                 }
 
-                // 右侧区域 - 数据卡片和表格
                 Column {
                     width: parent.width - 532
                     height: parent.height
@@ -504,26 +483,21 @@ ApplicationWindow {
             }
         }
 
-        // 底部状态栏
         Rectangle {
             id: statusBar
             height: 32
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            anchors.leftMargin: 16
-            anchors.rightMargin: 16
-            anchors.bottomMargin: 16
+            width: parent.width
             color: colorBgRaised
             radius: 6
 
             Row {
-                anchors.fill: parent
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
                 anchors.leftMargin: 16
                 anchors.rightMargin: 16
                 spacing: 24
 
-                // 连接状态
                 Row {
                     spacing: 8
                     anchors.verticalCenter: parent.verticalCenter
@@ -537,68 +511,65 @@ ApplicationWindow {
 
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: "\u2022 已连接"
+                        text: "● 已连接"
                         color: colorSuccess
                         font.pixelSize: 13
                         font.family: "Inter, sans-serif"
+                        font.weight: Font.Bold
                     }
                 }
 
-                // 分隔线
                 Rectangle {
                     width: 1
                     height: 16
                     color: colorBorder
-                    anchors.verticalCenter: parent.verticalCenter
                 }
 
-                // 在线设备数
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     text: "在线: " + onlineCount + "/" + totalCount
                     color: textSecondary
                     font.pixelSize: 13
                     font.family: "Inter, sans-serif"
+                    font.weight: Font.Bold
                 }
 
-                // 分隔线
                 Rectangle {
                     width: 1
                     height: 16
                     color: colorBorder
-                    anchors.verticalCenter: parent.verticalCenter
                 }
 
-                // 最后更新时间
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     text: "最后更新: " + lastUpdate
                     color: textSecondary
                     font.pixelSize: 13
                     font.family: "Inter, sans-serif"
+                    font.weight: Font.Bold
                 }
 
-                // 分隔线
                 Rectangle {
                     width: 1
                     height: 16
                     color: colorBorder
-                    anchors.verticalCenter: parent.verticalCenter
                 }
 
-                // 版本信息
+                Item {
+                    Layout.fillWidth: true
+                }
+
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    anchors.right: parent.right
                     text: "v1.0.0"
                     color: textTertiary
                     font.pixelSize: 13
                     font.family: "Inter, sans-serif"
+                    font.weight: Font.Bold
                 }
             }
         }
     }
 
-    // 启动时开始数据更新
     Component.onCompleted: dataTimer.start()
 }
