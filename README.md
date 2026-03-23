@@ -234,6 +234,34 @@ pip install -r requirements.txt
   - 支持 Modbus 寄存器通信
   - 完整的架构设计文档
 
+## 打包部署
+
+### 生成exe文件
+
+项目已使用 PyInstaller 打包为 Windows 可执行文件：
+
+```
+dist/EquipmentManagement/EquipmentManagement.exe
+```
+
+### 运行打包程序
+
+双击 `EquipmentManagement.exe` 即可运行程序，无需安装 Python 环境。
+
+### 打包说明
+
+如需重新打包，执行以下命令：
+
+```bash
+# 安装打包工具
+pip install pyinstaller
+
+# 打包（英文路径下执行）
+pyinstaller --name="EquipmentManagement" --onedir --windowed run.py
+```
+
+打包后的文件位于 `dist/EquipmentManagement/` 目录。
+
 ## License
 
 MIT License

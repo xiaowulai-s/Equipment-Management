@@ -1,0 +1,1933 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>工业设备管理系统 - UI设计系统</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    /* ==================== 设计系统变量 ==================== */
+    :root {
+      /* 主色 */
+      --color-primary-50: #E3F2FD;
+      --color-primary-100: #BBDEFB;
+      --color-primary-200: #90CAF9;
+      --color-primary-300: #64B5F6;
+      --color-primary-400: #42A5F5;
+      --color-primary-500: #2196F3;
+      --color-primary-600: #1E88E5;
+      --color-primary-700: #1976D2;
+      --color-primary-800: #1565C0;
+      --color-primary-900: #0D47A1;
+      
+      /* 辅助色 */
+      --color-accent-400: #26C6DA;
+      --color-accent-500: #00BCD4;
+      --color-accent-600: #00ACC1;
+      
+      /* 功能色 */
+      --color-success-50: #E8F5E9;
+      --color-success-100: #C8E6C9;
+      --color-success-400: #66BB6A;
+      --color-success-500: #4CAF50;
+      --color-success-600: #43A047;
+      
+      --color-warning-50: #FFF8E1;
+      --color-warning-100: #FFECB3;
+      --color-warning-400: #FFCA28;
+      --color-warning-500: #FFC107;
+      --color-warning-600: #FFB300;
+      
+      --color-error-50: #FFEBEE;
+      --color-error-100: #FFCDD2;
+      --color-error-400: #EF5350;
+      --color-error-500: #F44336;
+      --color-error-600: #E53935;
+      
+      --color-info-500: #2196F3;
+      
+      /* 灰度 */
+      --color-gray-25: #FCFCFD;
+      --color-gray-50: #F9FAFB;
+      --color-gray-100: #F3F4F6;
+      --color-gray-200: #E5E7EB;
+      --color-gray-300: #D1D5DB;
+      --color-gray-400: #9CA3AF;
+      --color-gray-500: #6B7280;
+      --color-gray-600: #4B5563;
+      --color-gray-700: #374151;
+      --color-gray-800: #1F2937;
+      --color-gray-900: #111827;
+      
+      /* 字体 */
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+      
+      /* 字号 */
+      --text-display: 2.5rem;
+      --text-h1: 2rem;
+      --text-h2: 1.5rem;
+      --text-h3: 1.25rem;
+      --text-h4: 1.125rem;
+      --text-body-lg: 1rem;
+      --text-body: 0.9375rem;
+      --text-body-sm: 0.875rem;
+      --text-caption: 0.8125rem;
+      --text-data-lg: 2rem;
+      --text-data: 1.5rem;
+      
+      /* 间距 */
+      --space-1: 0.25rem;
+      --space-2: 0.5rem;
+      --space-3: 0.75rem;
+      --space-4: 1rem;
+      --space-5: 1.25rem;
+      --space-6: 1.5rem;
+      --space-8: 2rem;
+      --space-10: 2.5rem;
+      --space-12: 3rem;
+      --space-16: 4rem;
+      
+      /* 圆角 */
+      --radius-sm: 0.25rem;
+      --radius-md: 0.375rem;
+      --radius-lg: 0.5rem;
+      --radius-xl: 0.75rem;
+      --radius-2xl: 1rem;
+      --radius-full: 9999px;
+      
+      /* 阴影 */
+      --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
+      --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+      --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+      --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+      --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.15);
+      --shadow-industrial-sm: 0 2px 4px rgba(33, 150, 243, 0.08);
+      --shadow-industrial-md: 0 4px 12px rgba(33, 150, 243, 0.12);
+      --shadow-industrial-lg: 0 8px 24px rgba(33, 150, 243, 0.16);
+      
+      /* 动画 */
+      --duration-fast: 150ms;
+      --duration-normal: 250ms;
+      --duration-slow: 400ms;
+      --ease-out: cubic-bezier(0, 0, 0.2, 1);
+    }
+    
+    /* 深色主题 */
+    [data-theme="dark"] {
+      --bg-primary: #0F1419;
+      --bg-secondary: #161B22;
+      --bg-tertiary: #1C2128;
+      --bg-hover: #21262D;
+      --bg-active: #30363D;
+      --text-primary: #E6EDF3;
+      --text-secondary: #8B949E;
+      --text-tertiary: #6E7681;
+      --border-default: #30363D;
+      --border-muted: #21262D;
+      --border-accent: #388BFD;
+    }
+    
+    [data-theme="light"] {
+      --bg-primary: #FFFFFF;
+      --bg-secondary: #F6F8FA;
+      --bg-tertiary: #FFFFFF;
+      --bg-hover: #F3F4F6;
+      --bg-active: #E5E7EB;
+      --text-primary: #1F2937;
+      --text-secondary: #6B7280;
+      --text-tertiary: #9CA3AF;
+      --border-default: #D1D5DB;
+      --border-muted: #E5E7EB;
+      --border-accent: #2563EB;
+    }
+    
+    /* ==================== 基础样式 ==================== */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: var(--font-sans);
+      font-size: var(--text-body);
+      color: var(--text-primary);
+      background: var(--bg-secondary);
+      line-height: 1.6;
+      transition: background var(--duration-normal) var(--ease-out), color var(--duration-normal) var(--ease-out);
+    }
+    
+    /* ==================== 布局 ==================== */
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: var(--space-6);
+    }
+    
+    .header {
+      background: var(--bg-primary);
+      border-bottom: 1px solid var(--border-default);
+      padding: var(--space-4) var(--space-6);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: var(--space-4);
+    }
+    
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+    
+    .logo-icon {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, var(--color-primary-500), var(--color-accent-500));
+      border-radius: var(--radius-lg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: bold;
+    }
+    
+    .logo-text {
+      font-size: var(--text-h4);
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    
+    .theme-toggle {
+      width: 40px;
+      height: 40px;
+      border-radius: var(--radius-lg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-default);
+      cursor: pointer;
+      transition: all var(--duration-fast) var(--ease-out);
+      color: var(--text-secondary);
+    }
+    
+    .theme-toggle:hover {
+      background: var(--bg-hover);
+      border-color: var(--border-accent);
+      color: var(--text-primary);
+    }
+    
+    .section {
+      margin-bottom: var(--space-12);
+    }
+    
+    .section-title {
+      font-size: var(--text-h2);
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: var(--space-2);
+    }
+    
+    .section-desc {
+      color: var(--text-secondary);
+      margin-bottom: var(--space-6);
+    }
+    
+    .subsection-title {
+      font-size: var(--text-h4);
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: var(--space-4);
+      margin-top: var(--space-8);
+    }
+    
+    /* ==================== 色彩展示 ==================== */
+    .color-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: var(--space-4);
+    }
+    
+    .color-card {
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      border: 1px solid var(--border-default);
+      background: var(--bg-primary);
+    }
+    
+    .color-swatch {
+      height: 80px;
+    }
+    
+    .color-info {
+      padding: var(--space-3);
+    }
+    
+    .color-name {
+      font-size: var(--text-body-sm);
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    
+    .color-hex {
+      font-size: var(--text-caption);
+      font-family: var(--font-mono);
+      color: var(--text-secondary);
+    }
+    
+    /* ==================== 按钮 ==================== */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-4);
+      font-family: var(--font-sans);
+      font-size: var(--text-body);
+      font-weight: 500;
+      border-radius: var(--radius-md);
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all var(--duration-fast) var(--ease-out);
+      text-decoration: none;
+    }
+    
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+    
+    .btn-primary {
+      background: linear-gradient(135deg, var(--color-primary-500), var(--color-primary-600));
+      color: white;
+      box-shadow: var(--shadow-industrial-sm);
+    }
+    
+    .btn-primary:hover {
+      background: linear-gradient(135deg, var(--color-primary-600), var(--color-primary-700));
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-industrial-md);
+    }
+    
+    .btn-secondary {
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      border-color: var(--border-default);
+    }
+    
+    .btn-secondary:hover {
+      background: var(--bg-hover);
+      border-color: var(--border-accent);
+    }
+    
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-secondary);
+      border-color: transparent;
+    }
+    
+    .btn-ghost:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+    
+    .btn-danger {
+      background: linear-gradient(135deg, var(--color-error-500), var(--color-error-600));
+      color: white;
+    }
+    
+    .btn-danger:hover {
+      background: linear-gradient(135deg, var(--color-error-600), var(--color-error-700));
+    }
+    
+    .btn-success {
+      background: linear-gradient(135deg, var(--color-success-500), var(--color-success-600));
+      color: white;
+    }
+    
+    .btn-icon {
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      border-radius: var(--radius-md);
+    }
+    
+    .btn-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-3);
+      align-items: center;
+    }
+    
+    /* ==================== 输入控件 ==================== */
+    .input {
+      width: 100%;
+      padding: var(--space-2) var(--space-3);
+      font-family: var(--font-sans);
+      font-size: var(--text-body);
+      background: var(--bg-primary);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      transition: all var(--duration-fast) var(--ease-out);
+    }
+    
+    .input::placeholder {
+      color: var(--text-tertiary);
+    }
+    
+    .input:focus {
+      outline: none;
+      border-color: var(--color-primary-500);
+      box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.15);
+    }
+    
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      margin-bottom: var(--space-4);
+    }
+    
+    .input-label {
+      font-size: var(--text-body-sm);
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+    
+    .input-help {
+      font-size: var(--text-caption);
+      color: var(--text-secondary);
+    }
+    
+    .input-wrapper {
+      position: relative;
+    }
+    
+    .input-icon {
+      position: absolute;
+      left: var(--space-3);
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-tertiary);
+    }
+    
+    .input-with-icon {
+      padding-left: var(--space-10);
+    }
+    
+    /* Toggle 开关 */
+    .toggle {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      background: var(--border-default);
+      border-radius: var(--radius-full);
+      cursor: pointer;
+      transition: background var(--duration-fast) var(--ease-out);
+    }
+    
+    .toggle::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 20px;
+      height: 20px;
+      background: white;
+      border-radius: 50%;
+      box-shadow: var(--shadow-sm);
+      transition: left var(--duration-fast) var(--ease-out);
+    }
+    
+    .toggle.active {
+      background: var(--color-primary-500);
+    }
+    
+    .toggle.active::after {
+      left: 22px;
+    }
+    
+    /* Checkbox */
+    .checkbox-wrapper {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      cursor: pointer;
+    }
+    
+    .checkbox {
+      width: 18px;
+      height: 18px;
+      border: 2px solid var(--border-default);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      appearance: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all var(--duration-fast) var(--ease-out);
+    }
+    
+    .checkbox:checked {
+      background: var(--color-primary-500);
+      border-color: var(--color-primary-500);
+    }
+    
+    .checkbox:checked::after {
+      content: '';
+      width: 6px;
+      height: 10px;
+      border: 2px solid white;
+      border-top: none;
+      border-left: none;
+      transform: rotate(45deg) translateY(-1px);
+    }
+    
+    /* Select */
+    .select {
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236E7681' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 40px;
+      cursor: pointer;
+    }
+    
+    .form-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: var(--space-4);
+    }
+    
+    /* ==================== 卡片 ==================== */
+    .card {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+    
+    .card-header {
+      padding: var(--space-4);
+      border-bottom: 1px solid var(--border-muted);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    
+    .card-title {
+      font-size: var(--text-h4);
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    
+    .card-body {
+      padding: var(--space-4);
+    }
+    
+    /* 数据卡片 */
+    .data-card {
+      background: linear-gradient(135deg, var(--bg-primary), var(--bg-tertiary));
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-xl);
+      padding: var(--space-5);
+      position: relative;
+      overflow: hidden;
+      transition: all var(--duration-normal) var(--ease-out);
+    }
+    
+    .data-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--color-primary-500), var(--color-accent-500));
+    }
+    
+    .data-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-industrial-lg);
+      border-color: var(--color-primary-500);
+    }
+    
+    .data-card-status {
+      position: absolute;
+      top: var(--space-4);
+      right: var(--space-4);
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    
+    .status-online {
+      background: var(--color-success-500);
+      box-shadow: 0 0 8px var(--color-success-500);
+      animation: pulse 2s infinite;
+    }
+    
+    .status-warning {
+      background: var(--color-warning-500);
+      box-shadow: 0 0 8px var(--color-warning-500);
+      animation: pulse 2s infinite;
+    }
+    
+    .status-offline {
+      background: var(--color-error-500);
+      box-shadow: 0 0 8px var(--color-error-500);
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    
+    .data-card-label {
+      font-size: var(--text-caption);
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: var(--space-2);
+    }
+    
+    .data-card-value {
+      font-size: var(--text-data);
+      font-weight: 700;
+      font-family: var(--font-mono);
+      color: var(--text-primary);
+      line-height: 1;
+    }
+    
+    .data-card-unit {
+      font-size: var(--text-body);
+      font-weight: 400;
+      color: var(--text-secondary);
+      margin-left: var(--space-1);
+    }
+    
+    .data-card-trend {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
+      font-size: var(--text-body-sm);
+      margin-top: var(--space-2);
+    }
+    
+    .trend-up { color: var(--color-success-500); }
+    .trend-down { color: var(--color-error-500); }
+    
+    .data-card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: var(--space-4);
+    }
+    
+    /* ==================== 徽章 ==================== */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
+      padding: var(--space-1) var(--space-2);
+      font-size: var(--text-caption);
+      font-weight: 500;
+      border-radius: var(--radius-sm);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    
+    .badge-success {
+      background: rgba(76, 175, 80, 0.15);
+      color: var(--color-success-500);
+      border: 1px solid rgba(76, 175, 80, 0.3);
+    }
+    
+    .badge-warning {
+      background: rgba(255, 193, 7, 0.15);
+      color: var(--color-warning-500);
+      border: 1px solid rgba(255, 193, 7, 0.3);
+    }
+    
+    .badge-error {
+      background: rgba(244, 67, 54, 0.15);
+      color: var(--color-error-500);
+      border: 1px solid rgba(244, 67, 54, 0.3);
+    }
+    
+    .badge-info {
+      background: rgba(33, 150, 243, 0.15);
+      color: var(--color-info-500);
+      border: 1px solid rgba(33, 150, 243, 0.3);
+    }
+    
+    .badge-neutral {
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      border: 1px solid var(--border-default);
+    }
+    
+    .badge-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    
+    /* ==================== 表格 ==================== */
+    .table-wrapper {
+      overflow-x: auto;
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-lg);
+    }
+    
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--text-body-sm);
+    }
+    
+    .data-table th {
+      padding: var(--space-3) var(--space-4);
+      text-align: left;
+      font-weight: 600;
+      font-size: var(--text-caption);
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-default);
+    }
+    
+    .data-table td {
+      padding: var(--space-3) var(--space-4);
+      border-bottom: 1px solid var(--border-muted);
+      color: var(--text-primary);
+    }
+    
+    .data-table tr:last-child td {
+      border-bottom: none;
+    }
+    
+    .data-table tr:hover td {
+      background: var(--bg-hover);
+    }
+    
+    .data-table .mono {
+      font-family: var(--font-mono);
+    }
+    
+    .data-table .address {
+      color: var(--color-primary-400);
+      font-weight: 500;
+    }
+    
+    .data-table .status-ok {
+      color: var(--color-success-500);
+    }
+    
+    .data-table .status-error {
+      color: var(--color-error-500);
+    }
+    
+    /* ==================== 仪表盘 ==================== */
+    .gauge-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: var(--space-4);
+    }
+    
+    .gauge {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: var(--space-4);
+      background: var(--bg-primary);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-xl);
+      position: relative;
+    }
+    
+    .gauge-ring {
+      position: relative;
+      width: 120px;
+      height: 120px;
+    }
+    
+    .gauge-ring svg {
+      transform: rotate(-90deg);
+    }
+    
+    .gauge-bg {
+      fill: none;
+      stroke: var(--border-default);
+      stroke-width: 10;
+    }
+    
+    .gauge-fill {
+      fill: none;
+      stroke: url(#gauge-gradient);
+      stroke-width: 10;
+      stroke-linecap: round;
+      stroke-dasharray: 283;
+      transition: stroke-dashoffset 1s var(--ease-out);
+    }
+    
+    .gauge-fill.warning {
+      stroke: var(--color-warning-500);
+    }
+    
+    .gauge-fill.danger {
+      stroke: var(--color-error-500);
+    }
+    
+    .gauge-value {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+    }
+    
+    .gauge-number {
+      font-size: 1.5rem;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      color: var(--text-primary);
+    }
+    
+    .gauge-label {
+      font-size: var(--text-caption);
+      color: var(--text-secondary);
+      margin-top: var(--space-1);
+    }
+    
+    .gauge-title {
+      font-size: var(--text-body-sm);
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-top: var(--space-3);
+    }
+    
+    /* ==================== 导航 ==================== */
+    .sidebar-nav {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+      padding: var(--space-3);
+    }
+    
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-2) var(--space-3);
+      color: var(--text-secondary);
+      text-decoration: none;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: all var(--duration-fast) var(--ease-out);
+    }
+    
+    .nav-item:hover {
+      color: var(--text-primary);
+      background: var(--bg-hover);
+    }
+    
+    .nav-item.active {
+      color: var(--color-primary-500);
+      background: rgba(33, 150, 243, 0.1);
+    }
+    
+    .nav-item-icon {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+    
+    .nav-badge {
+      margin-left: auto;
+      background: var(--color-error-500);
+      color: white;
+      font-size: var(--text-caption);
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+    }
+    
+    /* 设备树 */
+    .device-tree {
+      padding: var(--space-2);
+    }
+    
+    .device-group-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-2);
+      color: var(--text-secondary);
+      font-size: var(--text-body-sm);
+      font-weight: 500;
+      cursor: pointer;
+      border-radius: var(--radius-md);
+    }
+    
+    .device-group-header:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+    
+    .device-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-2) var(--space-2) var(--space-8);
+      color: var(--text-primary);
+      font-size: var(--text-body-sm);
+      cursor: pointer;
+      border-radius: var(--radius-md);
+      transition: all var(--duration-fast) var(--ease-out);
+    }
+    
+    .device-item:hover {
+      background: var(--bg-hover);
+    }
+    
+    .device-item.selected {
+      background: rgba(33, 150, 243, 0.1);
+      color: var(--color-primary-500);
+    }
+    
+    .device-status {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    
+    /* ==================== Toast ==================== */
+    .toast-container {
+      position: fixed;
+      top: var(--space-4);
+      right: var(--space-4);
+      z-index: 2000;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+    
+    .toast {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-3);
+      padding: var(--space-3) var(--space-4);
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      min-width: 300px;
+      max-width: 400px;
+      animation: slideIn var(--duration-normal) var(--ease-out);
+    }
+    
+    .toast-icon {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+    
+    .toast-success .toast-icon { color: var(--color-success-500); }
+    .toast-error .toast-icon { color: var(--color-error-500); }
+    .toast-warning .toast-icon { color: var(--color-warning-500); }
+    .toast-info .toast-icon { color: var(--color-info-500); }
+    
+    .toast-content {
+      flex: 1;
+    }
+    
+    .toast-title {
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: var(--space-1);
+    }
+    
+    .toast-message {
+      font-size: var(--text-body-sm);
+      color: var(--text-secondary);
+    }
+    
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateX(100%);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+    
+    /* ==================== 趋势图 ==================== */
+    .trend-chart {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+    
+    .chart-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-3) var(--space-4);
+      border-bottom: 1px solid var(--border-muted);
+    }
+    
+    .chart-title {
+      font-size: var(--text-body);
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    
+    .chart-body {
+      padding: var(--space-4);
+      height: 200px;
+      position: relative;
+    }
+    
+    .chart-canvas {
+      width: 100%;
+      height: 100%;
+    }
+    
+    .chart-legend {
+      display: flex;
+      gap: var(--space-4);
+      padding: var(--space-3) var(--space-4);
+      border-top: 1px solid var(--border-muted);
+    }
+    
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-size: var(--text-caption);
+      color: var(--text-secondary);
+    }
+    
+    .legend-color {
+      width: 12px;
+      height: 3px;
+      border-radius: 2px;
+    }
+    
+    /* ==================== 进度条 ==================== */
+    .progress-bar {
+      height: 8px;
+      background: var(--border-default);
+      border-radius: var(--radius-full);
+      overflow: hidden;
+    }
+    
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--color-primary-500), var(--color-accent-500));
+      border-radius: var(--radius-full);
+      transition: width var(--duration-slow) var(--ease-out);
+    }
+    
+    .progress-fill.warning {
+      background: linear-gradient(90deg, var(--color-warning-400), var(--color-warning-500));
+    }
+    
+    .progress-fill.danger {
+      background: linear-gradient(90deg, var(--color-error-400), var(--color-error-500));
+    }
+    
+    /* ==================== 骨架屏 ==================== */
+    .skeleton {
+      background: linear-gradient(
+        90deg,
+        var(--bg-secondary) 25%,
+        var(--bg-hover) 50%,
+        var(--bg-secondary) 75%
+      );
+      background-size: 200% 100%;
+      animation: skeleton-loading 1.5s ease-in-out infinite;
+      border-radius: var(--radius-md);
+    }
+    
+    @keyframes skeleton-loading {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    
+    /* ==================== 预览区域 ==================== */
+    .preview-area {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-lg);
+      padding: var(--space-6);
+    }
+    
+    .preview-grid {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: var(--space-6);
+      min-height: 500px;
+    }
+    
+    .preview-sidebar {
+      background: var(--bg-secondary);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+    
+    .preview-main {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-4);
+    }
+    
+    /* ==================== 演示布局 ==================== */
+    .demo-layout {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--space-4);
+    }
+    
+    .demo-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: var(--space-4);
+    }
+    
+    /* ==================== 状态栏 ==================== */
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: var(--space-4);
+      padding: var(--space-2) var(--space-4);
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border-default);
+      font-size: var(--text-caption);
+      color: var(--text-secondary);
+    }
+    
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+    
+    /* ==================== 工具提示 ==================== */
+    .tooltip-demo {
+      position: relative;
+      display: inline-block;
+    }
+    
+    .tooltip-demo::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 50%;
+      transform: translateX(-50%);
+      padding: var(--space-2) var(--space-3);
+      background: var(--color-gray-800);
+      color: white;
+      font-size: var(--text-caption);
+      border-radius: var(--radius-md);
+      white-space: nowrap;
+      opacity: 0;
+      visibility: hidden;
+      transition: all var(--duration-fast) var(--ease-out);
+      z-index: 100;
+    }
+    
+    .tooltip-demo:hover::after {
+      opacity: 1;
+      visibility: visible;
+    }
+    
+    /* ==================== 响应式 ==================== */
+    @media (max-width: 768px) {
+      .preview-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .preview-sidebar {
+        display: none;
+      }
+      
+      .color-grid {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      }
+    }
+  </style>
+</head>
+<body data-theme="dark">
+  <!-- SVG 定义 -->
+  <svg width="0" height="0" style="position: absolute;">
+    <defs>
+      <linearGradient id="gauge-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="var(--color-primary-500)" />
+        <stop offset="100%" stop-color="var(--color-accent-500)" />
+      </linearGradient>
+    </defs>
+  </svg>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-left">
+      <div class="logo">
+        <div class="logo-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+            <path d="M2 17l10 5 10-5"/>
+            <path d="M2 12l10 5 10-5"/>
+          </svg>
+        </div>
+        <span class="logo-text">工业设备管理系统</span>
+      </div>
+    </div>
+    <button class="theme-toggle" onclick="toggleTheme()" aria-label="切换主题">
+      <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+      </svg>
+      <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
+        <circle cx="12" cy="12" r="5"/>
+        <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+      </svg>
+    </button>
+  </header>
+
+  <div class="container">
+    <!-- 颜色系统 -->
+    <section class="section">
+      <h2 class="section-title">色彩系统</h2>
+      <p class="section-desc">精心设计的工业级配色方案，包含主色、功能色和灰度系统，支持深色/浅色主题切换。</p>
+      
+      <h3 class="subsection-title">主色调</h3>
+      <div class="color-grid">
+        <div class="color-card">
+          <div class="color-swatch" style="background: linear-gradient(135deg, var(--color-primary-500), var(--color-primary-600));"></div>
+          <div class="color-info">
+            <div class="color-name">主色 Primary</div>
+            <div class="color-hex">#2196F3</div>
+          </div>
+        </div>
+        <div class="color-card">
+          <div class="color-swatch" style="background: linear-gradient(135deg, var(--color-accent-500), var(--color-accent-600));"></div>
+          <div class="color-info">
+            <div class="color-name">辅助色 Accent</div>
+            <div class="color-hex">#00BCD4</div>
+          </div>
+        </div>
+        <div class="color-card">
+          <div class="color-swatch" style="background: var(--color-success-500);"></div>
+          <div class="color-info">
+            <div class="color-name">成功 Success</div>
+            <div class="color-hex">#4CAF50</div>
+          </div>
+        </div>
+        <div class="color-card">
+          <div class="color-swatch" style="background: var(--color-warning-500);"></div>
+          <div class="color-info">
+            <div class="color-name">警告 Warning</div>
+            <div class="color-hex">#FFC107</div>
+          </div>
+        </div>
+        <div class="color-card">
+          <div class="color-swatch" style="background: var(--color-error-500);"></div>
+          <div class="color-info">
+            <div class="color-name">错误 Error</div>
+            <div class="color-hex">#F44336</div>
+          </div>
+        </div>
+        <div class="color-card">
+          <div class="color-swatch" style="background: var(--color-info-500);"></div>
+          <div class="color-info">
+            <div class="color-name">信息 Info</div>
+            <div class="color-hex">#2196F3</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 按钮 -->
+    <section class="section">
+      <h2 class="section-title">按钮</h2>
+      <p class="section-desc">多种按钮变体，支持不同操作场景，带有精心设计的悬停和点击动效。</p>
+      
+      <h3 class="subsection-title">按钮变体</h3>
+      <div class="preview-area">
+        <div class="btn-group">
+          <button class="btn btn-primary">主要按钮</button>
+          <button class="btn btn-secondary">次要按钮</button>
+          <button class="btn btn-ghost">幽灵按钮</button>
+          <button class="btn btn-danger">危险操作</button>
+          <button class="btn btn-success">成功操作</button>
+          <button class="btn btn-primary" disabled>禁用状态</button>
+        </div>
+      </div>
+      
+      <h3 class="subsection-title">图标按钮</h3>
+      <div class="preview-area">
+        <div class="btn-group">
+          <button class="btn btn-icon btn-primary" aria-label="添加">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 5v14M5 12h14"/>
+            </svg>
+          </button>
+          <button class="btn btn-icon btn-secondary" aria-label="编辑">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+          </button>
+          <button class="btn btn-icon btn-ghost" aria-label="删除">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 输入控件 -->
+    <section class="section">
+      <h2 class="section-title">输入控件</h2>
+      <p class="section-desc">支持多种输入场景，包括文本输入、下拉选择、开关和复选框。</p>
+      
+      <div class="preview-area">
+        <div class="form-row">
+          <div class="input-group">
+            <label class="input-label">设备名称</label>
+            <input type="text" class="input" placeholder="请输入设备名称">
+          </div>
+          <div class="input-group">
+            <label class="input-label">IP地址</label>
+            <div class="input-wrapper">
+              <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                <line x1="8" y1="21" x2="16" y2="21"/>
+                <line x1="12" y1="17" x2="12" y2="21"/>
+              </svg>
+              <input type="text" class="input input-with-icon" placeholder="192.168.1.1">
+            </div>
+          </div>
+          <div class="input-group">
+            <label class="input-label">设备类型</label>
+            <select class="input select">
+              <option>选择设备类型</option>
+              <option>泵站控制器</option>
+              <option>温度传感器</option>
+              <option>压力变送器</option>
+            </select>
+          </div>
+        </div>
+        
+        <div style="margin-top: var(--space-6);">
+          <h4 class="subsection-title" style="margin-top: 0; margin-bottom: var(--space-4);">开关与复选框</h4>
+          <div class="btn-group">
+            <div class="checkbox-wrapper">
+              <input type="checkbox" class="checkbox" id="check1" checked>
+              <label for="check1">启用实时监控</label>
+            </div>
+            <div class="checkbox-wrapper">
+              <input type="checkbox" class="checkbox" id="check2">
+              <label for="check2">启用报警通知</label>
+            </div>
+            <div class="checkbox-wrapper">
+              <input type="checkbox" class="checkbox" id="check3" disabled>
+              <label for="check3">禁用选项</label>
+            </div>
+          </div>
+          
+          <div class="btn-group" style="margin-top: var(--space-4);">
+            <div class="checkbox-wrapper">
+              <div class="toggle active" onclick="this.classList.toggle('active')"></div>
+              <span>自动重连</span>
+            </div>
+            <div class="checkbox-wrapper" style="margin-left: var(--space-6);">
+              <div class="toggle" onclick="this.classList.toggle('active')"></div>
+              <span>静音模式</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 数据卡片 -->
+    <section class="section">
+      <h2 class="section-title">数据卡片</h2>
+      <p class="section-desc">关键数据可视化卡片，支持实时状态指示、数据趋势和交互效果。</p>
+      
+      <div class="data-card-grid">
+        <div class="data-card">
+          <div class="data-card-status status-online"></div>
+          <div class="data-card-label">温度</div>
+          <div class="data-card-value">25.5<span class="data-card-unit">°C</span></div>
+          <div class="data-card-trend trend-up">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 15l-6-6-6 6"/>
+            </svg>
+            +2.3%
+          </div>
+        </div>
+        
+        <div class="data-card">
+          <div class="data-card-status status-warning"></div>
+          <div class="data-card-label">压力</div>
+          <div class="data-card-value">1.23<span class="data-card-unit">MPa</span></div>
+          <div class="data-card-trend trend-down">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M6 9l6 6 6-6"/>
+            </svg>
+            -0.5%
+          </div>
+        </div>
+        
+        <div class="data-card">
+          <div class="data-card-status status-online"></div>
+          <div class="data-card-label">流量</div>
+          <div class="data-card-value">50.3<span class="data-card-unit">m³/h</span></div>
+          <div class="data-card-trend" style="color: var(--text-secondary);">
+            稳定
+          </div>
+        </div>
+        
+        <div class="data-card">
+          <div class="data-card-status status-online"></div>
+          <div class="data-card-label">功率</div>
+          <div class="data-card-value">15.2<span class="data-card-unit">kW</span></div>
+          <div class="data-card-trend trend-up">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 15l-6-6-6 6"/>
+            </svg>
+            +5.1%
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 仪表盘 -->
+    <section class="section">
+      <h2 class="section-title">仪表盘</h2>
+      <p class="section-desc">圆形仪表盘组件，直观展示模拟量数据的当前值和范围。</p>
+      
+      <div class="gauge-grid">
+        <div class="gauge">
+          <div class="gauge-ring">
+            <svg width="120" height="120" viewBox="0 0 120 120">
+              <circle class="gauge-bg" cx="60" cy="60" r="45"/>
+              <circle class="gauge-fill" cx="60" cy="60" r="45" style="stroke-dashoffset: 85;"/>
+            </svg>
+            <div class="gauge-value">
+              <div class="gauge-number">75%</div>
+              <div class="gauge-label">利用率</div>
+            </div>
+          </div>
+          <div class="gauge-title">SQ10</div>
+        </div>
+        
+        <div class="gauge">
+          <div class="gauge-ring">
+            <svg width="120" height="120" viewBox="0 0 120 120">
+              <circle class="gauge-bg" cx="60" cy="60" r="45"/>
+              <circle class="gauge-fill warning" cx="60" cy="60" r="45" style="stroke-dashoffset: 42;"/>
+            </svg>
+            <div class="gauge-value">
+              <div class="gauge-number">85%</div>
+              <div class="gauge-label">预警</div>
+            </div>
+          </div>
+          <div class="gauge-title">AR2</div>
+        </div>
+        
+        <div class="gauge">
+          <div class="gauge-ring">
+            <svg width="120" height="120" viewBox="0 0 120 120">
+              <circle class="gauge-bg" cx="60" cy="60" r="45"/>
+              <circle class="gauge-fill danger" cx="60" cy="60" r="45" style="stroke-dashoffset: 28;"/>
+            </svg>
+            <div class="gauge-value">
+              <div class="gauge-number">90%</div>
+              <div class="gauge-label">危险</div>
+            </div>
+          </div>
+          <div class="gauge-title">B</div>
+        </div>
+        
+        <div class="gauge">
+          <div class="gauge-ring">
+            <svg width="120" height="120" viewBox="0 0 120 120">
+              <circle class="gauge-bg" cx="60" cy="60" r="45"/>
+              <circle class="gauge-fill" cx="60" cy="60" r="45" style="stroke-dashoffset: 141;"/>
+            </svg>
+            <div class="gauge-value">
+              <div class="gauge-number">50%</div>
+              <div class="gauge-label">正常</div>
+            </div>
+          </div>
+          <div class="gauge-title">C</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 表格 -->
+    <section class="section">
+      <h2 class="section-title">数据表格</h2>
+      <p class="section-desc">Modbus寄存器表格展示，包含地址、功能码、数值和状态列。</p>
+      
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>地址</th>
+              <th>功能码</th>
+              <th>变量名</th>
+              <th>数值</th>
+              <th>状态</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="mono address">0x0001</td>
+              <td class="mono">03</td>
+              <td>温度传感器</td>
+              <td class="mono">25.5</td>
+              <td><span class="badge badge-success"><span class="badge-dot pulse"></span> 正常</span></td>
+            </tr>
+            <tr>
+              <td class="mono address">0x0002</td>
+              <td class="mono">03</td>
+              <td>压力变送器</td>
+              <td class="mono">1.23</td>
+              <td><span class="badge badge-success"><span class="badge-dot pulse"></span> 正常</span></td>
+            </tr>
+            <tr>
+              <td class="mono address">0x0003</td>
+              <td class="mono">03</td>
+              <td>流量计</td>
+              <td class="mono">50.3</td>
+              <td><span class="badge badge-warning"><span class="badge-dot pulse"></span> 预警</span></td>
+            </tr>
+            <tr>
+              <td class="mono address">0x0004</td>
+              <td class="mono">03</td>
+              <td>功率表</td>
+              <td class="mono">15.2</td>
+              <td><span class="badge badge-error"><span class="badge-dot"></span> 故障</span></td>
+            </tr>
+            <tr>
+              <td class="mono address">0x0005</td>
+              <td class="mono">03</td>
+              <td>频率</td>
+              <td class="mono">50.0</td>
+              <td><span class="badge badge-success"><span class="badge-dot pulse"></span> 正常</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 趋势图 -->
+    <section class="section">
+      <h2 class="section-title">趋势图</h2>
+      <p class="section-desc">实时数据趋势展示，支持多数据系列和图例说明。</p>
+      
+      <div class="trend-chart">
+        <div class="chart-header">
+          <span class="chart-title">温度趋势</span>
+          <div class="btn-group">
+            <button class="btn btn-ghost btn-sm">1H</button>
+            <button class="btn btn-primary btn-sm">6H</button>
+            <button class="btn btn-ghost btn-sm">24H</button>
+            <button class="btn btn-ghost btn-sm">ALL</button>
+          </div>
+        </div>
+        <div class="chart-body">
+          <canvas id="trendCanvas" class="chart-canvas"></canvas>
+        </div>
+        <div class="chart-legend">
+          <div class="legend-item">
+            <div class="legend-color" style="background: var(--color-primary-500);"></div>
+            <span>温度 (°C)</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-color" style="background: var(--color-accent-500);"></div>
+            <span>压力 (MPa)</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 导航 -->
+    <section class="section">
+      <h2 class="section-title">导航组件</h2>
+      <p class="section-desc">侧边导航栏和设备树形列表，支持分组和状态显示。</p>
+      
+      <div class="preview-area">
+        <div class="preview-grid" style="padding: 0;">
+          <div class="preview-sidebar">
+            <div class="sidebar-nav">
+              <div style="padding: var(--space-2) var(--space-3); font-size: var(--text-caption); color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em;">
+                导航菜单
+              </div>
+              <a class="nav-item active">
+                <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="7" height="7"/>
+                  <rect x="14" y="3" width="7" height="7"/>
+                  <rect x="14" y="14" width="7" height="7"/>
+                  <rect x="3" y="14" width="7" height="7"/>
+                </svg>
+                <span>仪表盘</span>
+              </a>
+              <a class="nav-item">
+                <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                  <line x1="8" y1="21" x2="16" y2="21"/>
+                  <line x1="12" y1="17" x2="12" y2="21"/>
+                </svg>
+                <span>设备监控</span>
+                <span class="nav-badge">6</span>
+              </a>
+              <a class="nav-item">
+                <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+                </svg>
+                <span>设备管理</span>
+              </a>
+              <a class="nav-item">
+                <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M18 20V10"/>
+                  <path d="M12 20V4"/>
+                  <path d="M6 20v-6"/>
+                </svg>
+                <span>数据分析</span>
+              </a>
+              <a class="nav-item">
+                <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="3"/>
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                </svg>
+                <span>系统设置</span>
+              </a>
+            </div>
+            
+            <div style="border-top: 1px solid var(--border-muted); padding: var(--space-3);">
+              <div style="padding: var(--space-2) var(--space-3); font-size: var(--text-caption); color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em;">
+                设备列表
+              </div>
+              <div class="device-tree">
+                <div class="device-group">
+                  <div class="device-group-header">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M6 9l6 6 6-6"/>
+                    </svg>
+                    泵站A区
+                  </div>
+                  <div class="device-item selected">
+                    <div class="device-status" style="background: var(--color-success-500);"></div>
+                    <span>Pump-01</span>
+                  </div>
+                  <div class="device-item">
+                    <div class="device-status" style="background: var(--color-success-500);"></div>
+                    <span>Pump-02</span>
+                  </div>
+                  <div class="device-item">
+                    <div class="device-status" style="background: var(--color-warning-500);"></div>
+                    <span>Pump-03</span>
+                  </div>
+                </div>
+                <div class="device-group">
+                  <div class="device-group-header">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M6 9l6 6 6-6"/>
+                    </svg>
+                    泵站B区
+                  </div>
+                  <div class="device-item">
+                    <div class="device-status" style="background: var(--color-error-500);"></div>
+                    <span>Pump-04</span>
+                  </div>
+                  <div class="device-item">
+                    <div class="device-status" style="background: var(--color-success-500);"></div>
+                    <span>Pump-05</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div style="padding: var(--space-4);">
+            <div class="card">
+              <div class="card-header">
+                <span class="card-title">Pump-01 监控面板</span>
+                <div class="btn-group">
+                  <button class="btn btn-success btn-sm">启动</button>
+                  <button class="btn btn-danger btn-sm">停止</button>
+                  <button class="btn btn-secondary btn-sm">复位</button>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="demo-row">
+                  <div class="data-card">
+                    <div class="data-card-status status-online"></div>
+                    <div class="data-card-label">入口压力</div>
+                    <div class="data-card-value">0.85<span class="data-card-unit">MPa</span></div>
+                  </div>
+                  <div class="data-card">
+                    <div class="data-card-status status-online"></div>
+                    <div class="data-card-label">出口压力</div>
+                    <div class="data-card-value">1.23<span class="data-card-unit">MPa</span></div>
+                  </div>
+                </div>
+                <div style="margin-top: var(--space-4);">
+                  <div style="display: flex; justify-content: space-between; margin-bottom: var(--space-2);">
+                    <span style="font-size: var(--text-body-sm); color: var(--text-secondary);">设备效率</span>
+                    <span style="font-size: var(--text-body-sm); font-weight: 600;">85%</span>
+                  </div>
+                  <div class="progress-bar">
+                    <div class="progress-fill" style="width: 85%;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="status-bar" style="margin-top: var(--space-4); border-radius: var(--radius-lg);">
+              <div class="status-item">
+                <div class="device-status" style="background: var(--color-success-500);"></div>
+                <span>已连接</span>
+              </div>
+              <div class="status-item">
+                <span>在线: 5/6</span>
+              </div>
+              <div class="status-item">
+                <span>最后更新: 2024-01-15 14:30:25</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 徽章 -->
+    <section class="section">
+      <h2 class="section-title">状态徽章</h2>
+      <p class="section-desc">用于指示设备状态、操作结果等信息的徽章组件。</p>
+      
+      <div class="preview-area">
+        <div class="btn-group">
+          <span class="badge badge-success"><span class="badge-dot pulse"></span> 正常运行</span>
+          <span class="badge badge-warning"><span class="badge-dot pulse"></span> 需要注意</span>
+          <span class="badge badge-error"><span class="badge-dot"></span> 故障停机</span>
+          <span class="badge badge-info"><span class="badge-dot pulse"></span> 数据采集中</span>
+          <span class="badge badge-neutral">离线</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 工具提示 -->
+    <section class="section">
+      <h2 class="section-title">交互反馈</h2>
+      <p class="section-desc">Toast通知和工具提示，用于操作反馈和辅助说明。</p>
+      
+      <div class="preview-area">
+        <div class="btn-group">
+          <button class="btn btn-primary" onclick="showToast('success')">成功提示</button>
+          <button class="btn btn-primary" onclick="showToast('error')">错误提示</button>
+          <button class="btn btn-primary" onclick="showToast('warning')">警告提示</button>
+          <button class="btn btn-primary" onclick="showToast('info')">信息提示</button>
+          <button class="btn btn-secondary tooltip-demo" data-tooltip="这是一个工具提示">悬停查看提示</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script>
+    // 主题切换
+    function toggleTheme() {
+      const body = document.body;
+      const isDark = body.getAttribute('data-theme') === 'dark';
+      body.setAttribute('data-theme', isDark ? 'light' : 'dark');
+      
+      // 更新图标显示
+      const moonIcon = document.querySelector('.icon-moon');
+      const sunIcon = document.querySelector('.icon-sun');
+      if (isDark) {
+        moonIcon.style.display = 'none';
+        sunIcon.style.display = 'block';
+      } else {
+        moonIcon.style.display = 'block';
+        sunIcon.style.display = 'none';
+      }
+    }
+    
+    // Toast 通知
+    function showToast(type) {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = `toast toast-${type}`;
+      
+      const icons = {
+        success: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+        error: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+        warning: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+        info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>'
+      };
+      
+      const messages = {
+        success: { title: '操作成功', message: '设备连接已建立，数据同步中' },
+        error: { title: '操作失败', message: '设备连接超时，请检查网络' },
+        warning: { title: '警告', message: '设备温度异常，请注意监控' },
+        info: { title: '提示', message: '系统检测到新版本更新' }
+      };
+      
+      const msg = messages[type];
+      toast.innerHTML = `
+        <div class="toast-icon">${icons[type]}</div>
+        <div class="toast-content">
+          <div class="toast-title">${msg.title}</div>
+          <div class="toast-message">${msg.message}</div>
+        </div>
+      `;
+      
+      container.appendChild(toast);
+      
+      setTimeout(() => {
+        toast.style.animation = 'slideIn 0.25s ease-out reverse';
+        setTimeout(() => toast.remove(), 250);
+      }, 3000);
+    }
+    
+    // 绘制趋势图
+    function drawTrendChart() {
+      const canvas = document.getElementById('trendCanvas');
+      const ctx = canvas.getContext('2d');
+      const rect = canvas.getBoundingClientRect();
+      
+      canvas.width = rect.width * window.devicePixelRatio;
+      canvas.height = rect.height * window.devicePixelRatio;
+      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+      
+      const width = rect.width;
+      const height = rect.height;
+      const padding = { top: 20, right: 20, bottom: 30, left: 50 };
+      
+      // 生成模拟数据
+      const dataPoints = 50;
+      const tempData = [];
+      const pressureData = [];
+      let temp = 25;
+      let pressure = 1.2;
+      
+      for (let i = 0; i < dataPoints; i++) {
+        temp += (Math.random() - 0.5) * 0.5;
+        pressure += (Math.random() - 0.5) * 0.02;
+        tempData.push(temp);
+        pressureData.push(pressure);
+      }
+      
+      // 获取当前主题颜色
+      const style = getComputedStyle(document.body);
+      const textColor = style.getPropertyValue('--text-tertiary').trim();
+      const gridColor = style.getPropertyValue('--border-muted').trim();
+      const primaryColor = style.getPropertyValue('--color-primary-500').trim();
+      const accentColor = style.getPropertyValue('--color-accent-500').trim();
+      
+      ctx.clearRect(0, 0, width, height);
+      
+      // 绘制网格
+      ctx.strokeStyle = gridColor;
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= 4; i++) {
+        const y = padding.top + (height - padding.top - padding.bottom) * i / 4;
+        ctx.beginPath();
+        ctx.moveTo(padding.left, y);
+        ctx.lineTo(width - padding.right, y);
+        ctx.stroke();
+        
+        // Y轴标签
+        ctx.fillStyle = textColor;
+        ctx.font = '11px Inter';
+        ctx.textAlign = 'right';
+        ctx.fillText((30 - i * 5).toFixed(0), padding.left - 8, y + 4);
+      }
+      
+      // 绘制温度线
+      ctx.beginPath();
+      ctx.strokeStyle = primaryColor;
+      ctx.lineWidth = 2;
+      const chartWidth = width - padding.left - padding.right;
+      const chartHeight = height - padding.top - padding.bottom;
+      
+      for (let i = 0; i < tempData.length; i++) {
+        const x = padding.left + (i / (tempData.length - 1)) * chartWidth;
+        const y = padding.top + (1 - (tempData[i] - 15) / 20) * chartHeight;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      
+      // 绘制压力线
+      ctx.beginPath();
+      ctx.strokeStyle = accentColor;
+      ctx.lineWidth = 2;
+      
+      for (let i = 0; i < pressureData.length; i++) {
+        const x = padding.left + (i / (pressureData.length - 1)) * chartWidth;
+        const y = padding.top + (1 - (pressureData[i] - 0.8) / 0.8) * chartHeight;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      
+      // 绘制填充
+      ctx.globalAlpha = 0.1;
+      
+      ctx.beginPath();
+      for (let i = 0; i < tempData.length; i++) {
+        const x = padding.left + (i / (tempData.length - 1)) * chartWidth;
+        const y = padding.top + (1 - (tempData[i] - 15) / 20) * chartHeight;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.lineTo(padding.left + chartWidth, height - padding.bottom);
+      ctx.lineTo(padding.left, height - padding.bottom);
+      ctx.closePath();
+      ctx.fillStyle = primaryColor;
+      ctx.fill();
+      
+      ctx.globalAlpha = 1;
+    }
+    
+    // 初始化
+    window.addEventListener('resize', drawTrendChart);
+    window.addEventListener('load', () => {
+      setTimeout(drawTrendChart, 100);
+    });
+    
+    // 监听主题变化重新绘制图表
+    const observer = new MutationObserver(() => {
+      drawTrendChart();
+    });
+    observer.observe(document.body, { attributes: true, attributeFilter: ['data-theme'] });
+  </script>
+</body>
+</html>
