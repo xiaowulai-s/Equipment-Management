@@ -16,11 +16,26 @@ Rectangle {
 
     width: 200
     height: 140
-    radius: 12
-    color: "#161B22"
-    border.color: "#30363D"
+    radius: 16  // var(--radius-xl)
+    color: Qt.rgba(22/255, 27/255, 34/255, 1)  // var(--bg-raised)
+    border.color: "#30363D"  // var(--border-default)
     border.width: 1
     clip: true
+    gradient: Gradient {
+        GradientStop { position: 0.0; color: Qt.rgba(22/255, 27/255, 34/255, 1) }
+        GradientStop { position: 1.0; color: Qt.rgba(28/255, 33/255, 40/255, 1) }
+    }
+    
+    // 顶部渐变边框
+    Rectangle {
+        width: parent.width
+        height: 3
+        color: "transparent"
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: "#2196F3" }
+            GradientStop { position: 1.0; color: "#00BCD4" }
+        }
+    }
 
     // 悬停状态
     property bool isHovered: false
@@ -109,10 +124,10 @@ Rectangle {
             anchors.topMargin: 24
             anchors.leftMargin: 20
             text: label.toUpperCase()
-            color: "#8B949E"
-            font.pixelSize: 13
+            color: "#8B949E"  // var(--text-secondary)
+            font.pixelSize: 13  // var(--text-caption)
             font.family: "Inter, sans-serif"
-            font.weight: Font.Medium
+            font.weight: 500  // var(--font-medium)
             Behavior on color {
                 ColorAnimation { duration: 250 }
             }
@@ -130,10 +145,11 @@ Rectangle {
             Text {
                 id: valueText
                 text: value.toFixed(decimals)
-                color: "#E6EDF3"
-                font.pixelSize: 24
-                font.family: "JetBrains Mono, Consolas, monospace"
-                font.weight: Font.Bold
+                color: "#E6EDF3"  // var(--text-primary)
+                font.pixelSize: 32  // var(--text-data)
+                font.family: "JetBrains Mono, Consolas, monospace"  // var(--font-mono)
+                font.weight: 700  // var(--font-bold)
+                lineHeight: 1  // var(--leading-none)
                 Behavior on color {
                     ColorAnimation { duration: 250 }
                 }
@@ -143,8 +159,8 @@ Rectangle {
                 id: unitText
                 anchors.verticalCenter: parent.verticalCenter
                 text: unit
-                color: "#8B949E"
-                font.pixelSize: 14
+                color: "#8B949E"  // var(--text-secondary)
+                font.pixelSize: 14  // var(--text-body-sm)
                 font.family: "Inter, sans-serif"
             }
         }
@@ -156,39 +172,43 @@ Rectangle {
             anchors.left: parent.left
             anchors.bottomMargin: 20
             anchors.leftMargin: 20
-            spacing: 4
+            spacing: 6
 
             // 趋势图标（使用Canvas绘制SVG风格箭头）
             Canvas {
                 id: trendIconCanvas
-                width: 14
-                height: 14
+                width: 16
+                height: 16
                 anchors.verticalCenter: parent.verticalCenter
 
                 onPaint: {
                     var ctx = getContext("2d")
                     ctx.clearRect(0, 0, width, height)
                     ctx.strokeStyle = getTrendColor()
-                    ctx.lineWidth = 2
+                    ctx.lineWidth = 1.8
                     ctx.lineCap = "round"
                     ctx.lineJoin = "round"
 
                     if (trend === "up") {
                         ctx.beginPath()
-                        ctx.moveTo(3, 10)
-                        ctx.lineTo(7, 4)
-                        ctx.lineTo(11, 10)
+                        ctx.moveTo(4, 8)
+                        ctx.lineTo(8, 4)
+                        ctx.lineTo(12, 8)
+                        ctx.moveTo(8, 4)
+                        ctx.lineTo(8, 12)
                         ctx.stroke()
                     } else if (trend === "down") {
                         ctx.beginPath()
-                        ctx.moveTo(3, 4)
-                        ctx.lineTo(7, 10)
-                        ctx.lineTo(11, 4)
+                        ctx.moveTo(4, 8)
+                        ctx.lineTo(8, 12)
+                        ctx.lineTo(12, 8)
+                        ctx.moveTo(8, 12)
+                        ctx.lineTo(8, 4)
                         ctx.stroke()
                     } else {
                         ctx.beginPath()
-                        ctx.moveTo(3, 7)
-                        ctx.lineTo(11, 7)
+                        ctx.moveTo(4, 8)
+                        ctx.lineTo(12, 8)
                         ctx.stroke()
                     }
                 }
@@ -198,8 +218,9 @@ Rectangle {
                 id: trendValueText
                 text: trend !== "stable" ? (trend === "up" ? "+" : "-") + trendValue.toFixed(1) + "%" : "稳定"
                 color: getTrendColor()
-                font.pixelSize: 13
+                font.pixelSize: 14  // var(--text-body-sm)
                 font.family: "Inter, sans-serif"
+                font.weight: 500  // var(--font-medium)
             }
         }
 

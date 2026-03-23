@@ -1,0 +1,143 @@
+{
+  "version": "1.0",
+  "devices": [
+    {
+      "name": "哈哈哈哈",
+      "protocol_type": "modbus_tcp",
+      "use_simulator": true,
+      "host": "127.0.0.1",
+      "port": 502,
+      "unit_id": 1,
+      "device_id": "9bc9a4f3",
+      "register_map": [
+        {
+          "name": "温度",
+          "address": 0,
+          "type": "uint16",
+          "scale": 0.1,
+          "unit": "°C"
+        },
+        {
+          "name": "压力",
+          "address": 1,
+          "type": "uint16",
+          "scale": 0.1,
+          "unit": "MPa"
+        },
+        {
+          "name": "流量",
+          "address": 2,
+          "type": "uint16",
+          "scale": 0.1,
+          "unit": "m³/h"
+        },
+        {
+          "name": "状态",
+          "address": 3,
+          "type": "uint16",
+          "scale": 1,
+          "unit": ""
+        },
+        {
+          "name": "报警",
+          "address": 4,
+          "type": "uint16",
+          "scale": 1,
+          "unit": ""
+        }
+      ]
+    },
+    {
+      "name": "2",
+      "protocol_type": "modbus_tcp",
+      "use_simulator": false,
+      "host": "127.0.0.1",
+      "port": 502,
+      "unit_id": 1,
+      "device_id": "9ac2487b",
+      "register_map": [
+        {
+          "name": "温度",
+          "address": 0,
+          "type": "uint16",
+          "scale": 0.1,
+          "unit": "°C"
+        },
+        {
+          "name": "压力",
+          "address": 1,
+          "type": "uint16",
+          "scale": 0.1,
+          "unit": "MPa"
+        },
+        {
+          "name": "流量",
+          "address": 2,
+          "type": "uint16",
+          "scale": 0.1,
+          "unit": "m³/h"
+        },
+        {
+          "name": "状态",
+          "address": 3,
+          "type": "uint16",
+          "scale": 1,
+          "unit": ""
+        },
+        {
+          "name": "报警",
+          "address": 4,
+          "type": "uint16",
+          "scale": 1,
+          "unit": ""
+        }
+      ]
+    },
+    {
+      "name": "3",
+      "protocol_type": "modbus_tcp",
+      "use_simulator": false,
+      "host": "127.0.0.1",
+      "port": 502,
+      "unit_id": 1,
+      "device_id": "e9c7dba7",
+      "register_map": [
+        {
+          "name": "温度",
+          "address": 0,
+          "type": "uint16",
+          "scale": 0.1,
+          "unit": "°C"
+        },
+        {
+          "name": "压力",
+          "address": 1,
+          "type": "uint16",
+          "scale": 0.1,
+          "unit": "MPa"
+        },
+        {
+          "name": "流量",
+          "address": 2,
+          "type": "uint16",
+          "scale": 0.1,
+          "unit": "m³/h"
+        },
+        {
+          "name": "状态",
+          "address": 3,
+          "type": "uint16",
+          "scale": 1,
+          "unit": ""
+        },
+        {
+          "name": "报警",
+          "address": 4,
+          "type": "uint16",
+          "scale": 1,
+          "unit": ""
+        }
+      ]
+    }
+  ]
+}

@@ -3,7 +3,6 @@
 
 import QtQuick 2.15
 import QtQuick.Controls 2.15
-import QtQuick.Layouts 1.15
 
 Item {
     id: root
@@ -25,7 +24,7 @@ Item {
     // 属性
     property int currentPage: 1
     property int pageSize: 5
-    property int sortColumn: -1  // -1 表示未排序
+    property int sortColumn: -1
     property bool sortAscending: true
 
     // 数据模型
@@ -51,20 +50,11 @@ Item {
         return textSecondary
     }
 
-    // 状态徽章背景色
-    function getBadgeBgColor(status) {
-        if (status === 0) return "rgba(76, 175, 80, 0.15)"
-        if (status === 1) return "rgba(255, 193, 7, 0.15)"
-        if (status === 2) return "rgba(244, 67, 54, 0.15)"
-        return "#1C2128"
-    }
-
-    // 状态徽章边框色
-    function getBadgeBorderColor(status) {
-        if (status === 0) return "rgba(76, 175, 80, 0.3)"
-        if (status === 1) return "rgba(255, 193, 7, 0.3)"
-        if (status === 2) return "rgba(244, 67, 54, 0.3)"
-        return "#30363D"
+    function getStatusText(status) {
+        if (status === 0) return "正常"
+        if (status === 1) return "预警"
+        if (status === 2) return "故障"
+        return "未知"
     }
 
     width: 500
@@ -78,422 +68,207 @@ Item {
         border.width: 1
         border.color: colorBorder
 
-        Column {
-            anchors.fill: parent
+        // 表头（Sticky）
+        Rectangle {
+            id: tableHeader
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: 44
+            color: colorBgRaised
+            radius: 8
+            z: 10
 
-            // 表头（Sticky）
+            // 表头底部阴影
             Rectangle {
-                id: tableHeader
-                anchors.top: parent.top
+                anchors.bottom: parent.bottom
                 anchors.left: parent.left
                 anchors.right: parent.right
-                height: 44
-                color: colorBgRaised
-                radius: 8
-                z: 10  // 确保在其他内容之上
-
-                // 表头底部阴影
-                Rectangle {
-                    anchors.bottom: parent.bottom
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    height: 1
-                    color: colorBorder
-                }
-
-                Row {
-                    anchors.fill: parent
-                    anchors.leftMargin: 16
-
-                    // 地址列（可排序）
-                    Item {
-                        width: 80
-                        height: parent.height
-
-                        Row {
-                            anchors.centerIn: parent
-                            spacing: 4
-
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: "地址"
-                                color: sortColumn === 0 ? colorPrimary : textSecondary
-                                font.pixelSize: 13
-                                font.family: "Inter, sans-serif"
-                                font.weight: Font.SemiBold
-                            }
-
-                            // 排序指示器
-                            Rectangle {
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: 12
-                                height: 12
-                                color: "transparent"
-
-                                Canvas {
-                                    anchors.fill: parent
-                                    visible: sortColumn === 0
-
-                                    onPaint: {
-                                        var ctx = getContext("2d")
-                                        ctx.clearRect(0, 0, width, height)
-                                        ctx.strokeStyle = colorPrimary
-                                        ctx.lineWidth = 1.5
-                                        ctx.lineCap = "round"
-
-                                        if (sortAscending) {
-                                            // 向上箭头
-                                            ctx.beginPath()
-                                            ctx.moveTo(6, 9)
-                                            ctx.lineTo(10, 4)
-                                            ctx.lineTo(2, 4)
-                                            ctx.closePath()
-                                            ctx.stroke()
-                                        } else {
-                                            // 向下箭头
-                                            ctx.beginPath()
-                                            ctx.moveTo(6, 3)
-                                            ctx.lineTo(10, 8)
-                                            ctx.lineTo(2, 8)
-                                            ctx.closePath()
-                                            ctx.stroke()
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                if (sortColumn === 0) {
-                                    sortAscending = !sortAscending
-                                } else {
-                                    sortColumn = 0
-                                    sortAscending = true
-                                }
-                            }
-                        }
-                    }
-
-                    // 功能码列（可排序）
-                    Item {
-                        width: 70
-                        height: parent.height
-
-                        Row {
-                            anchors.centerIn: parent
-                            spacing: 4
-
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: "功能码"
-                                color: sortColumn === 1 ? colorPrimary : textSecondary
-                                font.pixelSize: 13
-                                font.family: "Inter, sans-serif"
-                                font.weight: Font.SemiBold
-                            }
-
-                            Rectangle {
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: 12
-                                height: 12
-                                color: "transparent"
-
-                                Canvas {
-                                    anchors.fill: parent
-                                    visible: sortColumn === 1
-
-                                    onPaint: {
-                                        var ctx = getContext("2d")
-                                        ctx.clearRect(0, 0, width, height)
-                                        ctx.strokeStyle = colorPrimary
-                                        ctx.lineWidth = 1.5
-                                        ctx.lineCap = "round"
-
-                                        if (sortAscending) {
-                                            ctx.beginPath()
-                                            ctx.moveTo(6, 9)
-                                            ctx.lineTo(10, 4)
-                                            ctx.lineTo(2, 4)
-                                            ctx.closePath()
-                                            ctx.stroke()
-                                        } else {
-                                            ctx.beginPath()
-                                            ctx.moveTo(6, 3)
-                                            ctx.lineTo(10, 8)
-                                            ctx.lineTo(2, 8)
-                                            ctx.closePath()
-                                            ctx.stroke()
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                if (sortColumn === 1) {
-                                    sortAscending = !sortAscending
-                                } else {
-                                    sortColumn = 1
-                                    sortAscending = true
-                                }
-                            }
-                        }
-                    }
-
-                    // 变量名列
-                    Rectangle {
-                        width: 120
-                        height: parent.height
-                        color: "transparent"
-
-                        Text {
-                            anchors.centerIn: parent
-                            text: "变量名"
-                            color: textSecondary
-                            font.pixelSize: 13
-                            font.family: "Inter, sans-serif"
-                            font.weight: Font.SemiBold
-                        }
-                    }
-
-                    // 数值列（可排序）
-                    Item {
-                        width: 100
-                        height: parent.height
-
-                        Row {
-                            anchors.centerIn: parent
-                            spacing: 4
-
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: "数值"
-                                color: sortColumn === 3 ? colorPrimary : textSecondary
-                                font.pixelSize: 13
-                                font.family: "Inter, sans-serif"
-                                font.weight: Font.SemiBold
-                            }
-
-                            Rectangle {
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: 12
-                                height: 12
-                                color: "transparent"
-
-                                Canvas {
-                                    anchors.fill: parent
-                                    visible: sortColumn === 3
-
-                                    onPaint: {
-                                        var ctx = getContext("2d")
-                                        ctx.clearRect(0, 0, width, height)
-                                        ctx.strokeStyle = colorPrimary
-                                        ctx.lineWidth = 1.5
-                                        ctx.lineCap = "round"
-
-                                        if (sortAscending) {
-                                            ctx.beginPath()
-                                            ctx.moveTo(6, 9)
-                                            ctx.lineTo(10, 4)
-                                            ctx.lineTo(2, 4)
-                                            ctx.closePath()
-                                            ctx.stroke()
-                                        } else {
-                                            ctx.beginPath()
-                                            ctx.moveTo(6, 3)
-                                            ctx.lineTo(10, 8)
-                                            ctx.lineTo(2, 8)
-                                            ctx.closePath()
-                                            ctx.stroke()
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                if (sortColumn === 3) {
-                                    sortAscending = !sortAscending
-                                } else {
-                                    sortColumn = 3
-                                    sortAscending = true
-                                }
-                            }
-                        }
-                    }
-
-                    // 状态列
-                    Rectangle {
-                        width: 100
-                        height: parent.height
-                        color: "transparent"
-
-                        Text {
-                            anchors.centerIn: parent
-                            text: "状态"
-                            color: textSecondary
-                            font.pixelSize: 13
-                            font.family: "Inter, sans-serif"
-                            font.weight: Font.SemiBold
-                        }
-                    }
-                }
+                height: 1
+                color: colorBorder
             }
 
-            // 表格数据区
-            Rectangle {
-                anchors.top: parent.top
-                anchors.topMargin: 44
+            // 地址列（可排序）
+            Text {
                 anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.bottom: parent.bottom
-                anchors.bottomMargin: 52
-                color: "transparent"
+                anchors.leftMargin: 16
+                anchors.verticalCenter: parent.verticalCenter
+                width: 80
+                text: "地址"
+                color: sortColumn === 0 ? colorPrimary : textSecondary
+                font.pixelSize: 13
+                font.family: "Inter, sans-serif"
+                font.weight: 600
+            }
+
+            // 功能码列
+            Text {
+                anchors.left: parent.left
+                anchors.leftMargin: 96
+                anchors.verticalCenter: parent.verticalCenter
+                width: 70
+                text: "功能码"
+                color: sortColumn === 1 ? colorPrimary : textSecondary
+                font.pixelSize: 13
+                font.family: "Inter, sans-serif"
+                font.weight: 600
+            }
+
+            // 变量名列
+            Text {
+                anchors.left: parent.left
+                anchors.leftMargin: 166
+                anchors.verticalCenter: parent.verticalCenter
+                width: 120
+                text: "变量名"
+                color: textSecondary
+                font.pixelSize: 13
+                font.family: "Inter, sans-serif"
+                font.weight: 600
+            }
+
+            // 数值列
+            Text {
+                anchors.left: parent.left
+                anchors.leftMargin: 286
+                anchors.verticalCenter: parent.verticalCenter
+                width: 100
+                text: "数值"
+                color: sortColumn === 3 ? colorPrimary : textSecondary
+                font.pixelSize: 13
+                font.family: "Inter, sans-serif"
+                font.weight: 600
+            }
+
+            // 状态列
+            Text {
+                anchors.left: parent.left
+                anchors.leftMargin: 386
+                anchors.verticalCenter: parent.verticalCenter
+                width: 80
+                text: "状态"
+                color: textSecondary
+                font.pixelSize: 13
+                font.family: "Inter, sans-serif"
+                font.weight: 600
+            }
+        }
+
+        // 表格数据区
+        Rectangle {
+            anchors.top: parent.top
+            anchors.topMargin: 44
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 52
+            color: "transparent"
+            clip: true
+
+            ListView {
+                id: tableView
+                anchors.fill: parent
+                model: tableData
                 clip: true
+                delegate: tableRowDelegate
+                spacing: 0
+            }
+        }
 
-                ListView {
-                    id: tableView
-                    anchors.fill: parent
-                    model: tableData
-                    clip: true
-                    delegate: tableRowDelegate
-                    spacing: 0
-                }
+        // 分页栏
+        Rectangle {
+            anchors.bottom: parent.bottom
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: 52
+            color: colorBgRaised
+            radius: 8
+
+            // 总行数
+            Text {
+                anchors.left: parent.left
+                anchors.leftMargin: 16
+                anchors.verticalCenter: parent.verticalCenter
+                text: "共 " + totalRows + " 条"
+                color: textSecondary
+                font.pixelSize: 14
+                font.family: "Inter, sans-serif"
             }
 
-            // 分页栏
-            Rectangle {
-                anchors.bottom: parent.bottom
-                anchors.left: parent.left
-                anchors.right: parent.right
-                height: 52
-                color: colorBgRaised
-                radius: 8
+            // 分页按钮
+            Row {
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 8
 
-                Row {
-                    anchors.fill: parent
-                    anchors.margins: 12
+                // 上一页
+                Rectangle {
+                    width: 32
+                    height: 32
+                    radius: 6
+                    color: currentPage > 1 ? colorBgOverlay : "transparent"
+                    border.width: 1
+                    border.color: colorBorder
 
-                    // 总行数
                     Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: "共 " + totalRows + " 条"
-                        color: textSecondary
+                        anchors.centerIn: parent
+                        text: "<"
+                        color: currentPage > 1 ? textPrimary : textSecondary
                         font.pixelSize: 14
                         font.family: "Inter, sans-serif"
                     }
 
-                    Item { width: 1; height: 1 }
-
-                    // 分页按钮
-                    Row {
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: 8
-
-                        // 上一页
-                        Rectangle {
-                            width: 32
-                            height: 32
-                            radius: 6
-                            color: currentPage > 1 ? colorBgOverlay : "transparent"
-                            border.width: 1
-                            border.color: colorBorder
-
-                            Canvas {
-                                anchors.centerIn: parent
-                                width: 14
-                                height: 14
-
-                                onPaint: {
-                                    var ctx = getContext("2d")
-                                    ctx.clearRect(0, 0, width, height)
-                                    ctx.strokeStyle = currentPage > 1 ? textPrimary : textSecondary
-                                    ctx.lineWidth = 2
-                                    ctx.lineCap = "round"
-                                    ctx.lineJoin = "round"
-                                    ctx.beginPath()
-                                    ctx.moveTo(9, 3)
-                                    ctx.lineTo(4, 7)
-                                    ctx.lineTo(9, 11)
-                                    ctx.stroke()
-                                }
-                            }
-
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: currentPage > 1 ? Qt.PointingHandCursor : Qt.ArrowCursor
-                                onClicked: if (currentPage > 1) currentPage--
-                            }
-                        }
-
-                        // 页码显示
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: currentPage + " / " + totalPages
-                            color: textPrimary
-                            font.pixelSize: 14
-                            font.family: "Inter, sans-serif"
-                            font.weight: Font.Medium
-                            anchors.verticalCenterOffset: 1
-                        }
-
-                        // 下一页
-                        Rectangle {
-                            width: 32
-                            height: 32
-                            radius: 6
-                            color: currentPage < totalPages ? colorBgOverlay : "transparent"
-                            border.width: 1
-                            border.color: colorBorder
-
-                            Canvas {
-                                anchors.centerIn: parent
-                                width: 14
-                                height: 14
-
-                                onPaint: {
-                                    var ctx = getContext("2d")
-                                    ctx.clearRect(0, 0, width, height)
-                                    ctx.strokeStyle = currentPage < totalPages ? textPrimary : textSecondary
-                                    ctx.lineWidth = 2
-                                    ctx.lineCap = "round"
-                                    ctx.lineJoin = "round"
-                                    ctx.beginPath()
-                                    ctx.moveTo(5, 3)
-                                    ctx.lineTo(10, 7)
-                                    ctx.lineTo(5, 11)
-                                    ctx.stroke()
-                                }
-                            }
-
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: currentPage < totalPages ? Qt.PointingHandCursor : Qt.ArrowCursor
-                                onClicked: if (currentPage < totalPages) currentPage++
-                            }
-                        }
-                    }
-
-                    Item { width: 1; height: 1 }
-
-                    // 每页条数
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: "每页 " + pageSize + " 条"
-                        color: textSecondary
-                        font.pixelSize: 13
-                        font.family: "Inter, sans-serif"
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: currentPage > 1 ? Qt.PointingHandCursor : Qt.ArrowCursor
+                        onClicked: if (currentPage > 1) currentPage--
                     }
                 }
+
+                // 页码显示
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: currentPage + " / " + totalPages
+                    color: textPrimary
+                    font.pixelSize: 14
+                    font.family: "Inter, sans-serif"
+                    font.weight: Font.Medium
+                }
+
+                // 下一页
+                Rectangle {
+                    width: 32
+                    height: 32
+                    radius: 6
+                    color: currentPage < totalPages ? colorBgOverlay : "transparent"
+                    border.width: 1
+                    border.color: colorBorder
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: ">"
+                        color: currentPage < totalPages ? textPrimary : textSecondary
+                        font.pixelSize: 14
+                        font.family: "Inter, sans-serif"
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: currentPage < totalPages ? Qt.PointingHandCursor : Qt.ArrowCursor
+                        onClicked: if (currentPage < totalPages) currentPage++
+                    }
+                }
+            }
+
+            // 每页条数
+            Text {
+                anchors.right: parent.right
+                anchors.rightMargin: 16
+                anchors.verticalCenter: parent.verticalCenter
+                text: "每页 " + pageSize + " 条"
+                color: textSecondary
+                font.pixelSize: 13
+                font.family: "Inter, sans-serif"
             }
         }
     }
@@ -516,6 +291,104 @@ Item {
                 color: colorBorderMuted
             }
 
+            property var rowData: modelData ? modelData : ({address: "", functionCode: "", variableName: "", value: "", unit: "", status: 0, statusText: ""})
+
+            // 地址列
+            Text {
+                anchors.left: parent.left
+                anchors.leftMargin: 16
+                anchors.verticalCenter: parent.verticalCenter
+                width: 80
+                text: rowData.address
+                color: colorPrimaryLight
+                font.pixelSize: 14
+                font.family: "JetBrains Mono, monospace"
+                font.weight: Font.Medium
+            }
+
+            // 功能码列
+            Text {
+                anchors.left: parent.left
+                anchors.leftMargin: 96
+                anchors.verticalCenter: parent.verticalCenter
+                width: 70
+                text: rowData.functionCode
+                color: textPrimary
+                font.pixelSize: 14
+                font.family: "JetBrains Mono, monospace"
+            }
+
+            // 变量名列
+            Text {
+                anchors.left: parent.left
+                anchors.leftMargin: 166
+                anchors.verticalCenter: parent.verticalCenter
+                width: 120
+                text: rowData.variableName
+                color: textPrimary
+                font.pixelSize: 14
+                font.family: "Inter, sans-serif"
+            }
+
+            // 数值列
+            Row {
+                anchors.left: parent.left
+                anchors.leftMargin: 286
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 4
+
+                Text {
+                    text: rowData.value
+                    color: textPrimary
+                    font.pixelSize: 14
+                    font.family: "JetBrains Mono, monospace"
+                    font.weight: Font.Medium
+                }
+
+                Text {
+                    text: rowData.unit
+                    color: textSecondary
+                    font.pixelSize: 13
+                    font.family: "Inter, sans-serif"
+                }
+            }
+
+            // 状态列 - 徽章样式
+            Rectangle {
+                anchors.left: parent.left
+                anchors.leftMargin: 386
+                anchors.verticalCenter: parent.verticalCenter
+                width: 72
+                height: 26
+                radius: 4
+                color: getStatusBgColor(rowData.status)
+                border.width: 1
+                border.color: getStatusBorderColor(rowData.status)
+
+                Row {
+                    anchors.centerIn: parent
+                    spacing: 4
+
+                    // 状态点
+                    Rectangle {
+                        width: 6
+                        height: 6
+                        radius: 3
+                        color: getStatusColor(rowData.status)
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+
+                    Text {
+                        text: getStatusText(rowData.status)
+                        color: getStatusColor(rowData.status)
+                        font.pixelSize: 12
+                        font.family: "Inter, sans-serif"
+                        font.weight: Font.Medium
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+            }
+
             // 悬停效果
             MouseArea {
                 anchors.fill: parent
@@ -523,126 +396,27 @@ Item {
                 cursorShape: Qt.PointingHandCursor
 
                 onEntered: {
-                    parent.color = "#2196F3" + "15"
+                    parent.color = "#2196F315"
                 }
 
                 onExited: {
                     parent.color = index % 2 === 0 ? colorBgBase : colorBgOverlay
                 }
             }
-
-            Row {
-                anchors.fill: parent
-                anchors.leftMargin: 16
-
-                // 地址列
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 80
-                    text: modelData.address
-                    color: colorPrimaryLight
-                    font.pixelSize: 14
-                    font.family: "JetBrains Mono, monospace"
-                    font.weight: Font.Medium
-                }
-
-                // 功能码列
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 70
-                    text: modelData.functionCode
-                    color: textPrimary
-                    font.pixelSize: 14
-                    font.family: "JetBrains Mono, monospace"
-                }
-
-                // 变量名列
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 120
-                    text: modelData.variableName
-                    color: textPrimary
-                    font.pixelSize: 14
-                    font.family: "Inter, sans-serif"
-                }
-
-                // 数值列
-                Row {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 100
-                    spacing: 4
-
-                    Text {
-                        text: modelData.value
-                        color: textPrimary
-                        font.pixelSize: 14
-                        font.family: "JetBrains Mono, monospace"
-                        font.weight: Font.Medium
-                    }
-
-                    Text {
-                        text: modelData.unit
-                        color: textSecondary
-                        font.pixelSize: 13
-                        font.family: "Inter, sans-serif"
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
-                }
-
-                // 状态列 - 徽章样式
-                Rectangle {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 72
-                    height: 26
-                    radius: 4
-                    color: getBadgeBgColor(modelData.status)
-                    border.width: 1
-                    border.color: getBadgeBorderColor(modelData.status)
-
-                    Row {
-                        anchors.centerIn: parent
-                        spacing: 4
-
-                        // 状态点
-                        Rectangle {
-                            width: 6
-                            height: 6
-                            radius: 3
-                            color: getStatusColor(modelData.status)
-                            anchors.verticalCenter: parent.verticalCenter
-
-                            // 脉冲动画
-                            Rectangle {
-                                anchors.centerIn: parent
-                                width: parent.width * 2
-                                height: parent.height * 2
-                                radius: width / 2
-                                color: "transparent"
-                                border.width: 1
-                                border.color: getStatusColor(modelData.status)
-                                opacity: modelData.status === 0 ? 0.4 : 0
-                                visible: modelData.status === 0
-
-                                NumberAnimation on opacity {
-                                    loops: -1
-                                    from: 0.4
-                                    to: 0.1
-                                    duration: 1500
-                                }
-                            }
-                        }
-
-                        Text {
-                            text: modelData.statusText
-                            color: getStatusColor(modelData.status)
-                            font.pixelSize: 12
-                            font.family: "Inter, sans-serif"
-                            font.weight: Font.Medium
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-                    }
-                }
-            }
         }
+    }
+
+    function getStatusBgColor(status) {
+        if (status === 0) return "rgba(76, 175, 80, 0.15)"
+        if (status === 1) return "rgba(255, 193, 7, 0.15)"
+        if (status === 2) return "rgba(244, 67, 54, 0.15)"
+        return colorBgOverlay
+    }
+
+    function getStatusBorderColor(status) {
+        if (status === 0) return "rgba(76, 175, 80, 0.3)"
+        if (status === 1) return "rgba(255, 193, 7, 0.3)"
+        if (status === 2) return "rgba(244, 67, 54, 0.3)"
+        return colorBorder
     }
 }

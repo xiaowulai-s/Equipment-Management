@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
 工业设备管理系统 - 主程序入口
@@ -13,7 +12,7 @@ from pathlib import Path
 
 # 尝试导入PySide6
 try:
-    from PySide6.QtCore import QObject, Slot, QTimer, QUrl
+    from PySide6.QtCore import QObject, Slot, QTimer, QUrl, Signal
     from PySide6.QtGui import QGuiApplication
     from PySide6.QtQml import QQmlApplicationEngine
     from PySide6.QtQuick import QQuickView
@@ -34,9 +33,22 @@ if not PYSIDE6_AVAILABLE:
     except ImportError:
         PYQT5_AVAILABLE = False
 
+# 导入项目模块
+from Backend import Backend
+from logging_config import setup_logging, LogLevel
+
 # 添加项目路径
 SCRIPT_DIR = Path(__file__).parent.absolute()
 QML_DIR = SCRIPT_DIR / "qml"
+
+# 初始化日志系统
+setup_logging(
+    log_dir=str(SCRIPT_DIR / "logs"),
+    log_level=LogLevel.INFO.value,
+    max_bytes=50 * 1024 * 1024,  # 50MB
+    backup_count=10,
+    console_output=True
+)
 
 def get_qml_path(filename):
     """获取QML文件的绝对路径"""
@@ -45,7 +57,7 @@ def get_qml_path(filename):
 def main():
     """主函数"""
     print("=" * 60)
-    print("工业设备管理系统 v1.0.0")
+    print("工业设备管理系统 v1.0.1")
     print("=" * 60)
     print(f"QML目录: {QML_DIR}")
     print()
@@ -76,12 +88,21 @@ def main():
         app = QGuiApplication(sys.argv)
         app.setApplicationName("工业设备管理系统")
         app.setOrganizationName("Industrial Equipment Co.")
+        app.setApplicationVersion("1.0.1")
 
         # 创建QML引擎
         engine = QQmlApplicationEngine()
 
         # 注册QML路径
         engine.addImportPath(str(QML_DIR))
+        engine.addImportPath(str(QML_DIR / "components"))
+
+        # 创建并注册后端
+        backend = Backend()
+        engine.rootContext().setContextProperty("backend", backend)
+
+        # 设置额外的QML上下文属性
+        engine.rootContext().setContextProperty("mainApp", app)
 
         # 加载主界面
         main_qml_url = QUrl.fromLocalFile(str(main_qml.absolute()))
@@ -99,12 +120,21 @@ def main():
         app = QGuiApplication(sys.argv)
         app.setApplicationName("工业设备管理系统")
         app.setOrganizationName("Industrial Equipment Co.")
+        app.setApplicationVersion("1.0.1")
 
         # 创建QML引擎
         engine = QQmlApplicationEngine()
 
         # 注册QML路径
         engine.addImportPath(str(QML_DIR))
+        engine.addImportPath(str(QML_DIR / "components"))
+
+        # 创建并注册后端
+        backend = Backend()
+        engine.rootContext().setContextProperty("backend", backend)
+
+        # 设置额外的QML上下文属性
+        engine.rootContext().setContextProperty("mainApp", app)
 
         # 加载主界面
         main_qml_url = QUrl(str(main_qml.absolute()))

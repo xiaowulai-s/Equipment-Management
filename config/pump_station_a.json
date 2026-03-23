@@ -1,0 +1,281 @@
+{
+  "product_id": "pump_station_a",
+  "product_name": "泵站A",
+  "description": "工业级泵站监控系统，用于监测和控制泵站的运行状态",
+  "version": "1.0.0",
+  "registers": [
+    {
+      "address": 1,
+      "name": "温度传感器",
+      "type": "holding_register",
+      "unit": "°C",
+      "default_value": 25.0,
+      "min_value": 0.0,
+      "max_value": 100.0,
+      "scale": 0.1,
+      "read_only": true,
+      "group": "温度监控"
+    },
+    {
+      "address": 2,
+      "name": "压力变送器",
+      "type": "holding_register",
+      "unit": "MPa",
+      "default_value": 1.23,
+      "min_value": 0.0,
+      "max_value": 2.0,
+      "scale": 0.01,
+      "read_only": true,
+      "group": "压力监控"
+    },
+    {
+      "address": 3,
+      "name": "流量计",
+      "type": "holding_register",
+      "unit": "m³/h",
+      "default_value": 50.3,
+      "min_value": 0.0,
+      "max_value": 100.0,
+      "scale": 0.1,
+      "read_only": true,
+      "group": "流量监控"
+    },
+    {
+      "address": 4,
+      "name": "功率表",
+      "type": "holding_register",
+      "unit": "kW",
+      "default_value": 15.2,
+      "min_value": 0.0,
+      "max_value": 50.0,
+      "scale": 0.1,
+      "read_only": true,
+      "group": "能耗监控"
+    },
+    {
+      "address": 5,
+      "name": "频率",
+      "type": "holding_register",
+      "unit": "Hz",
+      "default_value": 50.0,
+      "min_value": 0.0,
+      "max_value": 60.0,
+      "scale": 0.1,
+      "read_only": true,
+      "group": "电机监控"
+    },
+    {
+      "address": 6,
+      "name": "效率",
+      "type": "holding_register",
+      "unit": "%",
+      "default_value": 95.2,
+      "min_value": 0.0,
+      "max_value": 100.0,
+      "scale": 0.1,
+      "read_only": true,
+      "group": "性能监控"
+    },
+    {
+      "address": 7,
+      "name": "入口压力",
+      "type": "holding_register",
+      "unit": "MPa",
+      "default_value": 0.85,
+      "min_value": 0.0,
+      "max_value": 2.0,
+      "scale": 0.01,
+      "read_only": true,
+      "group": "压力监控"
+    },
+    {
+      "address": 8,
+      "name": "出口压力",
+      "type": "holding_register",
+      "unit": "MPa",
+      "default_value": 1.23,
+      "min_value": 0.0,
+      "max_value": 2.0,
+      "scale": 0.01,
+      "read_only": true,
+      "group": "压力监控"
+    },
+    {
+      "address": 100,
+      "name": "泵启停控制",
+      "type": "coil",
+      "unit": "",
+      "default_value": 0,
+      "min_value": 0,
+      "max_value": 1,
+      "scale": 1.0,
+      "read_only": false,
+      "group": "控制"
+    },
+    {
+      "address": 101,
+      "name": "故障复位",
+      "type": "coil",
+      "unit": "",
+      "default_value": 0,
+      "min_value": 0,
+      "max_value": 1,
+      "scale": 1.0,
+      "read_only": false,
+      "group": "控制"
+    }
+  ],
+  "communication": {
+    "protocol": "modbus_tcp",
+    "port": 502,
+    "timeout": 3,
+    "reconnect_interval": 5,
+    "read_interval": 2,
+    "write_timeout": 2,
+    "batch_read": {
+      "enabled": true,
+      "max_registers_per_request": 125,
+      "address_grouping": {
+        "enabled": true,
+        "max_gap": 10
+      }
+    }
+  },
+  "ui_layout": {
+    "dashboard": {
+      "gauges": [
+        {
+          "register_address": 1,
+          "title": "温度",
+          "unit": "°C",
+          "color": "#FF6B6B",
+          "position": "top-left"
+        },
+        {
+          "register_address": 2,
+          "title": "压力",
+          "unit": "MPa",
+          "color": "#4ECDC4",
+          "position": "top-right"
+        },
+        {
+          "register_address": 3,
+          "title": "流量",
+          "unit": "m³/h",
+          "color": "#45B7D1",
+          "position": "bottom-left"
+        },
+        {
+          "register_address": 4,
+          "title": "功率",
+          "unit": "kW",
+          "color": "#96CEB4",
+          "position": "bottom-right"
+        }
+      ],
+      "trend_charts": [
+        {
+          "title": "温度趋势",
+          "registers": [1],
+          "time_range": 1800,
+          "color": "#FF6B6B"
+        },
+        {
+          "title": "压力趋势",
+          "registers": [2],
+          "time_range": 1800,
+          "color": "#4ECDC4"
+        }
+      ],
+      "status_cards": [
+        {
+          "register_address": 100,
+          "title": "泵状态",
+          "status_map": {
+            "0": "停止",
+            "1": "运行"
+          },
+          "color_map": {
+            "0": "#FF6B6B",
+            "1": "#4ECDC4"
+          }
+        }
+      ]
+    },
+    "register_table": {
+      "groups": [
+        "温度监控",
+        "压力监控",
+        "流量监控",
+        "能耗监控",
+        "电机监控",
+        "性能监控",
+        "控制"
+      ]
+    }
+  },
+  "alarms": [
+    {
+      "id": "temp_high",
+      "name": "温度过高",
+      "register_address": 1,
+      "condition": "greater_than",
+      "threshold": 80.0,
+      "severity": "high",
+      "message": "温度超过80°C，设备可能过热！",
+      "enabled": true
+    },
+    {
+      "id": "pressure_high",
+      "name": "压力过高",
+      "register_address": 2,
+      "condition": "greater_than",
+      "threshold": 1.8,
+      "severity": "high",
+      "message": "压力超过1.8MPa，设备可能过载！",
+      "enabled": true
+    },
+    {
+      "id": "flow_low",
+      "name": "流量过低",
+      "register_address": 3,
+      "condition": "less_than",
+      "threshold": 10.0,
+      "severity": "medium",
+      "message": "流量低于10m³/h，可能存在管道堵塞！",
+      "enabled": true
+    }
+  ],
+  "commands": [
+    {
+      "id": "pump_start",
+      "name": "启动泵",
+      "description": "启动主泵机组",
+      "type": "single_write",
+      "register_address": 100,
+      "value": 1,
+      "register_type": "coil",
+      "permission": "operator"
+    },
+    {
+      "id": "pump_stop",
+      "name": "停止泵",
+      "description": "停止主泵机组",
+      "type": "single_write",
+      "register_address": 100,
+      "value": 0,
+      "register_type": "coil",
+      "permission": "operator"
+    },
+    {
+      "id": "fault_reset",
+      "name": "故障复位",
+      "description": "复位设备故障状态",
+      "type": "single_write",
+      "register_address": 101,
+      "value": 1,
+      "register_type": "coil",
+      "permission": "maintenance"
+    }
+  ]
+}

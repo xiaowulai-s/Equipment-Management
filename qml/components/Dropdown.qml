@@ -8,8 +8,6 @@ Rectangle {
     property int currentIndex: 0
     property bool enabled: true
 
-    signal currentIndexChanged(int index)
-
     implicitWidth: 200
     implicitHeight: 40
     color: "#161B22"
@@ -40,11 +38,14 @@ Rectangle {
         Text {
             id: valueText
             anchors.verticalCenter: parent.verticalCenter
+            anchors.left: labelText.right
+            anchors.right: arrowText.left
+            anchors.leftMargin: 8
             text: model[currentIndex]
             color: "#E6EDF3"
             font.pixelSize: 14
             font.family: "Inter, sans-serif"
-            Layout.fillWidth: true
+            elide: Text.ElideRight
         }
 
         Text {

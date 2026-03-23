@@ -56,13 +56,11 @@ Item {
             Text {
                 id: badgeText
                 anchors.verticalCenter: parent.verticalCenter
-                text: root.text
+                text: root.text.toUpperCase()
                 color: getBadgeColors().text
                 font.pixelSize: 13
                 font.family: "Inter, sans-serif"
                 font.weight: Font.Medium
-                textTransform: Text.Uppercase
-                letterSpacing: 0.8
             }
         }
     }
