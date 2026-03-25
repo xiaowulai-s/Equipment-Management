@@ -2,58 +2,11 @@
   "version": "1.0",
   "devices": [
     {
-      "name": "哈哈哈哈",
-      "protocol_type": "modbus_tcp",
-      "use_simulator": true,
-      "host": "127.0.0.1",
-      "port": 502,
-      "unit_id": 1,
-      "device_id": "9bc9a4f3",
-      "register_map": [
-        {
-          "name": "温度",
-          "address": 0,
-          "type": "uint16",
-          "scale": 0.1,
-          "unit": "°C"
-        },
-        {
-          "name": "压力",
-          "address": 1,
-          "type": "uint16",
-          "scale": 0.1,
-          "unit": "MPa"
-        },
-        {
-          "name": "流量",
-          "address": 2,
-          "type": "uint16",
-          "scale": 0.1,
-          "unit": "m³/h"
-        },
-        {
-          "name": "状态",
-          "address": 3,
-          "type": "uint16",
-          "scale": 1,
-          "unit": ""
-        },
-        {
-          "name": "报警",
-          "address": 4,
-          "type": "uint16",
-          "scale": 1,
-          "unit": ""
-        }
-      ]
-    },
-    {
-      "name": "2",
+      "device_type": "泵",
+      "name": "传感器",
+      "device_number": "5",
       "protocol_type": "modbus_tcp",
       "use_simulator": false,
-      "host": "127.0.0.1",
-      "port": 502,
-      "unit_id": 1,
       "device_id": "9ac2487b",
       "register_map": [
         {
@@ -94,13 +47,79 @@
       ]
     },
     {
-      "name": "3",
+      "device_type": "泵",
+      "name": "泵",
+      "device_number": "6",
       "protocol_type": "modbus_tcp",
       "use_simulator": false,
-      "host": "127.0.0.1",
-      "port": 502,
-      "unit_id": 1,
       "device_id": "e9c7dba7",
+      "register_map": [
+        {
+          "name": "温度",
+          "address": 0,
+          "type": "uint16",
+          "scale": 0.1,
+          "unit": "°C"
+        },
+        {
+          "name": "压力",
+          "address": 1,
+          "type": "uint16",
+          "scale": 0.1,
+          "unit": "MPa"
+        },
+        {
+          "name": "流量",
+          "address": 2,
+          "type": "uint16",
+          "scale": 0.1,
+          "unit": "m³/h"
+        },
+        {
+          "name": "状态",
+          "address": 3,
+          "type": "uint16",
+          "scale": 1,
+          "unit": ""
+        },
+        {
+          "name": "报警",
+          "address": 4,
+          "type": "uint16",
+          "scale": 1,
+          "unit": ""
+        },
+        {
+          "enabled": true,
+          "address": 40001,
+          "function_code": 3,
+          "name": "温度",
+          "data_type": "float32",
+          "read_write": "R",
+          "value": 0,
+          "unit": "°C",
+          "description": "快速添加的温度寄存器"
+        },
+        {
+          "enabled": true,
+          "address": 40001,
+          "function_code": 3,
+          "name": "温度",
+          "data_type": "float32",
+          "read_write": "R",
+          "value": 0,
+          "unit": "°C",
+          "description": "快速添加的温度寄存器"
+        }
+      ]
+    },
+    {
+      "device_type": "泵",
+      "name": "阀门",
+      "device_number": "2",
+      "protocol_type": "modbus_tcp",
+      "use_simulator": false,
+      "device_id": "e783473f",
       "register_map": [
         {
           "name": "温度",
@@ -138,6 +157,114 @@
           "unit": ""
         }
       ]
+    },
+    {
+      "device_type": "泵",
+      "name": "传感器",
+      "device_number": "3",
+      "protocol_type": "modbus_tcp",
+      "use_simulator": false,
+      "device_id": "7862eeb3",
+      "register_map": [
+        {
+          "name": "温度",
+          "address": 0,
+          "type": "uint16",
+          "scale": 0.1,
+          "unit": "°C"
+        },
+        {
+          "name": "压力",
+          "address": 1,
+          "type": "uint16",
+          "scale": 0.1,
+          "unit": "MPa"
+        },
+        {
+          "name": "流量",
+          "address": 2,
+          "type": "uint16",
+          "scale": 0.1,
+          "unit": "m³/h"
+        },
+        {
+          "name": "状态",
+          "address": 3,
+          "type": "uint16",
+          "scale": 1,
+          "unit": ""
+        },
+        {
+          "name": "报警",
+          "address": 4,
+          "type": "uint16",
+          "scale": 1,
+          "unit": ""
+        }
+      ]
+    },
+    {
+      "device_type": "气体传感器",
+      "name": "气体传感器",
+      "device_number": "9",
+      "protocol_type": "modbus_rtu",
+      "use_simulator": true,
+      "port": "COM3",
+      "baudrate": 19200,
+      "bytesize": 5,
+      "parity": "N",
+      "stopbits": 1,
+      "unit_id": 1,
+      "device_id": "b50457ad",
+      "register_map": [
+        {
+          "name": "温度",
+          "address": 0,
+          "type": "uint16",
+          "scale": 0.1,
+          "unit": "°C"
+        },
+        {
+          "name": "压力",
+          "address": 1,
+          "type": "uint16",
+          "scale": 0.1,
+          "unit": "MPa"
+        },
+        {
+          "name": "流量",
+          "address": 2,
+          "type": "uint16",
+          "scale": 0.1,
+          "unit": "m³/h"
+        },
+        {
+          "name": "状态",
+          "address": 3,
+          "type": "uint16",
+          "scale": 1,
+          "unit": ""
+        },
+        {
+          "name": "报警",
+          "address": 4,
+          "type": "uint16",
+          "scale": 1,
+          "unit": ""
+        }
+      ]
+    },
+    {
+      "device_type": "阀门",
+      "name": "设备1",
+      "device_number": "1",
+      "protocol_type": "modbus_tcp",
+      "use_simulator": false,
+      "register_map": [],
+      "host": "127.0.0.1",
+      "port": 502,
+      "unit_id": 1,
+      "device_id": "60507cc2"
     }
   ]
 }

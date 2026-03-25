@@ -102,6 +102,34 @@ class DeviceManager(QObject):
         device = self._devices[device_id]
         return device.connect()
 
+    def edit_device(self, device_id: str, new_config: Dict) -> bool:
+        """
+        编辑设备配置
+        Edit device configuration
+        """
+        if device_id not in self._devices:
+            return False
+
+        # 断开设备
+        device = self._devices[device_id]
+        device.disconnect()
+
+        # 更新设备配置
+        new_config["device_id"] = device_id
+        self._devices[device_id] = DeviceFactory.create_device(device_id, new_config)
+        
+        # 连接信号
+        self._devices[device_id].status_changed.connect(lambda s, d=device_id: self._on_device_status_changed(d, s))
+        self._devices[device_id].data_updated.connect(lambda data, d=device_id: self._on_device_data_updated(d, data))
+        self._devices[device_id].error_occurred.connect(lambda error, d=device_id: self._on_device_error(d, error))
+
+        # 保存配置
+        self._save_devices()
+
+        # 发出信号
+        self.device_added.emit(device_id)  # 使用同一个信号，刷新设备列表
+        return True
+
     def disconnect_device(self, device_id: str):
         """
         断开设备
@@ -227,3 +255,55 @@ class DeviceManager(QObject):
         Get poll interval
         """
         return self._poll_interval
+
+    def batch_connect_devices(self, device_ids: List[str]) -> Dict[str, bool]:
+        """
+        批量连接设备
+        Batch connect devices
+        """
+        results = {}
+        for device_id in device_ids:
+            results[device_id] = self.connect_device(device_id)
+        return results
+
+    def batch_disconnect_devices(self, device_ids: List[str]) -> Dict[str, bool]:
+        """
+        批量断开设备
+        Batch disconnect devices
+        """
+        results = {}
+        for device_id in device_ids:
+            self.disconnect_device(device_id)
+            results[device_id] = True
+        return results
+
+    def batch_remove_devices(self, device_ids: List[str]) -> Dict[str, bool]:
+        """
+        批量删除设备
+        Batch remove devices
+        """
+        results = {}
+        for device_id in device_ids:
+            results[device_id] = self.remove_device(device_id)
+        return results
+
+    def get_devices_by_status(self, status: DeviceStatus) -> List[Device]:
+        """
+        根据状态获取设备
+        Get devices by status
+        """
+        return [device for device in self._devices.values() if device.get_status() == status]
+
+    def get_connected_devices(self) -> List[Device]:
+        """
+        获取已连接的设备
+        Get connected devices
+        """
+        return self.get_devices_by_status(DeviceStatus.CONNECTED)
+
+    def get_disconnected_devices(self) -> List[Device]:
+        """
+        获取已断开的设备
+        Get disconnected devices
+        """
+        return self.get_devices_by_status(DeviceStatus.DISCONNECTED)

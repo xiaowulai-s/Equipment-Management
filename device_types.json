@@ -1,0 +1,22 @@
+[
+  {
+    "name": "阀门",
+    "code": "VALVE",
+    "description": "通用阀门设备"
+  },
+  {
+    "name": "传感器",
+    "code": "SENSOR",
+    "description": "通用传感器设备"
+  },
+  {
+    "name": "气体传感器",
+    "code": "O2",
+    "description": "通用气体传感器设备"
+  },
+  {
+    "name": "液体传感器",
+    "code": "L2",
+    "description": "通用液体传感器设备"
+  }
+]
