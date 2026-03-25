@@ -6,7 +6,8 @@ Device Type Manager
 
 import json
 import os
-from typing import List, Dict, Any
+from typing import Any, Dict, List
+
 from PySide6.QtCore import QObject, Signal
 
 
@@ -34,7 +35,7 @@ class DeviceTypeManager(QObject):
         """
         if os.path.exists(self._config_file):
             try:
-                with open(self._config_file, 'r', encoding='utf-8') as f:
+                with open(self._config_file, "r", encoding="utf-8") as f:
                     self._device_types = json.load(f)
             except Exception as e:
                 print(f"加载设备类型失败: {e}")
@@ -42,21 +43,9 @@ class DeviceTypeManager(QObject):
         else:
             # 默认设备类型
             self._device_types = [
-                {
-                    "name": "泵",
-                    "code": "PUMP",
-                    "description": "通用泵设备"
-                },
-                {
-                    "name": "阀门",
-                    "code": "VALVE",
-                    "description": "通用阀门设备"
-                },
-                {
-                    "name": "传感器",
-                    "code": "SENSOR",
-                    "description": "通用传感器设备"
-                }
+                {"name": "泵", "code": "PUMP", "description": "通用泵设备"},
+                {"name": "阀门", "code": "VALVE", "description": "通用阀门设备"},
+                {"name": "传感器", "code": "SENSOR", "description": "通用传感器设备"},
             ]
             self._save_device_types()
 
@@ -66,7 +55,7 @@ class DeviceTypeManager(QObject):
         Save device types
         """
         try:
-            with open(self._config_file, 'w', encoding='utf-8') as f:
+            with open(self._config_file, "w", encoding="utf-8") as f:
                 json.dump(self._device_types, f, ensure_ascii=False, indent=2)
         except Exception as e:
             print(f"保存设备类型失败: {e}")
@@ -99,11 +88,7 @@ class DeviceTypeManager(QObject):
                 return False
 
         # 添加新设备类型
-        new_type = {
-            "name": name,
-            "code": code,
-            "description": description
-        }
+        new_type = {"name": name, "code": code, "description": description}
         self._device_types.append(new_type)
         self._save_device_types()
         self.device_type_added.emit(name)
@@ -135,13 +120,9 @@ class DeviceTypeManager(QObject):
                 for j, dt in enumerate(self._device_types):
                     if i != j and (dt["name"] == new_name or dt["code"] == new_code):
                         return False
-                
+
                 # 更新设备类型
-                self._device_types[i] = {
-                    "name": new_name,
-                    "code": new_code,
-                    "description": new_description
-                }
+                self._device_types[i] = {"name": new_name, "code": new_code, "description": new_description}
                 self._save_device_types()
                 self.device_types_changed.emit()
                 return True

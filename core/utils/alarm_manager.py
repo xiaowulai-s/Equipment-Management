@@ -4,42 +4,47 @@
 Alarm System Module
 """
 
-from enum import Enum
-from typing import Dict, Any, List, Optional, Callable
-from PySide6.QtCore import QObject, Signal, QTimer
 from datetime import datetime
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional
+
+from PySide6.QtCore import QObject, QTimer, Signal
 
 
 class AlarmLevel(Enum):
     """报警级别"""
-    INFO = 0       # 信息
-    WARNING = 1    # 警告
-    ERROR = 2      # 错误
-    CRITICAL = 3   # 严重
+
+    INFO = 0  # 信息
+    WARNING = 1  # 警告
+    ERROR = 2  # 错误
+    CRITICAL = 3  # 严重
 
 
 class AlarmType(Enum):
     """报警类型"""
-    THRESHOLD_HIGH = "threshold_high"      # 阈值过高
-    THRESHOLD_LOW = "threshold_low"        # 阈值过低
-    DEVICE_OFFLINE = "device_offline"      # 设备离线
+
+    THRESHOLD_HIGH = "threshold_high"  # 阈值过高
+    THRESHOLD_LOW = "threshold_low"  # 阈值过低
+    DEVICE_OFFLINE = "device_offline"  # 设备离线
     COMMUNICATION_ERROR = "communication_error"  # 通信错误
-    CUSTOM = "custom"                      # 自定义
+    CUSTOM = "custom"  # 自定义
 
 
 class AlarmRule:
     """报警规则"""
 
-    def __init__(self,
-                 rule_id: str,
-                 device_id: str,
-                 parameter: str,
-                 alarm_type: AlarmType,
-                 threshold_high: Optional[float] = None,
-                 threshold_low: Optional[float] = None,
-                 level: AlarmLevel = AlarmLevel.WARNING,
-                 enabled: bool = True,
-                 description: str = ""):
+    def __init__(
+        self,
+        rule_id: str,
+        device_id: str,
+        parameter: str,
+        alarm_type: AlarmType,
+        threshold_high: Optional[float] = None,
+        threshold_low: Optional[float] = None,
+        level: AlarmLevel = AlarmLevel.WARNING,
+        enabled: bool = True,
+        description: str = "",
+    ):
         self.rule_id = rule_id
         self.device_id = device_id
         self.parameter = parameter
@@ -82,11 +87,7 @@ class AlarmRule:
 class Alarm:
     """报警实例"""
 
-    def __init__(self,
-                 alarm_id: str,
-                 rule: AlarmRule,
-                 value: float,
-                 timestamp: datetime = None):
+    def __init__(self, alarm_id: str, rule: AlarmRule, value: float, timestamp: datetime = None):
         self.alarm_id = alarm_id
         self.rule = rule
         self.value = value
@@ -109,7 +110,7 @@ class Alarm:
             "description": self.rule.description,
             "timestamp": self.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
             "acknowledged": self.acknowledged,
-            "cleared": self.cleared
+            "cleared": self.cleared,
         }
 
 
@@ -118,7 +119,7 @@ class AlarmManager(QObject):
 
     # 信号定义
     alarm_triggered = Signal(Alarm)  # 报警触发
-    alarm_cleared = Signal(str)      # 报警清除 (alarm_id)
+    alarm_cleared = Signal(str)  # 报警清除 (alarm_id)
     alarm_acknowledged = Signal(str)  # 报警确认 (alarm_id)
 
     def __init__(self, parent=None):
@@ -226,7 +227,7 @@ class AlarmManager(QObject):
             "total": len(self._alarm_history),
             "active": len(self._active_alarms),
             "acknowledged": sum(1 for a in self._active_alarms.values() if a.acknowledged),
-            "by_level": {level.name: 0 for level in AlarmLevel}
+            "by_level": {level.name: 0 for level in AlarmLevel},
         }
 
         for alarm in self._alarm_history:

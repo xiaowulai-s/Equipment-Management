@@ -14,7 +14,7 @@ from typing import Optional
 class AppLogger:
     """应用日志管理器"""
 
-    _instance: Optional['AppLogger'] = None
+    _instance: Optional["AppLogger"] = None
     _loggers: dict = {}
 
     def __new__(cls):
@@ -56,8 +56,7 @@ class AppLogger:
             return logger
 
         formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
         )
 
         console_handler = logging.StreamHandler()
@@ -65,12 +64,12 @@ class AppLogger:
         console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)
 
-        today = datetime.now().strftime('%Y-%m-%d')
+        today = datetime.now().strftime("%Y-%m-%d")
         file_handler = RotatingFileHandler(
-            os.path.join(self._log_dir, f'{name}_{today}.log'),
+            os.path.join(self._log_dir, f"{name}_{today}.log"),
             maxBytes=10 * 1024 * 1024,
             backupCount=5,
-            encoding='utf-8'
+            encoding="utf-8",
         )
         file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(formatter)

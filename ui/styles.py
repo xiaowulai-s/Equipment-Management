@@ -4,6 +4,7 @@
 Style Management Module
 """
 
+
 class AppStyles:
     """应用样式集合"""
 
@@ -377,3 +378,183 @@ class AppStyles:
     def get_button_secondary_with_padding(padding_x: int = 24) -> str:
         """获取带自定义内边距的次要按钮样式"""
         return AppStyles.BUTTON_SECONDARY.replace("padding: 8px 16px;", f"padding: 8px {padding_x}px;")
+
+    @staticmethod
+    def get_dark_theme() -> str:
+        """
+        获取深色主题样式
+        Get dark theme style
+
+        Returns:
+            str: 深色主题样式表
+        """
+        return """
+            QMainWindow {
+                background-color: #0D1117;
+                color: #C9D1D9;
+            }
+
+            QWidget {
+                background-color: #161B22;
+                color: #C9D1D9;
+            }
+
+            QPushButton {
+                background-color: #21262D;
+                color: #C9D1D9;
+                border: 1px solid #30363D;
+                border-radius: 6px;
+                padding: 8px 16px;
+            }
+
+            QPushButton:hover {
+                background-color: #30363D;
+                border-color: #58A6FF;
+            }
+
+            QLineEdit, QComboBox {
+                background-color: #0D1117;
+                color: #C9D1D9;
+                border: 1px solid #30363D;
+                border-radius: 6px;
+                padding: 8px 12px;
+            }
+
+            QLineEdit:focus, QComboBox:focus {
+                border-color: #58A6FF;
+            }
+
+            QTreeWidget, QTableWidget {
+                background-color: #161B22;
+                color: #C9D1D9;
+                border: 1px solid #30363D;
+            }
+
+            QTreeWidget::item:hover, QTableWidget::item:hover {
+                background-color: #21262D;
+            }
+
+            QTreeWidget::item:selected, QTableWidget::item:selected {
+                background-color: #1F6FEB;
+                color: #FFFFFF;
+            }
+
+            QHeaderView::section {
+                background-color: #21262D;
+                color: #8B949E;
+                border: none;
+                padding: 8px;
+            }
+
+            QGroupBox {
+                background-color: #161B22;
+                color: #C9D1D9;
+                border: 1px solid #30363D;
+                border-radius: 8px;
+            }
+
+            QGroupBox::title {
+                color: #58A6FF;
+            }
+
+            QStatusBar {
+                background-color: #161B22;
+                color: #8B949E;
+                border-top: 1px solid #30363D;
+            }
+
+            QSplitter::handle {
+                background-color: #30363D;
+            }
+
+            QSplitter::handle:hover {
+                background-color: #58A6FF;
+            }
+        """
+
+    @staticmethod
+    def get_success_button_style() -> str:
+        """
+        获取成功按钮样式（绿色）
+        Get success button style (green)
+
+        Returns:
+            str: 成功按钮样式表
+        """
+        return """
+            QPushButton {
+                background: qlineargradient(135deg, #1A7F37, #146C2E);
+                color: white;
+                border: 1px solid transparent;
+                border-radius: 6px;
+                padding: 8px 16px;
+                font-size: 12px;
+                font-weight: 500;
+            }
+
+            QPushButton:hover {
+                background: qlineargradient(135deg, #146C2E, #0F5A24);
+            }
+
+            QPushButton:pressed {
+                background: qlineargradient(135deg, #0F5A24, #146C2E);
+            }
+        """
+
+    @staticmethod
+    def get_warning_button_style() -> str:
+        """
+        获取警告按钮样式（橙色）
+        Get warning button style (orange)
+
+        Returns:
+            str: 警告按钮样式表
+        """
+        return """
+            QPushButton {
+                background: qlineargradient(135deg, #D29922, #B8860B);
+                color: white;
+                border: 1px solid transparent;
+                border-radius: 6px;
+                padding: 8px 16px;
+                font-size: 12px;
+                font-weight: 500;
+            }
+
+            QPushButton:hover {
+                background: qlineargradient(135deg, #B8860B, #9A740A);
+            }
+
+            QPushButton:pressed {
+                background: qlineargradient(135deg, #9A740A, #B8860B);
+            }
+        """
+
+    @staticmethod
+    def get_info_button_style() -> str:
+        """
+        获取信息按钮样式（蓝色）
+        Get info button style (blue)
+
+        Returns:
+            str: 信息按钮样式表
+        """
+        return """
+            QPushButton {
+                background: qlineargradient(135deg, #0969DA, #0550AE);
+                color: white;
+                border: 1px solid transparent;
+                border-radius: 6px;
+                padding: 8px 16px;
+                font-size: 12px;
+                font-weight: 500;
+            }
+
+            QPushButton:hover {
+                background: qlineargradient(135deg, #0550AE, #043E8C);
+            }
+
+            QPushButton:pressed {
+                background: qlineargradient(135deg, #043E8C, #0550AE);
+            }
+        """

@@ -4,8 +4,10 @@
 Base Protocol
 """
 
-from typing import Optional, Dict, Any, List
+from typing import Any, Dict, List, Optional
+
 from PySide6.QtCore import QObject, Signal
+
 from ..communication.base_driver import BaseDriver
 
 

@@ -8,9 +8,11 @@ import json
 import os
 import uuid
 from typing import Dict, List, Optional
-from PySide6.QtCore import QObject, Signal, QTimer
-from .device_model import Device, DeviceStatus
+
+from PySide6.QtCore import QObject, QTimer, Signal
+
 from .device_factory import DeviceFactory, ProtocolType
+from .device_model import Device, DeviceStatus
 
 
 class DeviceManager(QObject):
@@ -117,7 +119,7 @@ class DeviceManager(QObject):
         # 更新设备配置
         new_config["device_id"] = device_id
         self._devices[device_id] = DeviceFactory.create_device(device_id, new_config)
-        
+
         # 连接信号
         self._devices[device_id].status_changed.connect(lambda s, d=device_id: self._on_device_status_changed(d, s))
         self._devices[device_id].data_updated.connect(lambda data, d=device_id: self._on_device_data_updated(d, data))
@@ -154,13 +156,15 @@ class DeviceManager(QObject):
         result = []
         for device_id, device in self._devices.items():
             config = device.get_device_config()
-            result.append({
-                "device_id": device_id,
-                "name": config.get("name", f"设备_{device_id}"),
-                "status": device.get_status(),
-                "use_simulator": device.is_using_simulator(),
-                "config": config
-            })
+            result.append(
+                {
+                    "device_id": device_id,
+                    "name": config.get("name", f"设备_{device_id}"),
+                    "status": device.get_status(),
+                    "use_simulator": device.is_using_simulator(),
+                    "config": config,
+                }
+            )
         return result
 
     def _poll_all_devices(self):
@@ -205,7 +209,7 @@ class DeviceManager(QObject):
             return
 
         try:
-            with open(self._config_file, 'r', encoding='utf-8') as f:
+            with open(self._config_file, "r", encoding="utf-8") as f:
                 config = json.load(f)
 
             devices_config = config.get("devices", [])
@@ -230,13 +234,10 @@ class DeviceManager(QObject):
         for device_id, device in self._devices.items():
             devices_config.append(device.get_device_config())
 
-        config = {
-            "version": "1.0",
-            "devices": devices_config
-        }
+        config = {"version": "1.0", "devices": devices_config}
 
         try:
-            with open(self._config_file, 'w', encoding='utf-8') as f:
+            with open(self._config_file, "w", encoding="utf-8") as f:
                 json.dump(config, f, ensure_ascii=False, indent=2)
         except Exception as e:
             print(f"保存设备配置失败: {e}")

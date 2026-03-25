@@ -4,14 +4,26 @@
 Add Device Dialog
 """
 
-from typing import Dict, Any, List
-from PySide6.QtWidgets import (QDialog, QFormLayout, QHBoxLayout, QLabel,
-                               QComboBox, QLineEdit, QCheckBox, QGroupBox,
-                               QPushButton, QMessageBox)
-from core.device.device_type_manager import DeviceTypeManager
+from typing import Any, Dict, List
+
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+)
+
 from core.device.device_factory import DeviceFactory
-from ui.styles import AppStyles
+from core.device.device_type_manager import DeviceTypeManager
+from core.utils.serial_utils import test_serial_port
 from ui.register_config_dialog import RegisterConfigDialog
+from ui.styles import AppStyles
 
 
 class AddDeviceDialog(QDialog):
@@ -75,7 +87,8 @@ class AddDeviceDialog(QDialog):
         register_btn_layout = QHBoxLayout()
         register_btn_layout.addStretch()
         self.register_config_btn = QPushButton("⚙️ 配置寄存器地址")
-        self.register_config_btn.setStyleSheet("""
+        self.register_config_btn.setStyleSheet(
+            """
             QPushButton {
                 background: qlineargradient(135deg, #0969DA, #0550AE);
                 color: white;
@@ -88,11 +101,12 @@ class AddDeviceDialog(QDialog):
             QPushButton:hover {
                 background: qlineargradient(135deg, #0550AE, #043E8C);
             }
-        """)
+        """
+        )
         self.register_config_btn.clicked.connect(self._show_register_config)
         register_btn_layout.addWidget(self.register_config_btn)
         layout.addRow(register_btn_layout)
-        
+
         # 寄存器数量标签
         self.register_count_label = QLabel("已配置 0 个寄存器")
         self.register_count_label.setStyleSheet("color: #57606A; font-size: 12px;")
@@ -163,6 +177,7 @@ class AddDeviceDialog(QDialog):
                                     break
 
     def _on_protocol_changed(self, index):
+        """协议类型变化时重新生成通信参数配置"""
         while self.params_layout.count():
             item = self.params_layout.takeAt(0)
             if item.widget():
@@ -190,7 +205,8 @@ class AddDeviceDialog(QDialog):
                 else:
                     widget = QLineEdit(str(default_value))
 
-                widget.setStyleSheet("""
+                widget.setStyleSheet(
+                    """
                     QLineEdit, QComboBox {
                         background-color: #FFFFFF;
                         color: #24292F;
@@ -200,28 +216,75 @@ class AddDeviceDialog(QDialog):
                         font-size: 12px;
                         font-family: 'Inter', 'Segoe UI', sans-serif;
                     }
-                """)
+                """
+                )
 
                 self._param_widgets[field_name] = widget
                 self.params_layout.addRow(field_label + ":", widget)
-    
+
+                # 为串口号添加测试按钮
+                if field_name == "port" and protocol_type == "modbus_rtu":
+                    test_btn = QPushButton("测试")
+                    test_btn.setFixedWidth(60)
+                    test_btn.setStyleSheet(AppStyles.get_info_button_style())
+                    test_btn.clicked.connect(self._on_test_serial)
+
+                    port_layout = QHBoxLayout()
+                    port_layout.addWidget(widget)
+                    port_layout.addWidget(test_btn)
+                    port_layout.setSpacing(8)
+
+                    # 移除刚添加的行，重新添加布局
+                    self.params_layout.removeRow(self.params_layout.rowCount() - 1)
+                    self.params_layout.addRow(field_label + ":", port_layout)
+
     def _show_register_config(self):
         """显示寄存器配置对话框"""
         dialog = RegisterConfigDialog(self._register_map, self)
         dialog.config_updated.connect(self._on_register_config_updated)
         dialog.exec()
-    
+
     def _on_register_config_updated(self, register_map: list):
         """寄存器配置更新"""
         self._register_map = register_map
         self._update_register_count()
-    
+
     def _update_register_count(self):
         """更新寄存器数量显示"""
         count = len(self._register_map)
         self.register_count_label.setText(f"已配置 {count} 个寄存器")
         if count > 0:
             self.register_count_label.setStyleSheet("color: #1A7F37; font-size: 12px; font-weight: 500;")
+
+    def _on_test_serial(self):
+        """测试串口按钮处理"""
+        # 获取串口号
+        port_widget = self._param_widgets.get("port")
+        if not port_widget:
+            QMessageBox.warning(self, "警告", "未找到串口号配置")
+            return
+
+        port = port_widget.text().strip()
+        if not port:
+            QMessageBox.warning(self, "警告", "请输入串口号")
+            return
+
+        # 获取波特率
+        baudrate_widget = self._param_widgets.get("baudrate")
+        baudrate = 9600  # 默认值
+        if baudrate_widget:
+            try:
+                baudrate = int(baudrate_widget.text().strip())
+            except:
+                baudrate = 9600
+
+        # 测试串口
+        success, message = test_serial_port(port, baudrate)
+
+        if success:
+            QMessageBox.information(self, "测试成功", message)
+        else:
+            QMessageBox.critical(self, "测试失败", message)
 
     def get_device_config(self) -> Dict[str, Any]:
         selected_type = self.type_combo.currentData()
@@ -231,7 +294,7 @@ class AddDeviceDialog(QDialog):
             "device_number": self.number_edit.text() or "",
             "protocol_type": self.protocol_combo.currentData(),
             "use_simulator": self.simulator_check.isChecked(),
-            "register_map": self._register_map
+            "register_map": self._register_map,
         }
 
         for name, widget in self._param_widgets.items():

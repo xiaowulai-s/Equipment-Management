@@ -6,11 +6,14 @@ Serial Communication Driver
 
 import threading
 from typing import Optional
+
 from PySide6.QtCore import QTimer
+
 from .base_driver import BaseDriver
 
 try:
     import serial
+
     SERIAL_AVAILABLE = True
 except ImportError:
     SERIAL_AVAILABLE = False
@@ -29,7 +32,7 @@ class SerialDriver(BaseDriver):
         bytesize: int = 8,
         parity: str = "N",
         stopbits: float = 1,
-        parent=None
+        parent=None,
     ):
         super().__init__(parent)
         self._port = port
@@ -60,7 +63,7 @@ class SerialDriver(BaseDriver):
                 bytesize=self._bytesize,
                 parity=self._parity,
                 stopbits=self._stopbits,
-                timeout=1.0
+                timeout=1.0,
             )
             self._is_connected = True
             self._is_running = True

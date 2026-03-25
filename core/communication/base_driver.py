@@ -4,8 +4,9 @@
 Base Communication Driver
 """
 
-from typing import Optional, Callable
-from PySide6.QtCore import QObject, Signal, QMutex, QMutexLocker
+from typing import Callable, Optional
+
+from PySide6.QtCore import QMutex, QMutexLocker, QObject, Signal
 
 
 class BaseDriver(QObject):

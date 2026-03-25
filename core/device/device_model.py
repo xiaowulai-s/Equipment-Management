@@ -4,8 +4,10 @@
 Device Model
 """
 
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, List, Optional
+
 from PySide6.QtCore import QObject, Signal
+
 from ..communication.base_driver import BaseDriver
 from ..protocols.base_protocol import BaseProtocol
 from .simulator import Simulator
@@ -13,6 +15,7 @@ from .simulator import Simulator
 
 class DeviceStatus:
     """设备状态枚举"""
+
     DISCONNECTED = 0
     CONNECTING = 1
     CONNECTED = 2
@@ -96,6 +99,51 @@ class Device(QObject):
         Handle protocol error
         """
         self.error_occurred.emit(error)
+
+    @staticmethod
+    def validate_config(config: Dict[str, Any]) -> tuple[bool, str]:
+        """
+        验证设备配置
+
+        Validate device configuration
+
+        Args:
+            config: 设备配置字典
+
+        Returns:
+            tuple[bool, str]: (是否有效，错误信息)
+        """
+        # 检查必需字段
+        required_fields = ["device_id", "name", "device_type", "protocol_type"]
+        for field in required_fields:
+            if field not in config or not config[field]:
+                return False, f"缺少必需字段：{field}"
+
+        # 检查协议类型
+        protocol_type = config.get("protocol_type", "").lower()
+        if protocol_type not in ["modbus_tcp", "modbus_rtu", "modbus_ascii"]:
+            return False, f"不支持的协议类型：{protocol_type}"
+
+        # 根据协议类型验证参数
+        if protocol_type in ["modbus_tcp", "modbus_ascii"]:
+            if not config.get("host"):
+                return False, "缺少主机地址（host）"
+            if not config.get("port"):
+                return False, "缺少端口号（port）"
+            port = config.get("port", 0)
+            if not isinstance(port, int) or port < 1 or port > 65535:
+                return False, "端口号必须在 1-65535 范围内"
+
+        elif protocol_type == "modbus_rtu":
+            if not config.get("port"):
+                return False, "缺少串口号（port）"
+
+        # 检查 Unit ID
+        unit_id = config.get("unit_id", 1)
+        if not isinstance(unit_id, int) or unit_id < 0 or unit_id > 247:
+            return False, "Unit ID 必须在 0-247 范围内"
+
+        return True, ""
         self._set_status(DeviceStatus.ERROR)
 
     def connect(self) -> bool:

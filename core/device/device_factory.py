@@ -4,15 +4,17 @@
 Device Factory
 """
 
-from typing import Dict, Any, Optional
-from ..communication.tcp_driver import TCPDriver
+from typing import Any, Dict, Optional
+
 from ..communication.serial_driver import SerialDriver
+from ..communication.tcp_driver import TCPDriver
 from ..protocols.modbus_protocol import ModbusProtocol
 from .device_model import Device
 
 
 class ProtocolType:
     """协议类型"""
+
     MODBUS_TCP = "modbus_tcp"
     MODBUS_RTU = "modbus_rtu"
     DMT143_ASCII = "dmt143_ascii"
@@ -31,24 +33,26 @@ class DeviceFactory:
             "fields": [
                 {"name": "host", "label": "IP地址", "type": "text", "default": "127.0.0.1"},
                 {"name": "port", "label": "端口号", "type": "number", "default": 502},
-                {"name": "unit_id", "label": "单元ID", "type": "number", "default": 1}
-            ]
+                {"name": "unit_id", "label": "单元ID", "type": "number", "default": 1},
+            ],
         },
         ProtocolType.MODBUS_RTU: {
             "name": "Modbus RTU",
             "fields": [
                 {"name": "port", "label": "端口号", "type": "text", "default": "COM1"},
-                {"name": "baudrate", "label": "波特率", "type": "dropdown",
-                 "options": [9600, 19200, 38400, 57600, 115200], "default": 9600},
-                {"name": "bytesize", "label": "数据位", "type": "dropdown",
-                 "options": [5, 6, 7, 8], "default": 8},
-                {"name": "parity", "label": "校验位", "type": "dropdown",
-                 "options": ["N", "E", "O"], "default": "N"},
-                {"name": "stopbits", "label": "停止位", "type": "dropdown",
-                 "options": [1, 1.5, 2], "default": 1},
-                {"name": "unit_id", "label": "从机ID", "type": "number", "default": 1}
-            ]
-        }
+                {
+                    "name": "baudrate",
+                    "label": "波特率",
+                    "type": "dropdown",
+                    "options": [9600, 19200, 38400, 57600, 115200],
+                    "default": 9600,
+                },
+                {"name": "bytesize", "label": "数据位", "type": "dropdown", "options": [5, 6, 7, 8], "default": 8},
+                {"name": "parity", "label": "校验位", "type": "dropdown", "options": ["N", "E", "O"], "default": "N"},
+                {"name": "stopbits", "label": "停止位", "type": "dropdown", "options": [1, 1.5, 2], "default": 1},
+                {"name": "unit_id", "label": "从机ID", "type": "number", "default": 1},
+            ],
+        },
     }
 
     # 默认寄存器映射
@@ -57,7 +61,7 @@ class DeviceFactory:
         {"name": "压力", "address": 1, "type": "uint16", "scale": 0.1, "unit": "MPa"},
         {"name": "流量", "address": 2, "type": "uint16", "scale": 0.1, "unit": "m³/h"},
         {"name": "状态", "address": 3, "type": "uint16", "scale": 1, "unit": ""},
-        {"name": "报警", "address": 4, "type": "uint16", "scale": 1, "unit": ""}
+        {"name": "报警", "address": 4, "type": "uint16", "scale": 1, "unit": ""},
     ]
 
     @staticmethod
@@ -68,7 +72,7 @@ class DeviceFactory:
         """
         return [
             {"type": ProtocolType.MODBUS_TCP, "name": DeviceFactory.PROTOCOL_PARAMS[ProtocolType.MODBUS_TCP]["name"]},
-            {"type": ProtocolType.MODBUS_RTU, "name": DeviceFactory.PROTOCOL_PARAMS[ProtocolType.MODBUS_RTU]["name"]}
+            {"type": ProtocolType.MODBUS_RTU, "name": DeviceFactory.PROTOCOL_PARAMS[ProtocolType.MODBUS_RTU]["name"]},
         ]
 
     @staticmethod

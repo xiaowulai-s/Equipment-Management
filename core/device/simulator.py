@@ -4,11 +4,12 @@
 Device Simulator
 """
 
-import time
-import random
 import math
+import random
 import threading
-from typing import Dict, Any, List
+import time
+from typing import Any, Dict, List
+
 from PySide6.QtCore import QObject, Signal
 
 
@@ -141,30 +142,22 @@ class Simulator(QObject):
                     "raw": self._register_values[0],
                     "value": self._register_values[0] * 0.1,
                     "address": 0,
-                    "unit": "°C"
+                    "unit": "°C",
                 },
                 "pressure": {
                     "raw": self._register_values[1],
                     "value": self._register_values[1] * 0.1,
                     "address": 1,
-                    "unit": "MPa"
+                    "unit": "MPa",
                 },
                 "flow": {
                     "raw": self._register_values[2],
                     "value": self._register_values[2] * 0.1,
                     "address": 2,
-                    "unit": "m³/h"
+                    "unit": "m³/h",
                 },
-                "status": {
-                    "raw": self._register_values[3],
-                    "value": self._register_values[3],
-                    "address": 3
-                },
-                "alarm": {
-                    "raw": self._register_values[4],
-                    "value": self._register_values[4],
-                    "address": 4
-                }
+                "status": {"raw": self._register_values[3], "value": self._register_values[3], "address": 3},
+                "alarm": {"raw": self._register_values[4], "value": self._register_values[4], "address": 4},
             }
 
             # 发出数据更新信号

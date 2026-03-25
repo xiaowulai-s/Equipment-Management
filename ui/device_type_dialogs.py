@@ -4,11 +4,22 @@
 Device Type Management Dialogs
 """
 
-from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTreeWidget,
-                               QTreeWidgetItem, QPushButton, QLabel, QMessageBox,
-                               QFormLayout, QLineEdit, QHeaderView)
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
+from PySide6.QtWidgets import (
+    QDialog,
+    QFormLayout,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+)
+
 from core.device.device_type_manager import DeviceTypeManager
 from ui.styles import AppStyles
 
@@ -81,9 +92,7 @@ class DeviceTypeEditDialog(QDialog):
         self.accept()
 
     def get_type_info(self):
-        return (self.name_edit.text().strip(),
-                self.code_edit.text().strip(),
-                self.desc_edit.text().strip())
+        return (self.name_edit.text().strip(), self.code_edit.text().strip(), self.desc_edit.text().strip())
 
 
 class DeviceTypeDialog(QDialog):
@@ -183,9 +192,7 @@ class DeviceTypeDialog(QDialog):
 
         name = item.text(0)
         reply = QMessageBox.question(
-            self, "确认删除",
-            f"确定要删除设备类型\"{name}\"吗？",
-            QMessageBox.Yes | QMessageBox.No
+            self, "确认删除", f'确定要删除设备类型"{name}"吗？', QMessageBox.Yes | QMessageBox.No
         )
 
         if reply == QMessageBox.Yes:

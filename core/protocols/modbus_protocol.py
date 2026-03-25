@@ -6,7 +6,8 @@ Modbus Protocol Implementation
 
 import struct
 import time
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
+
 from .base_protocol import BaseProtocol
 
 
@@ -31,9 +32,20 @@ class ModbusProtocol(BaseProtocol):
         self._retry_interval = 0.5
 
     @staticmethod
+    def lrc(data: bytes) -> int:
+        """
+        计算 LRC 校验（Modbus ASCII 使用）
+        Calculate LRC checksum (used by Modbus ASCII)
+        """
+        checksum = 0
+        for byte in data:
+            checksum += byte
+        return (~checksum + 1) & 0xFF
+
+    @staticmethod
     def crc16(data: bytes) -> int:
         """
-        计算CRC16校验
+        计算 CRC16 校验
         Calculate CRC16 checksum
         """
         crc = 0xFFFF
@@ -47,6 +59,72 @@ class ModbusProtocol(BaseProtocol):
                     crc >>= 1
         return crc
 
+    def _build_ascii_frame(self, pdu: bytes) -> bytes:
+        """
+        构建 ASCII 帧
+        Build ASCII frame
+
+        Args:
+            pdu: 协议数据单元
+
+        Returns:
+            bytes: ASCII 帧
+        """
+        # 计算 LRC 校验
+        lrc_checksum = self.lrc(pdu)
+
+        # 构建 ASCII 帧：':' + 地址 + PDU + LRC(2 字符) + CRLF
+        frame = ":"
+        frame += pdu.hex().upper()
+        frame += f"{lrc_checksum:02X}"
+        frame += "\r\n"
+
+        return frame.encode("ascii")
+
+    def _parse_ascii_frame(self, data: bytes) -> Optional[bytes]:
+        """
+        解析 ASCII 帧
+        Parse ASCII frame
+
+        Args:
+            data: 接收到的数据
+
+        Returns:
+            Optional[bytes]: PDU，解析失败返回 None
+        """
+        try:
+            # 转换为字符串并去除空白
+            ascii_data = data.decode("ascii").strip()
+
+            # 检查起始符
+            if not ascii_data.startswith(":"):
+                return None
+
+            # 去除起始符和结束符
+            hex_data = ascii_data[1:]
+
+            # 分离数据和 LRC
+            if len(hex_data) < 4:  # 至少需要地址 + 功能码 + LRC
+                return None
+
+            pdu_hex = hex_data[:-2]
+            lrc_hex = hex_data[-2:]
+
+            # 验证 LRC
+            pdu_bytes = bytes.fromhex(pdu_hex)
+            expected_lrc = int(lrc_hex, 16)
+            calculated_lrc = self.lrc(pdu_bytes)
+
+            if expected_lrc != calculated_lrc:
+                self.error_occurred.emit(f"LRC 校验失败：期望 {expected_lrc:02X}, 计算 {calculated_lrc:02X}")
+                return None
+
+            return pdu_bytes
+
+        except Exception as e:
+            self.error_occurred.emit(f"解析 ASCII 帧失败：{str(e)}")
+            return None
+
     def _build_tcp_header(self, length: int) -> bytes:
         """
         构建Modbus TCP头部
@@ -54,10 +132,10 @@ class ModbusProtocol(BaseProtocol):
         """
         self._transaction_id = (self._transaction_id + 1) % 65536
         return struct.pack(
-            '>HHH',
+            ">HHH",
             self._transaction_id,  # Transaction ID
-            0x0000,               # Protocol ID (0 = Modbus)
-            length                # Length (bytes to follow)
+            0x0000,  # Protocol ID (0 = Modbus)
+            length,  # Length (bytes to follow)
         )
 
     def _build_rtu_frame(self, pdu: bytes) -> bytes:
@@ -67,7 +145,7 @@ class ModbusProtocol(BaseProtocol):
         """
         frame = bytes([self._unit_id]) + pdu
         crc = self.crc16(frame)
-        return frame + struct.pack('<H', crc)
+        return frame + struct.pack("<H", crc)
 
     def initialize(self) -> bool:
         """
@@ -83,13 +161,53 @@ class ModbusProtocol(BaseProtocol):
         """
         读取保持寄存器
         Read holding registers (FC 03)
+
+        Args:
+            address: 起始地址
+            count: 读取数量
+
+        Returns:
+            Optional[List[int]]: 寄存器值列表
         """
         return self._read_registers(address, count, self.FC_READ_HOLDING_REGISTERS)
+
+    def read_registers_batch(self, addresses: List[tuple[int, int]]) -> Optional[Dict[int, List[int]]]:
+        """
+        批量读取多个连续寄存器块（性能优化）
+
+        Batch read multiple continuous register blocks (performance optimization)
+
+        Args:
+            addresses: 地址块列表，每项为 (起始地址，数量)
+
+        Returns:
+            Optional[Dict[int, List[int]]]: 字典，键为起始地址，值为寄存器值列表
+        """
+        if not self._driver or not self._driver.is_connected():
+            self.error_occurred.emit("设备未连接")
+            return None
+
+        results = {}
+        for start_addr, count in addresses:
+            data = self._read_registers(start_addr, count, self.FC_READ_HOLDING_REGISTERS)
+            if data is not None:
+                results[start_addr] = data
+            else:
+                self.error_occurred.emit(f"读取地址块 {start_addr}-{start_addr + count - 1} 失败")
+
+        return results
 
     def read_input_registers(self, address: int, count: int) -> Optional[List[int]]:
         """
         读取输入寄存器
         Read input registers (FC 04)
+
+        Args:
+            address: 起始地址
+            count: 读取数量
+
+        Returns:
+            Optional[List[int]]: 寄存器值列表
         """
         return self._read_registers(address, count, self.FC_READ_INPUT_REGISTERS)
 
@@ -105,7 +223,7 @@ class ModbusProtocol(BaseProtocol):
         for attempt in range(self._retry_count):
             try:
                 # 构建请求PDU
-                pdu = struct.pack('>BHH', function_code, address, count)
+                pdu = struct.pack(">BHH", function_code, address, count)
 
                 # 根据模式构建完整帧
                 if self._mode == "TCP":
@@ -152,7 +270,7 @@ class ModbusProtocol(BaseProtocol):
                 # RTU模式：验证CRC
                 if len(response) < 5:
                     return None
-                expected_crc = struct.unpack('<H', response[-2:])[0]
+                expected_crc = struct.unpack("<H", response[-2:])[0]
                 actual_crc = self.crc16(response[:-2])
                 if expected_crc != actual_crc:
                     self.error_occurred.emit("CRC校验失败")
@@ -180,7 +298,7 @@ class ModbusProtocol(BaseProtocol):
             registers = []
             for i in range(count):
                 if 2 + i * 2 + 1 < len(pdu):
-                    reg_val = struct.unpack('>H', pdu[2 + i * 2:4 + i * 2])[0]
+                    reg_val = struct.unpack(">H", pdu[2 + i * 2 : 4 + i * 2])[0]
                     registers.append(reg_val)
 
             return registers
@@ -201,7 +319,7 @@ class ModbusProtocol(BaseProtocol):
         for attempt in range(self._retry_count):
             try:
                 # 构建请求PDU
-                pdu = struct.pack('>BHH', self.FC_WRITE_SINGLE_REGISTER, address, value)
+                pdu = struct.pack(">BHH", self.FC_WRITE_SINGLE_REGISTER, address, value)
 
                 # 根据模式构建完整帧
                 if self._mode == "TCP":
@@ -244,9 +362,9 @@ class ModbusProtocol(BaseProtocol):
                 byte_count = count * 2
 
                 # 构建请求PDU
-                pdu = struct.pack('>BHHB', self.FC_WRITE_MULTIPLE_REGISTERS, address, count, byte_count)
+                pdu = struct.pack(">BHHB", self.FC_WRITE_MULTIPLE_REGISTERS, address, count, byte_count)
                 for value in values:
-                    pdu += struct.pack('>H', value)
+                    pdu += struct.pack(">H", value)
 
                 # 根据模式构建完整帧
                 if self._mode == "TCP":
@@ -299,18 +417,14 @@ class ModbusProtocol(BaseProtocol):
 
                 # 根据数据类型解析
                 if data_type == "int16":
-                    value = struct.unpack('h', struct.pack('H', raw_value))[0]
+                    value = struct.unpack("h", struct.pack("H", raw_value))[0]
                 else:
                     value = raw_value
 
                 # 应用缩放因子
                 value = value * scale
 
-                result[name] = {
-                    "raw": raw_value,
-                    "value": value,
-                    "address": addr
-                }
+                result[name] = {"raw": raw_value, "value": value, "address": addr}
 
         if result:
             self.data_updated.emit(result)

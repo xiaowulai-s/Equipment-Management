@@ -6,18 +6,17 @@ Data Export Module
 
 import csv
 from datetime import datetime
-from typing import List, Dict, Any, Optional
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 
 class DataExporter:
     """数据导出器"""
 
     @staticmethod
-    def export_to_csv(data: List[Dict[str, Any]],
-                     file_path: str,
-                     include_headers: bool = True,
-                     encoding: str = 'utf-8-sig') -> bool:
+    def export_to_csv(
+        data: List[Dict[str, Any]], file_path: str, include_headers: bool = True, encoding: str = "utf-8-sig"
+    ) -> bool:
         """
         导出数据到 CSV 文件
         Args:
@@ -37,7 +36,7 @@ class DataExporter:
 
             fieldnames = list(data[0].keys())
 
-            with open(path, 'w', newline='', encoding=encoding) as csvfile:
+            with open(path, "w", newline="", encoding=encoding) as csvfile:
                 writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
                 if include_headers:
@@ -52,9 +51,9 @@ class DataExporter:
             return False
 
     @staticmethod
-    def export_device_data_to_csv(devices_data: List[Dict[str, Any]],
-                                  file_path: str,
-                                  include_headers: bool = True) -> bool:
+    def export_device_data_to_csv(
+        devices_data: List[Dict[str, Any]], file_path: str, include_headers: bool = True
+    ) -> bool:
         """
         导出设备数据到 CSV
         Args:
@@ -95,9 +94,7 @@ class DataExporter:
             return False
 
     @staticmethod
-    def export_alarm_history_to_csv(alarms: List[Dict[str, Any]],
-                                    file_path: str,
-                                    include_headers: bool = True) -> bool:
+    def export_alarm_history_to_csv(alarms: List[Dict[str, Any]], file_path: str, include_headers: bool = True) -> bool:
         """
         导出报警历史到 CSV
         Args:
@@ -125,7 +122,7 @@ class DataExporter:
                     "描述": alarm.get("description", ""),
                     "时间": alarm.get("timestamp", ""),
                     "已确认": "是" if alarm.get("acknowledged") else "否",
-                    "已清除": "是" if alarm.get("cleared") else "否"
+                    "已清除": "是" if alarm.get("cleared") else "否",
                 }
                 export_data.append(row)
 
@@ -152,7 +149,7 @@ class DataExporter:
             path = Path(file_path)
             path.parent.mkdir(parents=True, exist_ok=True)
 
-            with open(path, 'w', encoding='utf-8') as f:
+            with open(path, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=indent, default=str)
 
             return True
@@ -162,10 +159,9 @@ class DataExporter:
             return False
 
     @staticmethod
-    def export_to_excel(data: List[Dict[str, Any]],
-                       file_path: str,
-                       sheet_name: str = "数据",
-                       include_headers: bool = True) -> bool:
+    def export_to_excel(
+        data: List[Dict[str, Any]], file_path: str, sheet_name: str = "数据", include_headers: bool = True
+    ) -> bool:
         """
         导出数据到 Excel 文件
         Args:
@@ -197,6 +193,7 @@ class DataExporter:
 
                 # 设置表头样式
                 from openpyxl.styles import Font, PatternFill
+
                 header_font = Font(bold=True, color="FFFFFF")
                 header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
 
@@ -236,8 +233,7 @@ class DataExporter:
             return False
 
     @staticmethod
-    def generate_export_filename(prefix: str = "export",
-                                extension: str = "csv") -> str:
+    def generate_export_filename(prefix: str = "export", extension: str = "csv") -> str:
         """
         生成导出文件名
         Args:

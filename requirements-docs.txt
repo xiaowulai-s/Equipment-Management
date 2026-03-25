@@ -1,0 +1,14 @@
+# Sphinx 文档生成依赖
+# Sphinx documentation generation dependencies
+
+# 核心依赖
+Sphinx>=7.0.0
+sphinx-rtd-theme>=2.0.0
+sphinx-autodoc-typehints>=2.0.0
+
+# 扩展依赖
+myst-parser>=2.0.0  # Markdown 支持
+sphinx-copybutton>=0.5.0  # 代码复制按钮
+
+# 可选依赖
+sphinx-autobuild>=2021.3.14  # 实时预览
