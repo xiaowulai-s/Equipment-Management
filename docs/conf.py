@@ -13,9 +13,9 @@ copyright = "2026, 开发团队"
 author = "开发团队"
 
 # The short X.Y version
-version = "1.2"
+version = "1.5"
 # The full version, including alpha/beta/rc tags
-release = "1.2.0"
+release = "1.5.0"
 
 # -- General configuration ---------------------------------------------------
 
