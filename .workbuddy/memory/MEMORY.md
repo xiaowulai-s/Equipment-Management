@@ -17,6 +17,9 @@
 - `ui/` - UI层 (main_window_v2.py, dialogs/, widgets/, styles/)
 - `config/` - 配置 (default_config.json, pump_station_a.json)
 - `tests/` - 测试 (pytest, 1800+项)
+- `docs/` - 文档 (project/architecture/ai/design/reports/meta 子目录)
+- `scripts/` - 工具脚本 (build.py, main_v2.py, migrate_database.py等)
+- `assets/` - 资源文件 (截图)
 
 ## 主题系统 (已简化)
 - 仅浅色主题, ThemeManager在ui/theme_manager.py

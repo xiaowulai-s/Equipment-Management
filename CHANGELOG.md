@@ -116,6 +116,6 @@
 
 ## 版本说明
 
-### 当前版本: **v1.5.1**
+### 当前版本: **v1.5.2**
 ### 技术栈: Python 3.10+ | PySide6 6.6+ | PyQtGraph | openpyxl | SQLAlchemy 2.0+
 ### 系统要求: Windows 10/11 | Python 3.10+ | 4GB RAM | 100MB 磁盘
