@@ -1,5 +1,24 @@
 # 更新日志 (CHANGELOG)
 
+## [1.5.2] - 2026-03-29
+
+### 变更
+- 项目文件夹结构整理：移动 30+ 散落文档到 `docs/` 子目录
+  - `docs/project/` — 项目总览、架构、进度、分析报告
+  - `docs/architecture/` — 架构说明、功能模块联系图
+  - `docs/ai/` — AI 开发流程、组件提示词
+  - `docs/design/` — UI 设计方案、重构报告、组件库、QML 对比
+  - `docs/reports/` — 阶段报告、文档索引、模板
+  - `docs/meta/` — CONTRIBUTING、RELEASE_NOTES、GITHUB_UPLOAD
+- 移动工具脚本到 `scripts/`（main_v2、migrate_database、monitor_changes 等）
+- 移动截图资源到 `assets/`
+- 清理临时目录和构建产物（device_manager_test_*、build/、dist/、htmlcov/ 等）
+- 删除测试输出临时文件（test_output*.txt、tests/*.txt）
+- 更新 `.gitignore`：添加 `device_manager_test_*` 规则
+- 修复 pre-commit flake8 配置：移除已废弃的 W503 规则，修复 scripts/ lint 错误
+
+---
+
 ## [1.5.1] - 2026-03-29
 
 ### 变更
