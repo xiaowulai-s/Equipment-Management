@@ -14,7 +14,7 @@ import pytest
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from core.data.models import DatabaseManager, DeviceModel, HistoricalDataModel
+from core.data.models import AlarmRuleModel, DatabaseManager, DeviceModel, HistoricalDataModel
 from core.device.device_manager import DeviceManager
 from core.utils.alarm_manager import AlarmManager
 

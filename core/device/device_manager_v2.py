@@ -104,6 +104,7 @@ class DeviceManagerV2(QObject):
         self._db_manager = db_manager or DatabaseManager()
         self._devices: Dict[str, DevicePollInfo] = {}
         self._poll_timer = QTimer()
+        self._manually_disconnected: set = set()  # 手动断开的设备集合
         self._poll_timer.timeout.connect(self._poll_all_devices)
         self._poll_interval = 100  # 100ms 基础轮询间隔
 
@@ -123,6 +124,10 @@ class DeviceManagerV2(QObject):
 
         self._load_devices()
         self._start_timers()
+
+        # 如果没有任何设备，自动添加默认设备
+        if not self._devices:
+            self._init_default_devices()
 
         logger.info("设备管理器 v2 初始化完成")
 
@@ -170,6 +175,59 @@ class DeviceManagerV2(QObject):
 
         except Exception as e:
             logger.error("从JSON加载设备失败", error=str(e))
+
+    def _init_default_devices(self):
+        """初始化默认设备: 5个Modbus TCP + 5个Modbus RTU"""
+        logger.info("未检测到设备，正在创建默认设备...")
+
+        # 5个 Modbus TCP 设备
+        for i in range(1, 6):
+            config = {
+                "device_id": f"tcp_{i:03d}",
+                "name": f"Modbus TCP 设备 {i}",
+                "device_type": "Modbus TCP",
+                "protocol_type": "modbus_tcp",
+                "host": "127.0.0.1",
+                "port": 502,
+                "unit_id": i,
+                "use_simulator": True,
+            }
+            try:
+                with self._db_manager.session() as session:
+                    repo = DeviceRepository(session)
+                    repo.create_from_config(config)
+                self._create_device_internal(config["device_id"], config)
+                logger.info(f"默认设备已创建: {config['name']}")
+            except Exception as e:
+                logger.error(f"创建默认TCP设备失败: {config['name']}", error=str(e))
+
+        # 5个 Modbus RTU 设备
+        rtu_ports = ["COM1", "COM2", "COM3", "COM4", "COM5"]
+        for i in range(1, 6):
+            config = {
+                "device_id": f"rtu_{i:03d}",
+                "name": f"Modbus RTU 设备 {i}",
+                "device_type": "Modbus RTU",
+                "protocol_type": "modbus_rtu",
+                "port": rtu_ports[i - 1],
+                "baudrate": 9600,
+                "bytesize": 8,
+                "parity": "N",
+                "stopbits": 1,
+                "unit_id": i,
+                "use_simulator": True,
+            }
+            try:
+                with self._db_manager.session() as session:
+                    repo = DeviceRepository(session)
+                    repo.create_from_config(config)
+                self._create_device_internal(config["device_id"], config)
+                logger.info(f"默认设备已创建: {config['name']}")
+            except Exception as e:
+                logger.error(f"创建默认RTU设备失败: {config['name']}", error=str(e))
+
+        self._save_json_config()
+        logger.info(f"默认设备创建完成: 共 {len(self._devices)} 个设备")
 
     def _create_device_internal(self, device_id: str, config: dict) -> Device:
         """内部创建设备"""
@@ -290,6 +348,7 @@ class DeviceManagerV2(QObject):
     def disconnect_device(self, device_id: str):
         """断开设备"""
         if device_id in self._devices:
+            self._manually_disconnected.add(device_id)  # 标记为手动断开
             self._devices[device_id].device.disconnect()
             logger.info("设备断开连接", device_id=device_id)
 
@@ -431,14 +490,17 @@ class DeviceManagerV2(QObject):
     def _on_device_status_changed(self, device_id: str, status: int):
         """处理设备状态变化"""
         if status == DeviceStatus.CONNECTED:
+            self._manually_disconnected.discard(device_id)  # 连接成功，清除手动断开标记
             self.device_connected.emit(device_id)
         elif status == DeviceStatus.DISCONNECTED:
             self.device_disconnected.emit(device_id)
-            # 断开后尝试重连
-            self._schedule_reconnect(device_id)
+            # 手动断开的设备不自动重连
+            if device_id not in self._manually_disconnected:
+                self._schedule_reconnect(device_id)
         elif status == DeviceStatus.ERROR:
-            # 错误状态也尝试重连
-            self._schedule_reconnect(device_id)
+            # 错误状态也尝试重连（手动断开后不会进入ERROR状态，此处安全）
+            if device_id not in self._manually_disconnected:
+                self._schedule_reconnect(device_id)
 
     def _on_device_data_updated(self, device_id: str, data: Dict):
         """处理设备数据更新"""

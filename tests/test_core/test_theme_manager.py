@@ -28,8 +28,8 @@ class TestThemeManager:
 
     def test_init(self, theme_manager):
         """测试初始化"""
-        assert theme_manager._current_theme == "light"
-        assert theme_manager.is_dark_theme is False
+        assert theme_manager._current_theme == "dark"
+        assert theme_manager.is_dark_theme is True
 
     def test_apply_theme(self, theme_manager, app):
         """测试应用主题（需要 QApplication）"""
@@ -45,21 +45,21 @@ class TestThemeManager:
 
     def test_toggle_theme(self, theme_manager, app):
         """测试切换主题（需要 QApplication）"""
-        # 从 light 切换到 dark
-        new_theme = theme_manager.toggle_theme()
-        assert new_theme == "dark"
-        assert theme_manager._current_theme == "dark"
-        assert theme_manager.is_dark_theme is True
-
         # 从 dark 切换到 light
         new_theme = theme_manager.toggle_theme()
         assert new_theme == "light"
         assert theme_manager._current_theme == "light"
         assert theme_manager.is_dark_theme is False
 
+        # 从 light 切换到 dark
+        new_theme = theme_manager.toggle_theme()
+        assert new_theme == "dark"
+        assert theme_manager._current_theme == "dark"
+        assert theme_manager.is_dark_theme is True
+
     def test_get_current_theme(self, theme_manager):
         """测试获取当前主题"""
-        assert theme_manager.current_theme == "light"
+        assert theme_manager.current_theme == "dark"
 
         # 注意：没有 QApplication 时 apply_theme 会失败
         # 这里直接测试属性
@@ -77,7 +77,7 @@ class TestThemeManager:
         """测试无效主题名称"""
         result = theme_manager.apply_theme("invalid")
         assert result is False
-        assert theme_manager._current_theme == "light"
+        assert theme_manager._current_theme == "dark"
 
 
 if __name__ == "__main__":

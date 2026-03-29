@@ -1,30 +1,33 @@
 # -*- coding: utf-8 -*-
-"""
-报警规则数据仓库
-Alarm Rule Repository
-"""
+"""Alarm rule repository helpers."""
+
+from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import and_, desc
+from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
-from ..models import AlarmRuleModel
+from ..models import AlarmRuleModel, DeviceModel
 from .base import BaseRepository
 
 
 class AlarmRuleRepository(BaseRepository[AlarmRuleModel]):
-    """报警规则数据仓库"""
+    """Repository for persisted alarm rules."""
 
-    def __init__(self, session: Session):
+    def __init__(self, session: Session) -> None:
         super().__init__(session, AlarmRuleModel)
 
     def get_by_device(self, device_id: str) -> List[AlarmRuleModel]:
-        """获取设备的报警规则"""
+        """Return all rules configured for one device."""
         return self._session.query(AlarmRuleModel).filter(AlarmRuleModel.device_id == device_id).all()
 
+    def get_by_rule_id(self, rule_id: str) -> Optional[AlarmRuleModel]:
+        """Return one rule by business rule id."""
+        return self._session.query(AlarmRuleModel).filter(AlarmRuleModel.rule_id == rule_id).first()
+
     def get_by_parameter(self, device_id: str, parameter: str) -> Optional[AlarmRuleModel]:
-        """获取设备特定参数的报警规则"""
+        """Return one device rule for a specific parameter."""
         return (
             self._session.query(AlarmRuleModel)
             .filter(and_(AlarmRuleModel.device_id == device_id, AlarmRuleModel.parameter == parameter))
@@ -32,11 +35,11 @@ class AlarmRuleRepository(BaseRepository[AlarmRuleModel]):
         )
 
     def get_enabled_rules(self) -> List[AlarmRuleModel]:
-        """获取所有启用的规则"""
-        return self._session.query(AlarmRuleModel).filter(AlarmRuleModel.enabled == True).all()
+        """Return all enabled rules."""
+        return self._session.query(AlarmRuleModel).filter(AlarmRuleModel.enabled.is_(True)).all()
 
     def get_rules_by_level(self, level: int) -> List[AlarmRuleModel]:
-        """获取指定级别的规则"""
+        """Return all rules for a specific alarm level."""
         return self._session.query(AlarmRuleModel).filter(AlarmRuleModel.level == level).all()
 
     def create_rule(
@@ -52,29 +55,28 @@ class AlarmRuleRepository(BaseRepository[AlarmRuleModel]):
         description: str = "",
         enabled: bool = True,
     ) -> AlarmRuleModel:
-        """创建报警规则"""
-        rule = AlarmRuleModel(
-            rule_id=rule_id,
-            device_id=device_id,
-            device_name=device_name,
-            parameter=parameter,
-            alarm_type=alarm_type,
-            level=level,
-            threshold_high=threshold_high,
-            threshold_low=threshold_low,
-            description=description,
-            enabled=enabled,
+        """Create and persist one alarm rule."""
+        return self.create(
+            AlarmRuleModel(
+                rule_id=rule_id,
+                device_id=device_id,
+                device_name=device_name,
+                parameter=parameter,
+                alarm_type=alarm_type,
+                level=level,
+                threshold_high=threshold_high,
+                threshold_low=threshold_low,
+                description=description,
+                enabled=enabled,
+            )
         )
-        return self.create(rule)
 
-    def update_rule(self, rule_id: str, **kwargs) -> Optional[AlarmRuleModel]:
-        """更新报警规则"""
-        rule = self._session.query(AlarmRuleModel).filter(AlarmRuleModel.rule_id == rule_id).first()
-
-        if not rule:
+    def update_rule(self, rule_id: str, **kwargs: Any) -> Optional[AlarmRuleModel]:
+        """Update one rule by business rule id."""
+        rule = self.get_by_rule_id(rule_id)
+        if rule is None:
             return None
 
-        # 更新字段
         for key, value in kwargs.items():
             if hasattr(rule, key):
                 setattr(rule, key, value)
@@ -82,39 +84,34 @@ class AlarmRuleRepository(BaseRepository[AlarmRuleModel]):
         return self.update(rule)
 
     def delete_rule(self, rule_id: str) -> bool:
-        """删除报警规则"""
-        rule = self._session.query(AlarmRuleModel).filter(AlarmRuleModel.rule_id == rule_id).first()
-
-        if rule:
-            self.delete(rule)
-            return True
-        return False
+        """Delete one rule by business rule id."""
+        rule = self.get_by_rule_id(rule_id)
+        if rule is None:
+            return False
+        self.delete(rule)
+        return True
 
     def enable_rule(self, rule_id: str) -> Optional[AlarmRuleModel]:
-        """启用报警规则"""
+        """Enable one rule."""
         return self.update_rule(rule_id, enabled=True)
 
     def disable_rule(self, rule_id: str) -> Optional[AlarmRuleModel]:
-        """禁用报警规则"""
+        """Disable one rule."""
         return self.update_rule(rule_id, enabled=False)
 
     def get_all_rules_with_devices(self) -> List[Dict[str, Any]]:
-        """获取所有规则及其设备信息"""
-        rules = self._session.query(AlarmRuleModel).all()
-        return [rule.to_dict() for rule in rules]
+        """Return all rules serialized for UI or export use."""
+        return [rule.to_dict() for rule in self.get_all()]
 
     def cleanup_invalid_rules(self) -> int:
-        """清理无效规则（设备已删除的）"""
-        # 这个需要在 DeviceManager 中实现级联删除
-        # 这里只做标记清理
+        """Delete rules whose device no longer exists."""
         invalid_rules = (
             self._session.query(AlarmRuleModel)
             .filter(~AlarmRuleModel.device_id.in_(self._session.query(DeviceModel.id)))
             .all()
         )
 
-        count = len(invalid_rules)
         for rule in invalid_rules:
             self.delete(rule)
 
-        return count
+        return len(invalid_rules)

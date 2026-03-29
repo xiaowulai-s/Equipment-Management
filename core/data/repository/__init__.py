@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
-"""
-数据仓库模块
-Repository Module
-"""
+"""Repository-layer public exports."""
 
 from .alarm_repository import AlarmRepository
+from .alarm_rule_repository import AlarmRuleRepository
 from .base import BaseRepository
 from .device_repository import DeviceRepository
 from .historical_repository import HistoricalDataRepository
@@ -14,4 +12,5 @@ __all__ = [
     "DeviceRepository",
     "HistoricalDataRepository",
     "AlarmRepository",
+    "AlarmRuleRepository",
 ]

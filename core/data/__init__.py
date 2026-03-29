@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-数据层模块
-Data Layer Module
-"""
+"""Data-layer public exports."""
 
 from .alarm_rule_persistence import AlarmRulePersistenceManager
 from .device_status_sync import DeviceStatusSynchronizer
@@ -18,6 +15,7 @@ from .models import (
     SystemLogModel,
     get_db_manager,
     init_database,
+    utc_now,
 )
 from .repository.alarm_repository import AlarmRepository
 from .repository.alarm_rule_repository import AlarmRuleRepository
@@ -26,7 +24,6 @@ from .repository.device_repository import DeviceRepository
 from .repository.historical_repository import HistoricalDataRepository
 
 __all__ = [
-    # Models
     "Base",
     "DeviceModel",
     "RegisterMapModel",
@@ -37,13 +34,12 @@ __all__ = [
     "DatabaseManager",
     "get_db_manager",
     "init_database",
-    # Repositories
+    "utc_now",
     "BaseRepository",
     "DeviceRepository",
     "HistoricalDataRepository",
     "AlarmRepository",
     "AlarmRuleRepository",
-    # Managers
     "HistoricalDataRecorder",
     "AlarmRulePersistenceManager",
     "DeviceStatusSynchronizer",

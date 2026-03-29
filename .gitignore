@@ -1,12 +1,12 @@
 # Python
-.Python
 __pycache__/
+*.py[cod]
+*$py.class
 build/
 develop-eggs/
 dist/
 downloads/
 eggs/
-.eggs/
 lib/
 lib64/
 parts/
@@ -18,26 +18,37 @@ wheels/
 *.egg
 
 # Virtual environments
-.venv/
 venv/
 ENV/
 env/
 
-# PyCharm
+# PyCharm / VS Code / IDE
 .idea/
-
-# VS Code
 .vscode/
+.spyproject
+.tox/
 
 # Test coverage
 htmlcov/
-.coverage
-.coverage.*
+coverage
+coverage.*
 coverage.xml
-.pytest_cache/
+pytest_cache/
+.pytest_runtime_tmp/
+.pytest_temp/
+.pytest_temp_local/
+migrate_test_*/
+models_check_*/
+pytest-of-wo/
 
-# Test results
-test-results.xml
+# Test output files
+test_output.txt
+test_result.txt
+test_step*_output.txt
+tests/_*.txt
+tests/*.txt
+
+# Logs
 *.log
 
 # OS
@@ -46,6 +57,23 @@ Thumbs.db
 
 # Project specific
 data/*.db
+data/*.db-journal
 config/*.json
-*.pyc
-*.pyo
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+
+# Documentation build
+docs/_build/
+docs/.doctrees/
+
+# WorkBuddy memory (keep MEMORY.md, ignore daily logs)
+.workbuddy/memory/20[0-9][0-9]-*.md
+
+# Screenshots (keep in repo for documentation)
+# 截图*.png
+
+# Coverage
+.coverage

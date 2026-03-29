@@ -1,252 +1,139 @@
 # -*- coding: utf-8 -*-
-"""
-设备状态同步器
-Device Status Synchronizer
-"""
+"""Helpers for syncing runtime device state into persistent storage."""
+
+from __future__ import annotations
 
 from datetime import datetime
 from typing import Any, Dict, Optional
 
-from sqlalchemy.orm import Session
-
 from core.device.device_model import DeviceStatus
 from core.utils.logger import get_logger
 
-from .models import DatabaseManager
+from .models import DatabaseManager, utc_now
 from .repository.device_repository import DeviceRepository
 
 logger = get_logger(__name__)
 
 
 class DeviceStatusSynchronizer:
-    """设备状态同步器 - 负责将设备状态同步到数据库"""
+    """Synchronize runtime device state with persistent device records."""
 
-    def __init__(self, db_manager: DatabaseManager):
-        """
-        初始化设备状态同步器
-
-        Args:
-            db_manager: 数据库管理器实例
-        """
+    def __init__(self, db_manager: DatabaseManager) -> None:
         self._db_manager = db_manager
         self._repository: Optional[DeviceRepository] = None
-        self._auto_sync = True  # 自动同步
-        self._sync_interval = 5  # 同步间隔（秒）
-        self._last_sync: Dict[str, datetime] = {}  # 最后同步时间
+        self._auto_sync = True
+        self._sync_interval = 5
+        self._last_sync: Dict[str, datetime] = {}
 
     @property
     def auto_sync(self) -> bool:
-        """是否启用自动同步"""
+        """Return whether automatic sync is enabled."""
         return self._auto_sync
 
     @auto_sync.setter
-    def auto_sync(self, value: bool):
+    def auto_sync(self, value: bool) -> None:
         self._auto_sync = value
 
     @property
     def sync_interval(self) -> int:
-        """同步间隔（秒）"""
+        """Return the minimum number of seconds between syncs."""
         return self._sync_interval
 
     @sync_interval.setter
-    def sync_interval(self, value: int):
-        self._sync_interval = max(1, value)  # 最小 1 秒
+    def sync_interval(self, value: int) -> None:
+        self._sync_interval = max(1, value)
 
     def _get_repository(self) -> DeviceRepository:
-        """获取数据仓库实例"""
+        """Return a lazily created repository instance."""
         if self._repository is None:
-            session = self._db_manager.get_session()
-            self._repository = DeviceRepository(session)
+            self._repository = DeviceRepository(self._db_manager.get_session())
         return self._repository
 
     def sync_status(self, device_id: str, status: DeviceStatus) -> bool:
-        """
-        同步设备状态到数据库
-
-        Args:
-            device_id: 设备 ID
-            status: 设备状态
-
-        Returns:
-            bool: 同步成功返回 True
-        """
+        """Sync one runtime device status marker."""
         if not self._auto_sync:
             return False
 
+        now = utc_now()
+        last_sync = self._last_sync.get(device_id)
+        if last_sync and (now - last_sync).total_seconds() < self._sync_interval:
+            return False
+
         try:
-            # 检查同步频率
-            now = datetime.utcnow()
-            last_sync = self._last_sync.get(device_id)
-
-            if last_sync and (now - last_sync).total_seconds() < self._sync_interval:
-                # 距离上次同步时间太短，跳过
-                return False
-
             repo = self._get_repository()
             device = repo.get_by_id(device_id)
-
-            if not device:
-                logger.warning(f"设备 {device_id} 不存在，无法同步状态")
+            if device is None:
+                logger.warning("设备 %s 不存在，无法同步状态", device_id)
                 return False
 
-            # 更新状态字段（需要先在 DeviceModel 中添加 status 字段）
-            # 由于 DeviceModel 目前没有 status 字段，我们使用扩展字段方式
-            # 在实际项目中，建议在 DeviceModel 中添加 status 字段
-
-            # 这里我们通过更新 updated_at 来标记状态变化
             device.updated_at = now
-
-            # 如果需要，可以添加自定义字段存储状态
-            # 这需要在 DeviceModel 中添加额外的列或使用 JSON 字段
-
             repo.update(device)
             self._last_sync[device_id] = now
-
-            logger.debug(f"设备 {device_id} 状态已同步：{status.name}")
+            logger.debug("设备 %s 状态已同步: %s", device_id, status.name)
             return True
-
-        except Exception as e:
-            logger.error(f"同步设备状态失败：{str(e)}")
+        except Exception:
+            logger.exception("同步设备状态失败: %s", device_id)
             return False
 
     def sync_connection_info(
         self, device_id: str, last_connected: Optional[datetime] = None, connection_count: int = 0, error_count: int = 0
     ) -> bool:
-        """
-        同步设备连接信息
-
-        Args:
-            device_id: 设备 ID
-            last_connected: 最后连接时间
-            connection_count: 连接次数
-            error_count: 错误次数
-
-        Returns:
-            bool: 同步成功返回 True
-        """
+        """Sync connection-related fields for one device."""
         try:
             repo = self._get_repository()
             device = repo.get_by_id(device_id)
-
-            if not device:
+            if device is None:
                 return False
 
-            # 更新连接信息
-            # 注意：这需要在 DeviceModel 中添加相应字段
-            # 如：last_connected_at, connection_count, error_count
-
-            device.updated_at = datetime.utcnow()
+            device.last_connected_at = last_connected
+            device.connection_count = connection_count
+            device.error_count = error_count
+            device.updated_at = utc_now()
             repo.update(device)
-
-            logger.debug(f"设备 {device_id} 连接信息已同步")
+            logger.debug("设备 %s 连接信息已同步", device_id)
             return True
-
-        except Exception as e:
-            logger.error(f"同步设备连接信息失败：{str(e)}")
+        except Exception:
+            logger.exception("同步设备连接信息失败: %s", device_id)
             return False
 
     def sync_device_data(self, device_id: str, data: Dict[str, Any]) -> bool:
-        """
-        同步设备数据到数据库
-
-        Args:
-            device_id: 设备 ID
-            data: 设备数据字典
-
-        Returns:
-            bool: 同步成功返回 True
-        """
+        """Record that fresh device data was received."""
         try:
             repo = self._get_repository()
             device = repo.get_by_id(device_id)
-
-            if not device:
+            if device is None:
                 return False
 
-            # 更新设备数据
-            # 可以在 DeviceModel 中添加 JSON 字段存储最新数据
-            # 或者使用单独的表存储
-
-            device.updated_at = datetime.utcnow()
+            device.updated_at = utc_now()
             repo.update(device)
-
-            logger.debug(f"设备 {device_id} 数据已同步")
+            logger.debug("设备 %s 数据已同步，字段数=%s", device_id, len(data))
             return True
-
-        except Exception as e:
-            logger.error(f"同步设备数据失败：{str(e)}")
+        except Exception:
+            logger.exception("同步设备数据失败: %s", device_id)
             return False
 
-    def record_connection_event(
-        self, device_id: str, event_type: str, message: str = ""  # 'connected', 'disconnected', 'error'
-    ) -> bool:
-        """
-        记录设备连接事件
-
-        Args:
-            device_id: 设备 ID
-            event_type: 事件类型
-            message: 事件描述
-
-        Returns:
-            bool: 记录成功返回 True
-        """
+    def record_connection_event(self, device_id: str, event_type: str, message: str = "") -> bool:
+        """Record one device connection event in logs."""
         try:
-            # 这里可以创建一个 DeviceEventModel 来记录事件
-            # 或者使用 SystemLogModel
-
-            logger.info(f"设备 {device_id} {event_type}: {message}")
+            logger.info("设备 %s %s: %s", device_id, event_type, message)
             return True
-
-        except Exception as e:
-            logger.error(f"记录设备事件失败：{str(e)}")
+        except Exception:
+            logger.exception("记录设备事件失败: %s", device_id)
             return False
 
     def get_device_status_history(self, device_id: str, start_time: datetime, end_time: datetime) -> list:
-        """
-        获取设备状态历史
-
-        Args:
-            device_id: 设备 ID
-            start_time: 开始时间
-            end_time: 结束时间
-
-        Returns:
-            list: 状态历史列表
-        """
-        try:
-            # 这需要创建 DeviceStatusHistoryModel
-            # 目前返回空列表
-            return []
-
-        except Exception as e:
-            logger.error(f"获取设备状态历史失败：{str(e)}")
-            return []
+        """Placeholder for a future status history persistence model."""
+        logger.debug("状态历史尚未实现: %s %s %s", device_id, start_time, end_time)
+        return []
 
     def cleanup_old_events(self, days: int = 30) -> int:
-        """
-        清理过期事件记录
+        """Placeholder for future event cleanup support."""
+        logger.debug("事件清理尚未实现，days=%s", days)
+        return 0
 
-        Args:
-            days: 保留天数
-
-        Returns:
-            int: 清理的记录数
-        """
-        try:
-            # 这需要 DeviceEventModel 支持
-            return 0
-
-        except Exception as e:
-            logger.error(f"清理过期事件失败：{str(e)}")
-            return 0
-
-    def close(self):
-        """关闭同步器，释放资源"""
-        try:
-            if self._repository:
-                self._repository._session.close()
-                self._repository = None
-            logger.info("设备状态同步器已关闭")
-        except Exception as e:
-            logger.error(f"关闭同步器失败：{str(e)}")
+    def close(self) -> None:
+        """Release the cached repository session."""
+        if self._repository is not None:
+            self._repository._session.close()
+            self._repository = None
+        logger.info("设备状态同步器已关闭")

@@ -1,23 +1,30 @@
 # -*- coding: utf-8 -*-
-"""
-数据库模型定义
-Database Models
-"""
+"""Database models and session management."""
 
+from __future__ import annotations
+
+import logging
 import os
+import uuid
 from contextlib import contextmanager
-from datetime import datetime
-from typing import List, Optional
+from datetime import datetime, timezone
+from typing import Any, Dict, Iterator, Optional
 
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, String, Text, create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import Session, relationship, sessionmaker
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, String, Text, create_engine, event
+from sqlalchemy.orm import Session, declarative_base, relationship, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 Base = declarative_base()
+logger = logging.getLogger(__name__)
+
+
+def utc_now() -> datetime:
+    """Return a timezone-aware UTC timestamp."""
+    return datetime.now(timezone.utc)
 
 
 class DeviceModel(Base):
-    """设备模型 - 持久化设备信息"""
+    """Persistent device model."""
 
     __tablename__ = "devices"
 
@@ -30,14 +37,13 @@ class DeviceModel(Base):
     port = Column(Integer, nullable=True)
     unit_id = Column(Integer, default=1)
     use_simulator = Column(Boolean, default=False)
-    status = Column(Integer, default=0)  # 0=DISCONNECTED, 1=CONNECTING, 2=CONNECTED, 3=ERROR
+    status = Column(Integer, default=0)
     last_connected_at = Column(DateTime, nullable=True)
     connection_count = Column(Integer, default=0)
     error_count = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
-    # 关系
     register_maps = relationship("RegisterMapModel", back_populates="device", cascade="all, delete-orphan")
     historical_data = relationship("HistoricalDataModel", back_populates="device", cascade="all, delete-orphan")
 
@@ -46,7 +52,46 @@ class DeviceModel(Base):
         Index("idx_device_name", "name"),
     )
 
-    def to_dict(self) -> dict:
+    def __init__(self, **kwargs: Any) -> None:
+        alias_map = {
+            "protocol": "protocol_type",
+            "ip": "host",
+            "slave_id": "unit_id",
+        }
+        normalized: Dict[str, Any] = {}
+        for key, value in kwargs.items():
+            normalized[alias_map.get(key, key)] = value
+
+        normalized.setdefault("id", uuid.uuid4().hex[:8])
+        normalized.setdefault("protocol_type", "modbus_tcp")
+        normalized.setdefault("unit_id", 1)
+        super().__init__(**normalized)
+
+    @property
+    def protocol(self) -> str:
+        return self.protocol_type
+
+    @protocol.setter
+    def protocol(self, value: str) -> None:
+        self.protocol_type = value
+
+    @property
+    def ip(self) -> Optional[str]:
+        return self.host
+
+    @ip.setter
+    def ip(self, value: Optional[str]) -> None:
+        self.host = value
+
+    @property
+    def slave_id(self) -> int:
+        return self.unit_id
+
+    @slave_id.setter
+    def slave_id(self, value: int) -> None:
+        self.unit_id = value
+
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "id": self.id,
             "name": self.name,
@@ -67,7 +112,7 @@ class DeviceModel(Base):
 
 
 class RegisterMapModel(Base):
-    """寄存器映射模型"""
+    """Register map model."""
 
     __tablename__ = "register_maps"
 
@@ -76,14 +121,13 @@ class RegisterMapModel(Base):
     name = Column(String(128), nullable=False)
     address = Column(Integer, nullable=False)
     function_code = Column(Integer, default=3)
-    data_type = Column(String(32), default="uint16")  # uint16, int16, uint32, int32, float32, float64
-    read_write = Column(String(8), default="R")  # R, W, RW
+    data_type = Column(String(32), default="uint16")
+    read_write = Column(String(8), default="R")
     scale = Column(Float, default=1.0)
     unit = Column(String(32), default="")
     description = Column(Text, nullable=True)
     enabled = Column(Boolean, default=True)
 
-    # 关系
     device = relationship("DeviceModel", back_populates="register_maps")
 
     __table_args__ = (
@@ -91,7 +135,7 @@ class RegisterMapModel(Base):
         Index("idx_register_address", "device_id", "address"),
     )
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "id": self.id,
             "device_id": self.device_id,
@@ -108,7 +152,7 @@ class RegisterMapModel(Base):
 
 
 class HistoricalDataModel(Base):
-    """历史数据模型"""
+    """Historical data model."""
 
     __tablename__ = "historical_data"
 
@@ -116,12 +160,11 @@ class HistoricalDataModel(Base):
     device_id = Column(String(64), ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
     parameter_name = Column(String(128), nullable=False)
     value = Column(Float, nullable=False)
-    raw_value = Column(Integer, nullable=True)  # 原始寄存器值
+    raw_value = Column(Integer, nullable=True)
     unit = Column(String(32), default="")
-    timestamp = Column(DateTime, default=datetime.utcnow, index=True)
-    quality = Column(Integer, default=0)  # 数据质量: 0=good, 1=uncertain, 2=bad
+    timestamp = Column(DateTime, default=utc_now, index=True)
+    quality = Column(Integer, default=0)
 
-    # 关系
     device = relationship("DeviceModel", back_populates="historical_data")
 
     __table_args__ = (
@@ -129,7 +172,7 @@ class HistoricalDataModel(Base):
         Index("idx_hist_param_time", "device_id", "parameter_name", "timestamp"),
     )
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "id": self.id,
             "device_id": self.device_id,
@@ -143,7 +186,7 @@ class HistoricalDataModel(Base):
 
 
 class AlarmModel(Base):
-    """报警记录模型"""
+    """Alarm history model."""
 
     __tablename__ = "alarms"
 
@@ -152,13 +195,13 @@ class AlarmModel(Base):
     device_id = Column(String(64), nullable=False, index=True)
     device_name = Column(String(128), nullable=True)
     parameter = Column(String(128), nullable=False)
-    alarm_type = Column(String(32), nullable=False)  # threshold_high, threshold_low, etc.
-    level = Column(Integer, nullable=False)  # 0=info, 1=warning, 2=critical
+    alarm_type = Column(String(32), nullable=False)
+    level = Column(Integer, nullable=False)
     value = Column(Float, nullable=False)
     threshold_high = Column(Float, nullable=True)
     threshold_low = Column(Float, nullable=True)
     description = Column(Text, nullable=True)
-    timestamp = Column(DateTime, default=datetime.utcnow, index=True)
+    timestamp = Column(DateTime, default=utc_now, index=True)
     acknowledged = Column(Boolean, default=False)
     acknowledged_at = Column(DateTime, nullable=True)
     acknowledged_by = Column(String(64), nullable=True)
@@ -169,7 +212,13 @@ class AlarmModel(Base):
         Index("idx_alarm_ack", "acknowledged"),
     )
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> Dict[str, Any]:
+        level_names = {
+            0: "信息",
+            1: "警告",
+            2: "错误",
+            3: "严重",
+        }
         return {
             "id": self.id,
             "rule_id": self.rule_id,
@@ -178,7 +227,7 @@ class AlarmModel(Base):
             "parameter": self.parameter,
             "alarm_type": self.alarm_type,
             "level": self.level,
-            "level_name": ["信息", "警告", "严重"][self.level] if self.level < 3 else "未知",
+            "level_name": level_names.get(self.level, "未知"),
             "value": self.value,
             "threshold_high": self.threshold_high,
             "threshold_low": self.threshold_low,
@@ -191,7 +240,7 @@ class AlarmModel(Base):
 
 
 class AlarmRuleModel(Base):
-    """报警规则模型"""
+    """Alarm rule model."""
 
     __tablename__ = "alarm_rules"
 
@@ -200,21 +249,72 @@ class AlarmRuleModel(Base):
     device_id = Column(String(64), nullable=False, index=True)
     device_name = Column(String(128), nullable=False)
     parameter = Column(String(64), nullable=False)
-    alarm_type = Column(String(32), nullable=False)  # THRESHOLD_HIGH, THRESHOLD_LOW, DEVICE_OFFLINE, etc.
-    level = Column(Integer, nullable=False)  # 0=INFO, 1=WARNING, 2=ERROR, 3=CRITICAL
+    alarm_type = Column(String(32), nullable=False)
+    level = Column(Integer, nullable=False)
     threshold_high = Column(Float, nullable=True)
     threshold_low = Column(Float, nullable=True)
     description = Column(Text, nullable=True)
     enabled = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
     __table_args__ = (
         Index("idx_rule_device_param", "device_id", "parameter"),
         Index("idx_rule_enabled", "enabled"),
     )
 
-    def to_dict(self) -> dict:
+    def __init__(self, **kwargs: Any) -> None:
+        register_address = kwargs.pop("register_address", None)
+        condition = kwargs.pop("condition", None)
+        threshold = kwargs.pop("threshold", None)
+
+        if register_address is not None and "parameter" not in kwargs:
+            kwargs["parameter"] = self._parameter_from_register(register_address)
+        if threshold is not None:
+            alarm_type = kwargs.get("alarm_type")
+            condition_name = condition or alarm_type
+            if condition_name in {"greater_than", "high_limit", "threshold_high"}:
+                kwargs.setdefault("threshold_high", threshold)
+            elif condition_name in {"less_than", "low_limit", "threshold_low"}:
+                kwargs.setdefault("threshold_low", threshold)
+
+        kwargs.setdefault("rule_id", uuid.uuid4().hex[:12])
+        kwargs.setdefault("device_name", kwargs.get("device_id", ""))
+        kwargs.setdefault("level", 1)
+        kwargs.setdefault("alarm_type", "threshold_high")
+        kwargs.setdefault("parameter", "register_0")
+        super().__init__(**kwargs)
+
+    @staticmethod
+    def _parameter_from_register(register_address: Any) -> str:
+        return f"register_{register_address}"
+
+    @property
+    def register_address(self) -> Optional[int]:
+        if self.parameter.startswith("register_"):
+            try:
+                return int(self.parameter.split("_", 1)[1])
+            except ValueError:
+                return None
+        return None
+
+    @register_address.setter
+    def register_address(self, value: int) -> None:
+        self.parameter = self._parameter_from_register(value)
+
+    @property
+    def condition(self) -> str:
+        if self.threshold_high is not None:
+            return "greater_than"
+        if self.threshold_low is not None:
+            return "less_than"
+        return "custom"
+
+    @property
+    def threshold(self) -> Optional[float]:
+        return self.threshold_high if self.threshold_high is not None else self.threshold_low
+
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "id": self.id,
             "rule_id": self.rule_id,
@@ -233,23 +333,23 @@ class AlarmRuleModel(Base):
 
 
 class SystemLogModel(Base):
-    """系统日志模型"""
+    """System log persistence model."""
 
     __tablename__ = "system_logs"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    level = Column(String(16), nullable=False, index=True)  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+    level = Column(String(16), nullable=False, index=True)
     logger = Column(String(64), nullable=False)
     message = Column(Text, nullable=False)
     module = Column(String(128), nullable=True)
     function = Column(String(128), nullable=True)
     line = Column(Integer, nullable=True)
     exception = Column(Text, nullable=True)
-    timestamp = Column(DateTime, default=datetime.utcnow, index=True)
+    timestamp = Column(DateTime, default=utc_now, index=True)
 
     __table_args__ = (Index("idx_log_level_time", "level", "timestamp"),)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "id": self.id,
             "level": self.level,
@@ -264,73 +364,116 @@ class SystemLogModel(Base):
 
 
 class DatabaseManager:
-    """数据库管理器 - 单例模式"""
+    """SQLite database/session manager."""
 
-    _instance = None
-    _engine = None
-    _session_factory = None
+    _instances: Dict[str, "DatabaseManager"] = {}
 
-    def __new__(cls, db_path: str = None):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._initialized = False
-        return cls._instance
+    def __new__(cls, db_path: Optional[str] = None) -> "DatabaseManager":
+        resolved_db_path = cls._resolve_db_path(db_path)
+        if resolved_db_path == ":memory:":
+            instance = super().__new__(cls)
+            instance._initialized = False
+            return instance
+        if resolved_db_path not in cls._instances:
+            instance = super().__new__(cls)
+            instance._initialized = False
+            cls._instances[resolved_db_path] = instance
+        return cls._instances[resolved_db_path]
 
-    def __init__(self, db_path: str = None):
+    def __init__(self, db_path: Optional[str] = None) -> None:
         if self._initialized:
             return
 
-        if db_path is None:
-            db_path = os.path.join("data", "equipment_management.db")
-
-        # 确保目录存在
-        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        db_path = self._resolve_db_path(db_path)
+        if db_path != ":memory:":
+            db_dir = os.path.dirname(db_path)
+            if db_dir:
+                os.makedirs(db_dir, exist_ok=True)
 
         self._db_path = db_path
-        self._engine = create_engine(f"sqlite:///{db_path}", echo=False)
-        self._session_factory = sessionmaker(bind=self._engine)
+        if db_path == ":memory:":
+            self._engine = create_engine(
+                "sqlite://",
+                echo=False,
+                connect_args={"check_same_thread": False},
+                poolclass=StaticPool,
+                future=True,
+            )
+        else:
+            self._engine = create_engine(
+                f"sqlite:///{db_path}",
+                echo=False,
+                connect_args={"check_same_thread": False},
+                future=True,
+            )
 
-        # 创建表
+        event.listen(self._engine, "connect", self._configure_sqlite_connection)
+        self._session_factory = sessionmaker(bind=self._engine, expire_on_commit=False)
         Base.metadata.create_all(self._engine)
-
         self._initialized = True
 
     @contextmanager
-    def session(self) -> Session:
-        """上下文管理器，自动处理会话生命周期"""
+    def session(self) -> Iterator[Session]:
+        """Provide a transactional session scope."""
         session = self._session_factory()
         try:
             yield session
             session.commit()
-        except Exception as e:
+        except Exception:
             session.rollback()
-            raise e
+            logger.exception("数据库事务执行失败，已回滚: %s", self._db_path)
+            raise
         finally:
             session.close()
 
     def get_session(self) -> Session:
-        """获取新会话（需要手动关闭）"""
+        """Create a raw session; caller is responsible for closing it."""
         return self._session_factory()
 
-    def close(self):
-        """关闭数据库连接"""
+    def close(self) -> None:
+        """Dispose the engine."""
         if self._engine:
             self._engine.dispose()
+        if getattr(self, "_db_path", None) == ":memory:":
+            self._initialized = False
 
     @classmethod
-    def reset_instance(cls):
-        """重置单例（用于测试）"""
-        cls._instance = None
-        cls._engine = None
-        cls._session_factory = None
+    def reset_instance(cls) -> None:
+        """Reset singleton cache, mainly for tests."""
+        cls._instances = {}
+
+    @staticmethod
+    def _resolve_db_path(db_path: Optional[str]) -> str:
+        if db_path:
+            return db_path
+
+        env_db_path = os.getenv("EQUIPMENT_MANAGEMENT_DB_PATH")
+        if env_db_path:
+            return env_db_path
+
+        if os.getenv("PYTEST_CURRENT_TEST"):
+            return ":memory:"
+
+        return os.path.join("data", "equipment_management.db")
+
+    @staticmethod
+    def _configure_sqlite_connection(dbapi_connection: Any, _: Any) -> None:
+        """Apply SQLite pragmas for integrity and concurrency."""
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        try:
+            cursor.execute("PRAGMA journal_mode=WAL")
+        except Exception:  # pragma: no cover - depends on SQLite backend
+            logger.debug("journal_mode=WAL 设置失败，继续使用默认模式")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.close()
 
 
-# 便捷函数
-def get_db_manager(db_path: str = None) -> DatabaseManager:
-    """获取数据库管理器实例"""
+def get_db_manager(db_path: Optional[str] = None) -> DatabaseManager:
+    """Return a database manager instance."""
     return DatabaseManager(db_path)
 
 
-def init_database(db_path: str = None):
-    """初始化数据库"""
+def init_database(db_path: Optional[str] = None) -> DatabaseManager:
+    """Initialize the database and return the manager."""
     return DatabaseManager(db_path)

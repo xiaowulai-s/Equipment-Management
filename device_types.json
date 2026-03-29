@@ -18,5 +18,10 @@
     "name": "液体传感器",
     "code": "L2",
     "description": "通用液体传感器设备"
+  },
+  {
+    "name": "固体传感器",
+    "code": "G2",
+    "description": "通用固体传感器设备"
   }
 ]

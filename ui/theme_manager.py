@@ -1,427 +1,135 @@
 # -*- coding: utf-8 -*-
 """
-主题管理器
-Theme Manager
+主题管理器 - 统一主题系统
+
+职责:
+    - 从 QSS 文件加载浅色主题
+    - 提供当前主题颜色查询 API (供组件动态着色)
+
+主题文件:
+    ui/styles/qss/base.qss        - 全局基础样式 (字体等)
+    ui/styles/qss/base_light.qss  - 浅色基础样式 (菜单/工具栏/滚动条等)
+    ui/styles/qss/light.qss       - 浅色控件样式
 """
 
-from typing import Optional
+from __future__ import annotations
 
-from PySide6.QtCore import QObject, Signal
+import logging
+from pathlib import Path
+from typing import Dict, Optional
+
+from PySide6.QtCore import QObject
 from PySide6.QtWidgets import QApplication
 
-from ui.styles import AppStyles
+logger = logging.getLogger(__name__)
+
+# QSS 目录
+_QSS_DIR = Path(__file__).resolve().parent / "styles" / "qss"
+
+
+# ═══════════════════════════════════════════════════════════
+# 主题颜色定义
+# ═══════════════════════════════════════════════════════════
+
+
+class ThemeColors:
+    """浅色主题颜色查询接口."""
+
+    _COLORS: Dict[str, str] = {
+        # 基础
+        "bg_base": "#FFFFFF",
+        "bg_raised": "#F6F8FA",
+        "bg_overlay": "#F3F4F6",
+        "bg_hover": "#F0F2F5",
+        # 文本
+        "text_primary": "#1F2937",
+        "text_secondary": "#6B7280",
+        "text_tertiary": "#9CA3AF",
+        # 边框
+        "border_default": "#D1D5DB",
+        "border_muted": "#E5E7EB",
+        "border_accent": "#2563EB",
+        # 功能色
+        "success": "#22C55E",
+        "warning": "#F59E0B",
+        "danger": "#EF4444",
+        "info": "#06B6D4",
+        "primary": "#2196F6",
+        # 图表
+        "chart_bg": "#FFFFFF",
+        "chart_axis": "#6B7280",
+        "chart_grid": "#E5E7EB",
+    }
+
+    def __getattr__(self, name: str) -> str:
+        if name in self._COLORS:
+            return self._COLORS[name]
+        raise AttributeError(
+            f"'{type(self).__name__}' has no color '{name}'. " f"Available: {list(self._COLORS.keys())}"
+        )
+
+
+# ═══════════════════════════════════════════════════════════
+# ThemeManager
+# ═══════════════════════════════════════════════════════════
 
 
 class ThemeManager(QObject):
-    """
-    主题管理器 - 支持浅色/深色主题切换
-    Theme Manager - Support light/dark theme switching
-    """
+    """主题管理器 (仅浅色主题).
 
-    theme_changed = Signal(str)  # 主题变化信号
+    功能:
+        - 从 QSS 文件加载浅色主题
+        - 提供 ThemeColors 查询接口
 
-    # 深色主题样式
-    DARK_THEME = """
-        QMainWindow {
-            background-color: #0D1117;
-            color: #C9D1D9;
-        }
-
-        QWidget {
-            background-color: #161B22;
-            color: #C9D1D9;
-        }
-
-        QPushButton {
-            background-color: #21262D;
-            color: #C9D1D9;
-            border: 1px solid #30363D;
-            border-radius: 6px;
-            padding: 8px 16px;
-        }
-
-        QPushButton:hover {
-            background-color: #30363D;
-            border-color: #58A6FF;
-        }
-
-        QPushButton:pressed {
-            background-color: #484F58;
-        }
-
-        QPushButton:disabled {
-            background-color: #21262D;
-            color: #484F58;
-            border-color: #30363D;
-        }
-
-        QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {
-            background-color: #0D1117;
-            color: #C9D1D9;
-            border: 1px solid #30363D;
-            border-radius: 6px;
-            padding: 8px 12px;
-        }
-
-        QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {
-            border-color: #58A6FF;
-        }
-
-        QLineEdit:disabled, QComboBox:disabled {
-            background-color: #161B22;
-            color: #484F58;
-        }
-
-        QTreeWidget, QTableWidget, QListWidget {
-            background-color: #161B22;
-            color: #C9D1D9;
-            border: 1px solid #30363D;
-            gridline-color: #30363D;
-        }
-
-        QTreeWidget::item:hover, QTableWidget::item:hover, QListWidget::item:hover {
-            background-color: #21262D;
-        }
-
-        QTreeWidget::item:selected, QTableWidget::item:selected, QListWidget::item:selected {
-            background-color: #1F6FEB;
-            color: #FFFFFF;
-        }
-
-        QHeaderView::section {
-            background-color: #21262D;
-            color: #8B949E;
-            border: none;
-            border-bottom: 1px solid #30363D;
-            border-right: 1px solid #30363D;
-            padding: 8px;
-            font-weight: bold;
-        }
-
-        QGroupBox {
-            background-color: #161B22;
-            color: #C9D1D9;
-            border: 1px solid #30363D;
-            border-radius: 8px;
-            padding: 16px;
-            margin-top: 8px;
-        }
-
-        QGroupBox::title {
-            subcontrol-origin: margin;
-            left: 12px;
-            top: -8px;
-            padding: 0 8px;
-            background-color: #161B22;
-            color: #58A6FF;
-            font-weight: 600;
-        }
-
-        QScrollBar:vertical {
-            background-color: #0D1117;
-            width: 12px;
-            border-radius: 6px;
-        }
-
-        QScrollBar::handle:vertical {
-            background-color: #30363D;
-            border-radius: 6px;
-            min-height: 20px;
-        }
-
-        QScrollBar::handle:vertical:hover {
-            background-color: #484F58;
-        }
-
-        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-            height: 0px;
-        }
-
-        QScrollBar:horizontal {
-            background-color: #0D1117;
-            height: 12px;
-            border-radius: 6px;
-        }
-
-        QScrollBar::handle:horizontal {
-            background-color: #30363D;
-            border-radius: 6px;
-            min-width: 20px;
-        }
-
-        QScrollBar::handle:horizontal:hover {
-            background-color: #484F58;
-        }
-
-        QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
-            width: 0px;
-        }
-
-        QMenu {
-            background-color: #161B22;
-            color: #C9D1D9;
-            border: 1px solid #30363D;
-            border-radius: 8px;
-            padding: 8px;
-        }
-
-        QMenu::item {
-            padding: 8px 16px;
-            border-radius: 4px;
-        }
-
-        QMenu::item:selected {
-            background-color: #21262D;
-        }
-
-        QMenuBar {
-            background-color: #161B22;
-            color: #C9D1D9;
-            border-bottom: 1px solid #30363D;
-            padding: 4px;
-        }
-
-        QMenuBar::item:selected {
-            background-color: #21262D;
-            border-radius: 4px;
-        }
-
-        QToolBar {
-            background-color: #161B22;
-            border-bottom: 1px solid #30363D;
-            spacing: 8px;
-            padding: 4px;
-        }
-
-        QStatusBar {
-            background-color: #161B22;
-            color: #8B949E;
-            border-top: 1px solid #30363D;
-        }
-
-        QSplitter::handle {
-            background-color: #30363D;
-        }
-
-        QSplitter::handle:hover {
-            background-color: #58A6FF;
-        }
-
-        QTabWidget::pane {
-            background-color: #161B22;
-            border: 1px solid #30363D;
-            border-radius: 8px;
-        }
-
-        QTabBar::tab {
-            background-color: #21262D;
-            color: #8B949E;
-            border: 1px solid #30363D;
-            border-bottom: none;
-            border-top-left-radius: 6px;
-            border-top-right-radius: 6px;
-            padding: 8px 16px;
-            margin-right: 2px;
-        }
-
-        QTabBar::tab:selected {
-            background-color: #161B22;
-            color: #58A6FF;
-        }
-
-        QTabBar::tab:hover:!selected {
-            background-color: #30363D;
-        }
-
-        QCheckBox::indicator {
-            background-color: #0D1117;
-            border: 1px solid #30363D;
-            border-radius: 4px;
-        }
-
-        QCheckBox::indicator:checked {
-            background-color: #1F6FEB;
-            border-color: #1F6FEB;
-        }
-
-        QCheckBox::indicator:hover {
-            border-color: #58A6FF;
-        }
-
-        QRadioButton::indicator {
-            background-color: #0D1117;
-            border: 1px solid #30363D;
-            border-radius: 8px;
-        }
-
-        QRadioButton::indicator:checked {
-            background-color: #1F6FEB;
-            border-color: #1F6FEB;
-        }
-
-        QSlider::groove:horizontal {
-            background-color: #30363D;
-            height: 6px;
-            border-radius: 3px;
-        }
-
-        QSlider::handle:horizontal {
-            background-color: #58A6FF;
-            width: 16px;
-            margin: -5px 0;
-            border-radius: 8px;
-        }
-
-        QSlider::handle:horizontal:hover {
-            background-color: #1F6FEB;
-        }
-
-        QProgressBar {
-            background-color: #21262D;
-            border: none;
-            border-radius: 6px;
-            height: 8px;
-            text-align: center;
-            color: #C9D1D9;
-        }
-
-        QProgressBar::chunk {
-            background-color: #1F6FEB;
-            border-radius: 6px;
-        }
-
-        QLabel {
-            color: #C9D1D9;
-        }
-
-        QToolTip {
-            background-color: #21262D;
-            color: #C9D1D9;
-            border: 1px solid #30363D;
-            border-radius: 4px;
-            padding: 4px 8px;
-        }
+    用法:
+        tm = ThemeManager()
+        tm.apply_theme()              # 应用浅色主题
+        tm.colors.bg_base             # 获取背景色
     """
 
-    def __init__(self, parent: Optional[QObject] = None):
+    def __init__(self, parent: Optional[QObject] = None) -> None:
         super().__init__(parent)
-        self._current_theme = "light"  # "light" or "dark"
-        self._custom_themes = {}  # 自定义主题
+        self.colors = ThemeColors()
 
-    @property
-    def current_theme(self) -> str:
-        """当前主题名称"""
-        return self._current_theme
-
-    @property
-    def is_dark_theme(self) -> bool:
-        """是否使用深色主题"""
-        return self._current_theme == "dark"
-
-    def apply_theme(self, theme_name: str = "light") -> bool:
-        """
-        应用主题
-
-        Apply theme
-
-        Args:
-            theme_name: 主题名称（"light" 或 "dark"）
-
-        Returns:
-            bool: 是否成功
-        """
-        app = QApplication.instance()
-        if not app:
-            return False
-
-        if theme_name == "dark":
-            app.setStyleSheet(self.DARK_THEME)
-            self._current_theme = "dark"
-        elif theme_name == "light":
-            app.setStyleSheet(AppStyles.MAIN_WINDOW)
-            self._current_theme = "light"
-        elif theme_name in self._custom_themes:
-            app.setStyleSheet(self._custom_themes[theme_name])
-            self._current_theme = theme_name
-        else:
-            return False
-
-        self.theme_changed.emit(self._current_theme)
-        return True
-
-    def toggle_theme(self) -> str:
-        """
-        切换主题（浅色 <-> 深色）
-
-        Toggle theme (light <-> dark)
-
-        Returns:
-            str: 切换后的主题名称
-        """
-        new_theme = "dark" if self._current_theme == "light" else "light"
-        self.apply_theme(new_theme)
-        return new_theme
-
-    def add_custom_theme(self, name: str, stylesheet: str):
-        """
-        添加自定义主题
-
-        Add custom theme
-
-        Args:
-            name: 主题名称
-            stylesheet: 样式表字符串
-        """
-        self._custom_themes[name] = stylesheet
-
-    def get_theme_stylesheet(self, theme_name: str) -> str:
-        """
-        获取主题的样式表
-
-        Get theme stylesheet
-
-        Args:
-            theme_name: 主题名称
-
-        Returns:
-            str: 样式表字符串
-        """
-        if theme_name == "dark":
-            return self.DARK_THEME
-        elif theme_name == "light":
-            return AppStyles.MAIN_WINDOW
-        elif theme_name in self._custom_themes:
-            return self._custom_themes[theme_name]
-        else:
+    def _load_qss(self, filename: str) -> str:
+        """从 QSS 文件加载内容, 失败返回空字符串."""
+        path = _QSS_DIR / filename
+        if not path.exists():
+            logger.warning("QSS 文件不存在: %s", path)
+            return ""
+        try:
+            return path.read_text(encoding="utf-8")
+        except Exception as e:
+            logger.error("读取 QSS 失败: %s - %s", path, e)
             return ""
 
-    @staticmethod
-    def get_default_theme() -> str:
-        """
-        获取默认主题
+    def _build_stylesheet(self) -> str:
+        """组合生成浅色样式表: base.qss + base_light.qss + light.qss."""
+        parts: list[str] = []
 
-        Get default theme
+        base = self._load_qss("base.qss")
+        if base:
+            parts.append(base)
 
-        Returns:
-            str: 默认主题名称
-        """
-        return "light"
+        base_light = self._load_qss("base_light.qss")
+        if base_light:
+            parts.append(base_light)
 
+        light = self._load_qss("light.qss")
+        if light:
+            parts.append(light)
 
-# 便捷函数
-def apply_dark_theme():
-    """应用深色主题"""
-    manager = ThemeManager()
-    manager.apply_theme("dark")
+        return "\n".join(parts)
 
+    def apply_theme(self) -> bool:
+        """应用浅色主题到 QApplication."""
+        app = QApplication.instance()
+        if app is None:
+            logger.warning("QApplication 未初始化, 无法应用主题")
+            return False
 
-def apply_light_theme():
-    """应用浅色主题"""
-    manager = ThemeManager()
-    manager.apply_theme("light")
+        stylesheet = self._build_stylesheet()
+        app.setStyleSheet(stylesheet)
 
-
-def toggle_theme() -> str:
-    """切换主题"""
-    manager = ThemeManager()
-    return manager.toggle_theme()
+        logger.info("浅色主题已应用")
+        return True

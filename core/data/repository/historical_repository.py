@@ -1,27 +1,26 @@
 # -*- coding: utf-8 -*-
-"""
-历史数据仓库
-Historical Data Repository
-"""
+"""Historical data repository helpers."""
+
+from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy import and_, asc, desc, func
 from sqlalchemy.orm import Session
 
-from ..models import HistoricalDataModel
+from ..models import HistoricalDataModel, utc_now
 from .base import BaseRepository
 
 
 class HistoricalDataRepository(BaseRepository[HistoricalDataModel]):
-    """历史数据仓库"""
+    """Repository for persisted historical device data."""
 
-    def __init__(self, session: Session):
+    def __init__(self, session: Session) -> None:
         super().__init__(session, HistoricalDataModel)
 
     def get_by_device(self, device_id: str, limit: int = 1000) -> List[HistoricalDataModel]:
-        """获取设备的历史数据"""
+        """Return recent data points for one device."""
         return (
             self._session.query(HistoricalDataModel)
             .filter(HistoricalDataModel.device_id == device_id)
@@ -33,7 +32,7 @@ class HistoricalDataRepository(BaseRepository[HistoricalDataModel]):
     def get_by_device_and_parameter(
         self, device_id: str, parameter: str, limit: int = 1000
     ) -> List[HistoricalDataModel]:
-        """获取设备特定参数的历史数据"""
+        """Return recent data points for one device parameter."""
         return (
             self._session.query(HistoricalDataModel)
             .filter(and_(HistoricalDataModel.device_id == device_id, HistoricalDataModel.parameter_name == parameter))
@@ -45,7 +44,7 @@ class HistoricalDataRepository(BaseRepository[HistoricalDataModel]):
     def get_by_time_range(
         self, device_id: str, start_time: datetime, end_time: datetime, parameter: Optional[str] = None
     ) -> List[HistoricalDataModel]:
-        """获取时间范围内的历史数据"""
+        """Return data points within one time range."""
         query = self._session.query(HistoricalDataModel).filter(
             and_(
                 HistoricalDataModel.device_id == device_id,
@@ -53,17 +52,16 @@ class HistoricalDataRepository(BaseRepository[HistoricalDataModel]):
                 HistoricalDataModel.timestamp <= end_time,
             )
         )
-
         if parameter:
             query = query.filter(HistoricalDataModel.parameter_name == parameter)
-
         return query.order_by(asc(HistoricalDataModel.timestamp)).all()
 
     def get_latest_by_device(self, device_id: str) -> List[HistoricalDataModel]:
-        """获取设备最新的一条数据（每个参数）"""
+        """Return the latest sample for each parameter on one device."""
         subquery = (
             self._session.query(
-                HistoricalDataModel.parameter_name, func.max(HistoricalDataModel.timestamp).label("max_time")
+                HistoricalDataModel.parameter_name,
+                func.max(HistoricalDataModel.timestamp).label("max_time"),
             )
             .filter(HistoricalDataModel.device_id == device_id)
             .group_by(HistoricalDataModel.parameter_name)
@@ -92,7 +90,7 @@ class HistoricalDataRepository(BaseRepository[HistoricalDataModel]):
         raw_value: Optional[int] = None,
         quality: int = 0,
     ) -> HistoricalDataModel:
-        """创建单个数据点"""
+        """Create one historical data point."""
         data = HistoricalDataModel(
             device_id=device_id,
             parameter_name=parameter_name,
@@ -104,18 +102,19 @@ class HistoricalDataRepository(BaseRepository[HistoricalDataModel]):
         return self.create(data)
 
     def batch_create(self, data_points: List[Dict[str, Any]]) -> int:
-        """批量创建数据点"""
+        """Create multiple historical data points."""
         count = 0
         for point in data_points:
-            data = HistoricalDataModel(
-                device_id=point["device_id"],
-                parameter_name=point["parameter_name"],
-                value=point["value"],
-                raw_value=point.get("raw_value"),
-                unit=point.get("unit", ""),
-                quality=point.get("quality", 0),
+            self._session.add(
+                HistoricalDataModel(
+                    device_id=point["device_id"],
+                    parameter_name=point["parameter_name"],
+                    value=point["value"],
+                    raw_value=point.get("raw_value"),
+                    unit=point.get("unit", ""),
+                    quality=point.get("quality", 0),
+                )
             )
-            self._session.add(data)
             count += 1
 
         self._session.flush()
@@ -124,7 +123,7 @@ class HistoricalDataRepository(BaseRepository[HistoricalDataModel]):
     def get_statistics(
         self, device_id: str, parameter: str, start_time: datetime, end_time: datetime
     ) -> Dict[str, float]:
-        """获取统计数据"""
+        """Return min/max/avg/count statistics for one parameter."""
         result = (
             self._session.query(
                 func.min(HistoricalDataModel.value).label("min"),
@@ -144,32 +143,28 @@ class HistoricalDataRepository(BaseRepository[HistoricalDataModel]):
         )
 
         return {
-            "min": result.min if result.min else 0.0,
-            "max": result.max if result.max else 0.0,
-            "avg": result.avg if result.avg else 0.0,
-            "count": result.count if result.count else 0,
+            "min": result.min if result and result.min is not None else 0.0,
+            "max": result.max if result and result.max is not None else 0.0,
+            "avg": result.avg if result and result.avg is not None else 0.0,
+            "count": result.count if result and result.count is not None else 0,
         }
 
     def cleanup_old_data(self, days: int = 30) -> int:
-        """清理过期数据"""
-        cutoff_date = datetime.utcnow() - timedelta(days=days)
-        result = (
+        """Delete data points older than the retention window."""
+        cutoff = utc_now() - timedelta(days=days)
+        return (
             self._session.query(HistoricalDataModel)
-            .filter(HistoricalDataModel.timestamp < cutoff_date)
+            .filter(HistoricalDataModel.timestamp < cutoff)
             .delete(synchronize_session=False)
         )
-        return result
 
     def get_data_for_export(
         self, device_ids: List[str], start_time: Optional[datetime] = None, end_time: Optional[datetime] = None
     ) -> List[Dict[str, Any]]:
-        """获取导出数据"""
+        """Return serialized data points for export."""
         query = self._session.query(HistoricalDataModel).filter(HistoricalDataModel.device_id.in_(device_ids))
-
         if start_time:
             query = query.filter(HistoricalDataModel.timestamp >= start_time)
         if end_time:
             query = query.filter(HistoricalDataModel.timestamp <= end_time)
-
-        data = query.order_by(asc(HistoricalDataModel.timestamp)).all()
-        return [d.to_dict() for d in data]
+        return [row.to_dict() for row in query.order_by(asc(HistoricalDataModel.timestamp)).all()]

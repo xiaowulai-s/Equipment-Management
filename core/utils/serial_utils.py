@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
-"""
-串口工具模块
-Serial Port Utilities
-"""
+"""Serial-port utility helpers."""
+
+from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 try:
     from serial.tools import list_ports
@@ -18,46 +17,34 @@ except ImportError:
 
 @dataclass
 class SerialPortInfo:
-    """串口端口信息"""
+    """Structured serial-port metadata."""
 
-    device: str  # 设备名称，如 'COM1'
-    description: str  # 描述
-    hwid: str  # 硬件 ID
-    vid: Optional[str]  # Vendor ID
-    pid: Optional[str]  # Product ID
-    serial_number: Optional[str]  # 序列号
-    location: Optional[str]  # 位置
-    manufacturer: Optional[str]  # 制造商
-    product: Optional[str]  # 产品名称
-    interface: Optional[str]  # 接口
+    device: str
+    description: str
+    hwid: str
+    vid: Optional[str]
+    pid: Optional[str]
+    serial_number: Optional[str]
+    location: Optional[str]
+    manufacturer: Optional[str]
+    product: Optional[str]
+    interface: Optional[str]
 
 
 def list_serial_ports() -> List[str]:
-    """
-    枚举可用串口
-
-    Returns:
-        List[str]: 串口设备名称列表，如 ['COM1', 'COM2', ...]
-    """
+    """Return available serial port device names."""
     if not SERIAL_AVAILABLE:
         return []
-
     return [port.device for port in list_ports.comports()]
 
 
 def get_serial_ports_info() -> List[SerialPortInfo]:
-    """
-    获取串口详细信息
-
-    Returns:
-        List[SerialPortInfo]: 串口信息列表
-    """
+    """Return structured information for all available serial ports."""
     if not SERIAL_AVAILABLE:
         return []
 
-    ports_info = []
-    for port in list_ports.comports():
-        info = SerialPortInfo(
+    return [
+        SerialPortInfo(
             device=port.device,
             description=port.description,
             hwid=port.hwid,
@@ -69,41 +56,23 @@ def get_serial_ports_info() -> List[SerialPortInfo]:
             product=port.product,
             interface=port.interface,
         )
-        ports_info.append(info)
-
-    return ports_info
+        for port in list_ports.comports()
+    ]
 
 
 def get_serial_port_by_description(keyword: str) -> Optional[str]:
-    """
-    根据描述查找串口
-
-    Args:
-        keyword: 搜索关键词
-
-    Returns:
-        Optional[str]: 找到的串口设备名称，未找到返回 None
-    """
+    """Return the first serial port whose description contains the keyword."""
     if not SERIAL_AVAILABLE:
         return None
 
     for port in list_ports.comports():
         if keyword.lower() in port.description.lower():
             return port.device
-
     return None
 
 
 def get_serial_port_details(device: str) -> Optional[SerialPortInfo]:
-    """
-    获取指定串口的详细信息
-
-    Args:
-        device: 串口设备名称，如 'COM1'
-
-    Returns:
-        Optional[SerialPortInfo]: 串口信息，未找到返回 None
-    """
+    """Return detailed information for a specific serial port."""
     if not SERIAL_AVAILABLE:
         return None
 
@@ -121,20 +90,11 @@ def get_serial_port_details(device: str) -> Optional[SerialPortInfo]:
                 product=port.product,
                 interface=port.interface,
             )
-
     return None
 
 
 def serial_port_to_dict(port: Any) -> Dict[str, Any]:
-    """
-    将串口对象转换为字典
-
-    Args:
-        port: 串口对象
-
-    Returns:
-        Dict[str, Any]: 串口信息字典
-    """
+    """Convert a serial port object into a plain dictionary."""
     if not SERIAL_AVAILABLE:
         return {}
 
@@ -153,115 +113,69 @@ def serial_port_to_dict(port: Any) -> Dict[str, Any]:
 
 
 def list_serial_ports_as_dict() -> List[Dict[str, Any]]:
-    """
-    以字典列表形式返回所有串口信息
-
-    Returns:
-        List[Dict[str, Any]]: 串口信息字典列表
-    """
+    """Return all available serial ports as dictionaries."""
     if not SERIAL_AVAILABLE:
         return []
-
     return [serial_port_to_dict(port) for port in list_ports.comports()]
 
 
-# 便捷函数
 def is_serial_available() -> bool:
-    """
-    检查 pyserial 是否可用
-
-    Returns:
-        bool: 是否可用
-    """
+    """Return whether pyserial is installed and usable."""
     return SERIAL_AVAILABLE
 
 
 def get_port_count() -> int:
-    """
-    获取可用串口数量
-
-    Returns:
-        int: 串口数量
-    """
+    """Return the number of available serial ports."""
     if not SERIAL_AVAILABLE:
         return 0
-
     return len(list_ports.comports())
 
 
 def test_serial_port(
     device: str, baudrate: int = 9600, timeout: float = 1.0, test_data: bytes = b"AT\r\n"
-) -> tuple[bool, str]:
-    """
-    测试串口是否可用
-
-    Test if serial port is available
-
-    Args:
-        device: 串口设备名称，如 'COM1'
-        baudrate: 波特率，默认 9600
-        timeout: 超时时间（秒），默认 1.0
-        test_data: 测试数据，默认 b"AT\\r\\n"
-
-    Returns:
-        tuple[bool, str]: (是否成功，消息)
-    """
+) -> Tuple[bool, str]:
+    """Try opening a serial port and optionally writing a probe payload."""
     if not SERIAL_AVAILABLE:
         return False, "pyserial 未安装"
 
     try:
         import serial
 
-        # 尝试打开串口
-        ser = serial.Serial(port=device, baudrate=baudrate, timeout=timeout)
-
-        # 发送测试数据
-        ser.write(test_data)
-
-        # 尝试读取响应（非必需）
+        connection = serial.Serial(port=device, baudrate=baudrate, timeout=timeout)
         try:
-            response = ser.read(100)  # 最多读取 100 字节
-        except:
-            response = b""
-
-        # 关闭串口
-        ser.close()
+            connection.write(test_data)
+            try:
+                connection.read(100)
+            except Exception:
+                pass
+        finally:
+            connection.close()
 
         return True, f"串口 {device} 测试成功"
+    except serial.SerialException as exc:
+        return False, f"串口错误：{exc}"
+    except Exception as exc:
+        return False, f"测试失败：{exc}"
 
-    except serial.SerialException as e:
-        return False, f"串口错误：{str(e)}"
-    except Exception as e:
-        return False, f"测试失败：{str(e)}"
+
+test_serial_port.__test__ = False
 
 
-def get_serial_port_status(device: str) -> dict:
-    """
-    获取串口状态信息
-
-    Get serial port status information
-
-    Args:
-        device: 串口设备名称
-
-    Returns:
-        dict: 串口状态字典
-    """
+def get_serial_port_status(device: str) -> Dict[str, Any]:
+    """Return availability and metadata for one serial port."""
     if not SERIAL_AVAILABLE:
         return {"available": False, "error": "pyserial 未安装"}
 
     try:
         import serial
 
-        # 检查串口是否存在
         port_info = get_serial_port_details(device)
-        if not port_info:
+        if port_info is None:
             return {"available": False, "error": f"串口 {device} 不存在"}
 
-        # 尝试打开串口
         try:
-            ser = serial.Serial(port=device, baudrate=9600, timeout=0.1)
-            ser.close()
+            connection = serial.Serial(port=device, baudrate=9600, timeout=0.1)
+            connection.close()
             return {
                 "available": True,
                 "device": device,
@@ -269,8 +183,7 @@ def get_serial_port_status(device: str) -> dict:
                 "hwid": port_info.hwid,
                 "error": None,
             }
-        except serial.SerialException as e:
-            return {"available": False, "device": device, "error": f"无法打开串口：{str(e)}"}
-
-    except Exception as e:
-        return {"available": False, "error": f"检查失败：{str(e)}"}
+        except serial.SerialException as exc:
+            return {"available": False, "device": device, "error": f"无法打开串口：{exc}"}
+    except Exception as exc:
+        return {"available": False, "error": f"检查失败：{exc}"}

@@ -2,7 +2,16 @@
 """
 设备类型管理对话框
 Device Type Management Dialogs
+
+Note: 此对话框使用旧架构的 DeviceTypeManager，作为独立工具保留。
+      新架构中设备类型是 Device 对象的字符串字段，不依赖此管理器。
+
+重构说明: 保持已有组件库使用，添加类型注解
 """
+
+from __future__ import annotations
+
+from typing import Optional, Tuple
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
@@ -12,16 +21,14 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
-    QLineEdit,
     QMessageBox,
-    QPushButton,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
 )
 
 from core.device.device_type_manager import DeviceTypeManager
-from ui.styles import AppStyles
+from ui.widgets import ComboBox, DangerButton, DeviceTree, LineEdit, PrimaryButton, SecondaryButton
 
 
 class DeviceTypeEditDialog(QDialog):
@@ -32,7 +39,6 @@ class DeviceTypeEditDialog(QDialog):
         self._is_edit_mode = bool(name)
         self.setWindowTitle("编辑设备类型" if name else "添加设备类型")
         self.setMinimumWidth(400)
-        self.setStyleSheet(AppStyles.DIALOG)
         self._init_ui(name, code, description)
 
     def _init_ui(self, name: str, code: str, description: str):
@@ -41,32 +47,24 @@ class DeviceTypeEditDialog(QDialog):
         layout.setSpacing(16)
 
         name_label = QLabel("设备类型名称:")
-        name_label.setStyleSheet("color: #24292F; font-weight: 500;")
-        self.name_edit = QLineEdit(name)
+        self.name_edit = LineEdit(name)
         self.name_edit.setPlaceholderText("请输入设备类型名称")
-        self.name_edit.setStyleSheet(AppStyles.LINE_EDIT)
         self.name_edit.textChanged.connect(self._on_name_changed)
         layout.addRow(name_label, self.name_edit)
 
         code_label = QLabel("代码:")
-        code_label.setStyleSheet("color: #24292F; font-weight: 500;")
-        self.code_edit = QLineEdit(code)
+        self.code_edit = LineEdit(code)
         self.code_edit.setPlaceholderText("请输入代码")
-        self.code_edit.setStyleSheet(AppStyles.LINE_EDIT)
         layout.addRow(code_label, self.code_edit)
 
         desc_label = QLabel("描述:")
-        desc_label.setStyleSheet("color: #24292F; font-weight: 500;")
-        self.desc_edit = QLineEdit(description)
+        self.desc_edit = LineEdit(description)
         self.desc_edit.setPlaceholderText("请输入描述")
-        self.desc_edit.setStyleSheet(AppStyles.LINE_EDIT)
         layout.addRow(desc_label, self.desc_edit)
 
         btn_layout = QHBoxLayout()
-        self.ok_btn = QPushButton("确定")
-        self.ok_btn.setStyleSheet(AppStyles.get_button_primary_with_padding(24))
-        self.cancel_btn = QPushButton("取消")
-        self.cancel_btn.setStyleSheet(AppStyles.get_button_secondary_with_padding(24))
+        self.ok_btn = PrimaryButton("确定")
+        self.cancel_btn = SecondaryButton("取消")
         btn_layout.addStretch()
         btn_layout.addWidget(self.ok_btn)
         btn_layout.addWidget(self.cancel_btn)
@@ -103,7 +101,6 @@ class DeviceTypeDialog(QDialog):
         self._device_type_manager = device_type_manager
         self.setWindowTitle("设备类型管理")
         self.setMinimumWidth(500)
-        self.setStyleSheet(AppStyles.DIALOG)
         self._init_ui()
 
     def _init_ui(self):
@@ -111,9 +108,8 @@ class DeviceTypeDialog(QDialog):
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(16)
 
-        self.type_tree = QTreeWidget()
+        self.type_tree = DeviceTree(self)
         self.type_tree.setHeaderLabels(["设备类型名称", "代码", "描述"])
-        self.type_tree.setStyleSheet(AppStyles.TREE_WIDGET)
         self.type_tree.header().setSectionResizeMode(0, QHeaderView.Stretch)
         self.type_tree.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
         self.type_tree.header().setSectionResizeMode(2, QHeaderView.Stretch)
@@ -122,13 +118,13 @@ class DeviceTypeDialog(QDialog):
 
         btn_layout = QHBoxLayout()
 
-        self.add_type_btn = QPushButton("添加类型")
+        self.add_type_btn = PrimaryButton("添加类型")
         self.add_type_btn.clicked.connect(self._add_device_type)
 
-        self.edit_type_btn = QPushButton("编辑类型")
+        self.edit_type_btn = SecondaryButton("编辑类型")
         self.edit_type_btn.clicked.connect(self._edit_device_type)
 
-        self.remove_type_btn = QPushButton("删除类型")
+        self.remove_type_btn = DangerButton("删除类型")
         self.remove_type_btn.clicked.connect(self._remove_device_type)
 
         btn_layout.addWidget(self.add_type_btn)
@@ -136,7 +132,7 @@ class DeviceTypeDialog(QDialog):
         btn_layout.addWidget(self.remove_type_btn)
         btn_layout.addStretch()
 
-        self.close_btn = QPushButton("关闭")
+        self.close_btn = SecondaryButton("关闭")
         self.close_btn.clicked.connect(self.accept)
         btn_layout.addWidget(self.close_btn)
 
