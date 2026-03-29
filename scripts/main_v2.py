@@ -7,14 +7,14 @@ Industrial Equipment Management System v2.0
 import os
 import sys
 
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication
-
 # 添加项目路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from core.data import DatabaseManager, get_db_manager
-from core.utils.logger_v2 import get_logger, setup_logging
+from PySide6.QtCore import Qt  # noqa: E402
+from PySide6.QtWidgets import QApplication  # noqa: E402
+
+from core.data import get_db_manager  # noqa: E402
+from core.utils.logger_v2 import setup_logging  # noqa: E402
 
 # 配置日志（在导入其他模块之前）
 logger = setup_logging(
@@ -22,7 +22,7 @@ logger = setup_logging(
 )
 
 # 延迟导入UI，确保日志已配置
-from ui.main_window_v2 import MainWindowV2
+from ui.main_window_v2 import MainWindowV2  # noqa: E402
 
 
 def main():

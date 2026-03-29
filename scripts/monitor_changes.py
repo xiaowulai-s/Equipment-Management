@@ -6,9 +6,7 @@ Monitor project code changes
 
 import os
 import subprocess
-import sys
 from datetime import datetime
-from pathlib import Path
 
 
 def run_command(cmd, cwd=None):
@@ -79,7 +77,7 @@ def get_file_stats(project_path):
                 try:
                     with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                         stats["total_lines"] += len(f.readlines())
-                except:
+                except Exception:
                     pass
             elif file.endswith(".md") or file.endswith(".rst"):
                 stats["docs_files"] += 1
@@ -106,7 +104,7 @@ def generate_summary(project_path):
         added = [c for c in changes if "A" in c["status"] or "??" in c["status"]]
         deleted = [c for c in changes if "D" in c["status"]]
 
-        summary.append(f"\n[文件变更统计]")
+        summary.append("\n[文件变更统计]")
         summary.append(f"   修改: {len(modified)} 个文件")
         summary.append(f"   新增: {len(added)} 个文件")
         summary.append(f"   删除: {len(deleted)} 个文件")
@@ -114,7 +112,7 @@ def generate_summary(project_path):
         # 最近提交
         commits = get_recent_commits(project_path)
         if commits:
-            summary.append(f"\n[最近提交]")
+            summary.append("\n[最近提交]")
             for commit in commits[:3]:
                 msg = commit["message"]
                 if len(msg) > 50:
@@ -123,7 +121,7 @@ def generate_summary(project_path):
 
         # 文件统计
         stats = get_file_stats(project_path)
-        summary.append(f"\n[项目统计]")
+        summary.append("\n[项目统计]")
         summary.append(f"   Python 文件: {stats['python_files']}")
         summary.append(f"   UI 文件: {stats['ui_files']}")
         summary.append(f"   测试文件: {stats['test_files']}")
@@ -131,7 +129,7 @@ def generate_summary(project_path):
         summary.append(f"   总代码行数: ~{stats['total_lines']:,}")
 
         # 关键变化
-        summary.append(f"\n[关键变更]")
+        summary.append("\n[关键变更]")
         core_changes = [c for c in modified if c["file"].startswith("core/")]
         ui_changes = [c for c in modified if c["file"].startswith("ui/")]
         test_changes = [c for c in modified if "test" in c["file"].lower()]

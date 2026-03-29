@@ -1,7 +1,7 @@
 # 工业设备管理系统 v1.1.0 发布说明
 
-🎉 **发布时间**: 2026-03-24  
-📦 **版本类型**: 重大功能更新  
+🎉 **发布时间**: 2026-03-24
+📦 **版本类型**: 重大功能更新
 🔗 **GitHub Release**: [v1.1.0](https://github.com/xiaowulai-s/Equipment-Management/releases/tag/v1.1.0)
 
 ---

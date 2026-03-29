@@ -1,8 +1,8 @@
 # Python 工业 UI 组件库
 
-**版本**: v1.5.0  
-**框架**: PySide6  
-**风格**: 工业风深色主题  
+**版本**: v1.5.0
+**框架**: PySide6
+**风格**: 工业风深色主题
 **日期**: 2026-03-28
 
 ---
@@ -118,8 +118,8 @@ RADIUS = {
 #### 使用示例
 ```python
 from widgets.buttons import (
-    PrimaryButton, 
-    SecondaryButton, 
+    PrimaryButton,
+    SecondaryButton,
     DangerButton,
     SuccessButton,
     GhostButton,
@@ -228,10 +228,10 @@ combo.currentTextChanged.connect(on_change)
 ```python
 # widgets/inputs.py
 from PySide6.QtWidgets import (
-    QLineEdit, 
-    QComboBox, 
-    QWidget, 
-    QHBoxLayout, 
+    QLineEdit,
+    QComboBox,
+    QWidget,
+    QHBoxLayout,
     QLabel,
     QPushButton
 )
@@ -250,22 +250,22 @@ class InputWithIcon(QWidget):
     """带图标的输入框"""
     def __init__(self, icon_path: str, placeholder: str = ""):
         super().__init__()
-        
+
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-        
+
         self.input = LineEdit(placeholder)
         self.icon_btn = QPushButton()
         self.icon_btn.setIcon(QIcon(icon_path))
         self.icon_btn.setFixedSize(36, 36)
-        
+
         layout.addWidget(self.input)
         layout.addWidget(self.icon_btn)
-    
+
     def text(self):
         return self.input.text()
-    
+
     def setText(self, text):
         self.input.setText(text)
 
@@ -274,20 +274,20 @@ class InputWithLabel(QWidget):
     """带标签的输入框"""
     def __init__(self, label_text: str, placeholder: str = ""):
         super().__init__()
-        
+
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
-        
+
         self.label = QLabel(label_text)
         self.input = LineEdit(placeholder)
-        
+
         layout.addWidget(self.label)
         layout.addWidget(self.input)
-    
+
     def text(self):
         return self.input.text()
-    
+
     def setText(self, text):
         self.input.setText(text)
 
@@ -297,7 +297,7 @@ class ComboBox(QComboBox):
     def __init__(self, items: list = None):
         super().__init__()
         self.setObjectName("comboBox")
-        
+
         if items:
             self.addItems(items)
 ```
@@ -349,24 +349,24 @@ class DataCard(QFrame):
     def __init__(self, title: str, value: str):
         super().__init__()
         self.setObjectName("card")
-        
+
         layout = QVBoxLayout(self)
         layout.setSpacing(8)
-        
+
         self.title_label = QLabel(title)
         self.title_label.setStyleSheet("color: #9CA3AF; font-size: 13px;")
-        
+
         self.value_label = QLabel(value)
         self.value_label.setStyleSheet(
             "color: #E6EDF3; font-size: 28px; font-weight: bold;"
         )
-        
+
         layout.addWidget(self.title_label)
         layout.addWidget(self.value_label)
-    
+
     def set_value(self, value):
         self.value_label.setText(str(value))
-    
+
     def set_trend(self, trend: str):
         """设置趋势标签"""
         trend_label = QLabel(trend)
@@ -382,27 +382,27 @@ class InfoCard(QFrame):
     def __init__(self, title: str, content: str, icon: str = None):
         super().__init__()
         self.setObjectName("card")
-        
+
         layout = QHBoxLayout(self)
         layout.setSpacing(12)
-        
+
         # 图标
         if icon:
             from PySide6.QtGui import QIcon
             icon_label = QLabel()
             icon_label.setPixmap(QIcon(icon).pixmap(32, 32))
             layout.addWidget(icon_label)
-        
+
         # 内容
         content_layout = QVBoxLayout()
         content_layout.setSpacing(4)
-        
+
         title_label = QLabel(title)
         title_label.setStyleSheet("color: #9CA3AF; font-size: 13px;")
-        
+
         content_label = QLabel(content)
         content_label.setStyleSheet("color: #E6EDF3; font-size: 16px;")
-        
+
         content_layout.addWidget(title_label)
         content_layout.addWidget(content_label)
         layout.addLayout(content_layout)
@@ -411,21 +411,21 @@ class InfoCard(QFrame):
 class ActionCard(QFrame):
     """操作卡片"""
     action_clicked = Signal(str)
-    
+
     def __init__(self, title: str, actions: list = None):
         super().__init__()
         self.setObjectName("card")
-        
+
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
-        
+
         # 标题
         title_label = QLabel(title)
         title_label.setStyleSheet(
             "color: #E6EDF3; font-size: 16px; font-weight: bold;"
         )
         layout.addWidget(title_label)
-        
+
         # 操作按钮
         from widgets.buttons import PrimaryButton
         if actions:
@@ -473,31 +473,31 @@ class DeviceTable(QTableWidget):
     def __init__(self):
         super().__init__(0, 3)
         self.setObjectName("deviceTable")
-        
+
         # 表头
         self.setHorizontalHeaderLabels(["设备", "IP", "状态"])
-        
+
         # 列宽
         header = self.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.Stretch)
         header.setSectionResizeMode(1, QHeaderView.Stretch)
         header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
-    
+
     def add_device(self, name: str, ip: str, status: str):
         """添加设备"""
         row = self.rowCount()
         self.insertRow(row)
-        
+
         self.setItem(row, 0, QTableWidgetItem(name))
         self.setItem(row, 1, QTableWidgetItem(ip))
-        
+
         # 状态带颜色
         status_item = QTableWidgetItem(status)
         if status == "在线":
             status_item.setForeground(Qt.green)
         elif status == "离线":
             status_item.setForeground(Qt.red)
-        
+
         self.setItem(row, 2, status_item)
 
 
@@ -506,18 +506,18 @@ class DataTable(QTableWidget):
     def __init__(self, columns: list = None):
         super().__init__(0, len(columns) if columns else 0)
         self.setObjectName("dataTable")
-        
+
         if columns:
             self.setHorizontalHeaderLabels(columns)
-        
+
         # 样式
         self.setAlternatingRowColors(True)
-    
+
     def add_row(self, data: list):
         """添加数据行"""
         row = self.rowCount()
         self.insertRow(row)
-        
+
         for col, value in enumerate(data):
             self.setItem(row, col, QTableWidgetItem(str(value)))
 ```
@@ -562,15 +562,15 @@ class StatusLabel(QLabel):
     def __init__(self):
         super().__init__("● 离线")
         self.set_offline()
-    
+
     def set_online(self):
         self.setText("● 在线")
         self.setStyleSheet("color: #22C55E; font-weight: 500;")
-    
+
     def set_offline(self):
         self.setText("● 离线")
         self.setStyleSheet("color: #EF4444; font-weight: 500;")
-    
+
     def set_warning(self):
         self.setText("● 警告")
         self.setStyleSheet("color: #F59E0B; font-weight: 500;")
@@ -585,7 +585,7 @@ class StatusIndicator(QLabel):
             background-color: #EF4444;
             border-radius: 8px;
         """)
-    
+
     def set_status(self, status: str):
         colors = {
             "running": "#22C55E",
@@ -606,7 +606,7 @@ class StatusBadge(QLabel):
         super().__init__()
         self.setText("● 离线")
         self.set_status(status)
-    
+
     def set_status(self, status: str):
         states = {
             "online": ("● 在线", "#22C55E"),
@@ -614,7 +614,7 @@ class StatusBadge(QLabel):
             "warning": ("● 警告", "#F59E0B"),
             "error": ("● 错误", "#DC2626"),
         }
-        
+
         text, color = states.get(status, states["offline"])
         self.setText(text)
         self.setStyleSheet(f"color: {color}; font-weight: 500;")
@@ -659,17 +659,17 @@ import pyqtgraph as pg
 
 class AnimatedStatusBadge(QFrame):
     """现代化状态徽章（带呼吸灯效果）"""
-    
+
     def __init__(self, text, color="#4CAF50", parent=None):
         super().__init__(parent)
         self.color = color
         self.init_ui(text)
-    
+
     def init_ui(self, text):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(8, 4, 8, 4)
         layout.setSpacing(6)
-        
+
         # 呼吸灯小圆点
         self.dot = QFrame()
         self.dot.setFixedSize(8, 8)
@@ -677,7 +677,7 @@ class AnimatedStatusBadge(QFrame):
             background-color: {self.color};
             border-radius: 4px;
         """)
-        
+
         # 文字
         label = QLabel(text)
         label.setStyleSheet(f"""
@@ -686,10 +686,10 @@ class AnimatedStatusBadge(QFrame):
             font-size: 12px;
             background: transparent;
         """)
-        
+
         layout.addWidget(self.dot)
         layout.addWidget(label)
-        
+
         self.setStyleSheet(f"""
             AnimatedStatusBadge {{
                 background-color: {QColor(self.color).lighter(150).name()}22;
@@ -697,7 +697,7 @@ class AnimatedStatusBadge(QFrame):
                 border-radius: 4px;
             }}
         """)
-    
+
     def set_status(self, text, color):
         """更新状态"""
         self.color = color
@@ -705,7 +705,7 @@ class AnimatedStatusBadge(QFrame):
             background-color: {color};
             border-radius: 4px;
         """)
-        
+
         # 更新文字标签
         label = self.findChild(QLabel)
         if label:
@@ -720,23 +720,23 @@ class AnimatedStatusBadge(QFrame):
 
 class ModernGauge(QWidget):
     """动态圆形仪表盘（带发光渐变）"""
-    
+
     def __init__(self, title, value=0, color="#2196F3", parent=None):
         super().__init__(parent)
         self._value = value
         self.color = color
         self.title = title
         self.setMinimumSize(160, 160)
-    
+
     @Property(float)
     def value(self):
         return self._value
-    
+
     @value.setter
     def value(self, v):
         self._value = v
         self.update()
-    
+
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
@@ -747,22 +747,22 @@ class ModernGauge(QWidget):
             rect.center().y() - size/2,
             size, size
         )
-        
+
         # 1. 绘制底色圆环
         painter.setPen(QPen(QColor("#30363D"), 10, Qt.SolidLine, Qt.RoundCap))
         painter.drawArc(center_rect, 0 * 16, 360 * 16)
-        
+
         # 2. 绘制彩色进度环（带发光渐变）
         grad_pen = QPen(QColor(self.color), 10, Qt.SolidLine, Qt.RoundCap)
         painter.setPen(grad_pen)
         span_angle = -(self._value / 100.0) * 360 * 16
         painter.drawArc(center_rect, 90 * 16, span_angle)
-        
+
         # 3. 绘制中间文字
         painter.setPen(QColor("#E6EDF3"))
         painter.setFont(QFont("Inter", 18, QFont.Bold))
         painter.drawText(center_rect, Qt.AlignCenter, f"{int(self._value)}%")
-        
+
         painter.setFont(QFont("Inter", 10))
         painter.setPen(QColor("#8B949E"))
         painter.drawText(
@@ -774,35 +774,35 @@ class ModernGauge(QWidget):
 
 class RealtimeChart(pg.PlotWidget):
     """实时趋势图（基于 pyqtgraph）"""
-    
+
     def __init__(self, title="实时趋势图", max_points=100):
         super().__init__(title=title)
         self.max_points = max_points
         self.data = []
-        
+
         # 配置图表
         self.setClipToView(True)
         self.showGrid(x=False, y=True, alpha=0.1)
         self.setBackground('#161B22')
         self.getAxis('left').setPen('#8B949E')
         self.getAxis('bottom').setPen('#8B949E')
-        
+
         # 创建曲线
         self.curve = self.plot(pen=pg.mkPen(color='#2196F3', width=3))
-    
+
     def update_data(self, new_data):
         """更新图表数据"""
         if isinstance(new_data, (list, tuple)):
             self.data = list(new_data)
         else:
             self.data.append(new_data)
-        
+
         # 保持最大点数
         if len(self.data) > self.max_points:
             self.data = self.data[-self.max_points:]
-        
+
         self.curve.setData(self.data)
-    
+
     def clear_data(self):
         """清除数据"""
         self.data = []
@@ -854,7 +854,7 @@ class Switch(QCheckBox):
                 background: #3B82F6;
             }
         """)
-    
+
     def is_on(self):
         return self.isChecked()
 
@@ -1018,30 +1018,30 @@ from pathlib import Path
 
 class ThemeManager:
     """主题管理器"""
-    
+
     THEMES = {
         'dark': 'resources/style.qss',
         'light': 'resources/style_light.qss',
     }
-    
+
     @staticmethod
     def apply_theme(app: QApplication, theme_name: str = 'dark'):
         """应用主题"""
         theme_file = ThemeManager.THEMES.get(theme_name)
-        
+
         if not theme_file:
             raise ValueError(f"Unknown theme: {theme_name}")
-        
+
         theme_path = Path(__file__).parent.parent / theme_file
-        
+
         if not theme_path.exists():
             raise FileNotFoundError(f"Theme file not found: {theme_path}")
-        
+
         with open(theme_path, 'r', encoding='utf-8') as f:
             qss = f.read()
-        
+
         app.setStyleSheet(qss)
-    
+
     @staticmethod
     def toggle_theme(app: QApplication, current_theme: str):
         """切换主题"""
@@ -1084,33 +1084,33 @@ from widgets.visual import ModernGauge, AnimatedStatusBadge, RealtimeChart
 class DemoWindow(QWidget):
     def __init__(self):
         super().__init__()
-        
+
         self.setWindowTitle("UI 组件库演示")
         self.resize(800, 600)
-        
+
         layout = QVBoxLayout(self)
-        
+
         # 数据卡片
         card = DataCard("温度", "25.5°C")
         card.set_trend("+2.3%")
         layout.addWidget(card)
-        
+
         # 输入框
         input1 = LineEdit("请输入设备名称")
         layout.addWidget(input1)
-        
+
         # 下拉框
         combo = ComboBox(["设备 A", "设备 B", "设备 C"])
         layout.addWidget(combo)
-        
+
         # 状态徽章
         badge = StatusBadge("online")
         layout.addWidget(badge)
-        
+
         # 带呼吸灯的状态徽章
         animated_badge = AnimatedStatusBadge("正常", "#4CAF50")
         layout.addWidget(animated_badge)
-        
+
         # 动态仪表盘
         gauge_layout = QHBoxLayout()
         g1 = ModernGauge("利用率", 75, "#2196F3")
@@ -1120,12 +1120,12 @@ class DemoWindow(QWidget):
         gauge_layout.addWidget(g2)
         gauge_layout.addWidget(g3)
         layout.addLayout(gauge_layout)
-        
+
         # 实时趋势图
         chart = RealtimeChart(title="温度实时趋势图")
         chart.update_data([20.0, 21.5, 22.0, 23.5, 25.0])
         layout.addWidget(chart)
-        
+
         # 按钮
         layout.addWidget(PrimaryButton("连接"))
         layout.addWidget(SecondaryButton("取消"))
@@ -1133,13 +1133,13 @@ class DemoWindow(QWidget):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    
+
     # 应用主题
     ThemeManager.apply_theme(app, 'dark')
-    
+
     window = DemoWindow()
     window.show()
-    
+
     sys.exit(app.exec())
 ```
 
@@ -1211,8 +1211,8 @@ import sys
 import random
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, 
-    QHBoxLayout, QGridLayout, QLabel, QTableWidget, 
+    QApplication, QMainWindow, QWidget, QVBoxLayout,
+    QHBoxLayout, QGridLayout, QLabel, QTableWidget,
     QTableWidgetItem, QHeaderView, QFrame
 )
 
@@ -1221,19 +1221,19 @@ from widgets.visual import ModernGauge, AnimatedStatusBadge, RealtimeChart
 
 class IndustrialDashboard(QMainWindow):
     """工业仪表板 - 完整示例"""
-    
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("工业设备管理系统 - 仪表板")
         self.resize(1100, 900)
         self.setStyleSheet("background-color: #0F1419;")
-        
+
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
         main_layout.setSpacing(20)
         main_layout.setContentsMargins(25, 25, 25, 25)
-        
+
         # --- 第一行: 仪表盘区域 ---
         gauge_layout = QHBoxLayout()
         self.g1 = ModernGauge("利用率", 75, "#2196F3")
@@ -1243,7 +1243,7 @@ class IndustrialDashboard(QMainWindow):
         gauge_layout.addWidget(self.g2)
         gauge_layout.addWidget(self.g3)
         main_layout.addLayout(gauge_layout)
-        
+
         # --- 第二行: 数据表格 ---
         self.table = QTableWidget(5, 5)
         self.table.setHorizontalHeaderLabels([
@@ -1269,7 +1269,7 @@ class IndustrialDashboard(QMainWindow):
                 font-weight: bold;
             }
         """)
-        
+
         # 填充模拟数据
         data = [
             ("0x0001", "03", "温度传感器", "25.5", ("正常", "#4CAF50")),
@@ -1285,27 +1285,27 @@ class IndustrialDashboard(QMainWindow):
             self.table.setItem(i, 3, QTableWidgetItem(val))
             badge = AnimatedStatusBadge(status[0], status[1])
             self.table.setCellWidget(i, 4, badge)
-        
+
         main_layout.addWidget(self.table)
-        
+
         # --- 第三行: 实时趋势图 ---
         self.plot_widget = RealtimeChart(title="温度实时趋势图")
         self.plot_data = [random.normalvariate(20, 1) for _ in range(100)]
         self.plot_widget.update_data(self.plot_data)
         main_layout.addWidget(self.plot_widget)
-        
+
         # 定时更新
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_all)
         self.timer.start(1000)
-    
+
     def update_all(self):
         """定时更新所有组件"""
         # 更新仪表盘数值
         self.g1.value = random.randint(60, 80)
         self.g2.value = random.randint(70, 90)
         self.g3.value = random.randint(80, 95)
-        
+
         # 更新图表数据
         self.plot_data.append(random.normalvariate(20, 1))
         self.plot_data = self.plot_data[-100:]  # 保持100个点
@@ -1351,10 +1351,10 @@ def update_from_device(self, device_data):
     self.g1.value = device_data['utilization']
     self.g2.value = device_data['warning_level']
     self.g3.value = device_data['risk_level']
-    
+
     # 更新表格
     # ...
-    
+
     # 更新图表
     self.plot_widget.update_data(device_data['temperature_history'])
 ```
@@ -1385,7 +1385,7 @@ def export_data(self):
 
 ---
 
-**版本**: v1.0.0  
-**框架**: PySide6 6.5.0+  
-**许可**: MIT  
+**版本**: v1.0.0
+**框架**: PySide6 6.5.0+
+**许可**: MIT
 **维护者**: 开发团队

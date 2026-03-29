@@ -19,10 +19,9 @@ exclude =
 
 # 错误码忽略:
 #   E501: 行长度由Black处理
-#   W503: 运算符前换行 (Black会处理)
 #   E203: 切片前的空格 (与Black冲突)
 #   C901: 函数复杂度 (在PR中人工审查)
-ignore = E501, W503, E203, C901
+ignore = E501, E203, C901
 
 # 每文件最大复杂度警告
 max-complexity = 15

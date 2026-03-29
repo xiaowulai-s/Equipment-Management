@@ -34,9 +34,11 @@ coverage
 coverage.*
 coverage.xml
 pytest_cache/
-.pytest_runtime_tmp/
+# Pytest temporary directories
+device_manager_test_*/
 .pytest_temp/
 .pytest_temp_local/
+.pytest_runtime_tmp/
 migrate_test_*/
 models_check_*/
 pytest-of-wo/

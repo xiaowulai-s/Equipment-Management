@@ -95,13 +95,13 @@
   --bg-raised:     #161B22;    /* 卡片/面板 */
   --bg-overlay:    #1C2128;    /* 弹窗/下拉 */
   --bg-hover:      #21262D;    /* 悬停态 */
-  
+
   /* 深色文本 */
   --text-primary:  #E6EDF3;    /* 主要文本 */
   --text-secondary: #8B949E;   /* 次要文本 */
   --text-tertiary:  #6E7681;   /* 禁用/提示 */
   --text-inverse:   #0D1117;   /* 反色文本 */
-  
+
   /* 深色边框 */
   --border-default: #30363D;   /* 默认边框 */
   --border-muted:   #21262D;   /* 弱边框 */
@@ -273,7 +273,7 @@
 
 /* 通用过渡 */
 --transition-base: all var(--duration-fast) var(--ease-out);
---transition-colors: background-color var(--duration-fast) var(--ease-out), 
+--transition-colors: background-color var(--duration-fast) var(--ease-out),
                       border-color var(--duration-fast) var(--ease-out),
                       color var(--duration-fast) var(--ease-out),
                       box-shadow var(--duration-fast) var(--ease-out);
@@ -1306,11 +1306,11 @@
 }
 
 @keyframes slideUp {
-  from { 
+  from {
     opacity: 0;
     transform: translateY(20px) scale(0.95);
   }
-  to { 
+  to {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
@@ -1533,13 +1533,13 @@
   .sidebar {
     width: 72px;
   }
-  
+
   .sidebar-logo-text,
   .nav-item-text,
   .nav-section-title {
     display: none;
   }
-  
+
   .main-content {
     margin-left: 72px;
   }
@@ -1551,16 +1551,16 @@
     transform: translateX(-100%);
     width: 260px;
   }
-  
+
   .sidebar.open {
     transform: translateX(0);
   }
-  
+
   .main-content {
     margin-left: 0;
     padding: var(--space-4);
   }
-  
+
   .data-card {
     grid-column: span 12;
   }
@@ -1585,28 +1585,28 @@
   --bg-tertiary: #1C2128;     /* 弹窗/下拉背景 */
   --bg-hover: #21262D;        /* 悬停态 */
   --bg-active: #30363D;       /* 激活态 */
-  
+
   /* 文本色 - 由深到浅 */
   --text-primary: #E6EDF3;    /* 主要文本 - 最亮 */
   --text-secondary: #8B949E; /* 次要文本 */
   --text-tertiary: #6E7681;   /* 禁用/提示文本 */
   --text-inverse: #0D1117;    /* 深色背景上的浅色文本 */
-  
+
   /* 边框色 */
   --border-default: #30363D;  /* 默认边框 */
   --border-muted: #21262D;   /* 弱边框 */
   --border-accent: #388BFD;   /* 强调边框 (聚焦态) */
-  
+
   /* 交互效果 */
   --shadow-color: rgba(0, 0, 0, 0.4);
   --overlay-color: rgba(0, 0, 0, 0.6);
-  
+
   /* 组件背景 */
   --input-bg: #0D1117;
   --card-bg: #161B22;
   --modal-bg: #1C2128;
   --dropdown-bg: #1C2128;
-  
+
   /* 状态指示 */
   --status-online: #3FB950;
   --status-offline: #F85149;
@@ -1624,22 +1624,22 @@
   --bg-tertiary: #FFFFFF;
   --bg-hover: #F3F4F6;
   --bg-active: #E5E7EB;
-  
+
   /* 文本色 - 由浅到深 */
   --text-primary: #1F2937;
   --text-secondary: #6B7280;
   --text-tertiary: #9CA3AF;
   --text-inverse: #FFFFFF;
-  
+
   /* 边框色 */
   --border-default: #D1D5DB;
   --border-muted: #E5E7EB;
   --border-accent: #2563EB;
-  
+
   /* 交互效果 */
   --shadow-color: rgba(0, 0, 0, 0.1);
   --overlay-color: rgba(0, 0, 0, 0.4);
-  
+
   /* 组件背景 */
   --input-bg: #FFFFFF;
   --card-bg: #FFFFFF;
@@ -1712,7 +1712,7 @@
 ```css
 /* 主题切换过渡 */
 body {
-  transition: 
+  transition:
     background-color var(--duration-normal) var(--ease-out),
     color var(--duration-normal) var(--ease-out);
 }
@@ -1799,7 +1799,7 @@ body {
 ```css
 .data-card {
   transform: translateY(0);
-  transition: 
+  transition:
     transform var(--duration-normal) var(--ease-out),
     box-shadow var(--duration-normal) var(--ease-out),
     border-color var(--duration-normal) var(--ease-out);
@@ -2054,8 +2054,8 @@ body {
 </button>
 
 <!-- 输入框 -->
-<input 
-  type="text" 
+<input
+  type="text"
   class="input"
   aria-label="设备名称"
   aria-describedby="device-name-help"
@@ -2087,7 +2087,7 @@ body {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-  
+
   .skeleton {
     animation: none;
     background: var(--bg-secondary);
@@ -2144,7 +2144,7 @@ body {
   /* ====================
      颜色
      ==================== */
-  
+
   /* 主色 */
   --color-primary-50:  #E3F2FD;
   --color-primary-100: #BBDEFB;
@@ -2156,19 +2156,19 @@ body {
   --color-primary-700: #1976D2;
   --color-primary-800: #1565C0;
   --color-primary-900: #0D47A1;
-  
+
   /* 功能色 */
   --color-success-500: #4CAF50;
   --color-warning-500: #FFC107;
   --color-error-500:   #F44336;
   --color-info-500:    #2196F3;
-  
+
   /* ====================
      字体
      ==================== */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
-  
+
   /* ====================
      字号
      ==================== */
@@ -2183,7 +2183,7 @@ body {
   --text-caption: 0.8125rem;
   --text-data-lg: 2rem;
   --text-data: 1.5rem;
-  
+
   /* ====================
      间距
      ==================== */
@@ -2197,7 +2197,7 @@ body {
   --space-10: 2.5rem;
   --space-12: 3rem;
   --space-16: 4rem;
-  
+
   /* ====================
      圆角
      ==================== */
@@ -2207,7 +2207,7 @@ body {
   --radius-xl: 0.75rem;
   --radius-2xl: 1rem;
   --radius-full: 9999px;
-  
+
   /* ====================
      阴影
      ==================== */
@@ -2216,7 +2216,7 @@ body {
   --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
   --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
   --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.15);
-  
+
   /* ====================
      动画
      ==================== */
@@ -2225,7 +2225,7 @@ body {
   --duration-normal: 250ms;
   --duration-slow: 400ms;
   --duration-slower: 600ms;
-  
+
   --ease-linear: linear;
   --ease-in: cubic-bezier(0.4, 0, 1, 1);
   --ease-out: cubic-bezier(0, 0, 0.2, 1);
@@ -2270,6 +2270,6 @@ Resources/
 
 ---
 
-**设计方案版本**: v1.0  
-**更新日期**: 2024年1月  
+**设计方案版本**: v1.0
+**更新日期**: 2024年1月
 **状态**: 待实施

@@ -6,9 +6,7 @@
 
 import os
 import subprocess
-import sys
 from datetime import datetime
-from pathlib import Path
 
 
 def run_command(cmd, cwd=None):
@@ -39,7 +37,7 @@ def get_recent_changes(project_path, since_minutes=5):
 
 def get_changed_files(project_path, since_minutes=5):
     """获取变更的文件列表"""
-    cmd = f"git diff --name-only HEAD~1 HEAD"
+    cmd = "git diff --name-only HEAD~1 HEAD"
     stdout, _ = run_command(cmd, project_path)
 
     files = {"core": [], "ui": [], "tests": [], "docs": [], "config": [], "other": []}
