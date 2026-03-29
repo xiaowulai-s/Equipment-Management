@@ -10,26 +10,23 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Dict, List, Optional
 
 from PySide6.QtCore import QSize, Qt, QTimer, Slot
-from PySide6.QtGui import QColor, QFont, QIcon
+from PySide6.QtGui import QFont
+from PySide6.QtWidgets import QTableWidget  # noqa: F401  (base class of DataTable)
 from PySide6.QtWidgets import (
     QFileDialog,
     QGridLayout,
     QHBoxLayout,
-    QHeaderView,
     QLabel,
     QMainWindow,
-    QMenu,
     QMessageBox,
     QPushButton,
     QSizePolicy,
     QSplitter,
     QStackedWidget,
-    QTableWidget,
     QTableWidgetItem,
     QTabWidget,
     QTextEdit,
     QToolBar,
-    QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
@@ -47,22 +44,18 @@ from ui.batch_operations_dialog import BatchOperationsDialog
 from ui.core import ThemeManager
 from ui.device_type_dialogs import DeviceTypeDialog
 from ui.widgets import (
-    ActionCard,
-    ComboBox,
     DangerButton,
     DataCard,
     DataTable,
     DeviceTree,
-    InputWithLabel,
     LineEdit,
     PrimaryButton,
-    SecondaryButton,
     StatusBadge,
     SuccessButton,
 )
 
 if TYPE_CHECKING:
-    from core.device.device_model import Device
+    from core.device.device_model import Device  # noqa: F401
 
 logger = get_logger("main_window_v2")
 
@@ -451,7 +444,6 @@ class MainWindowV2(QMainWindow):
     def _reposition_edge_buttons(self) -> None:
         """重新定位折叠/展开按钮到左侧面板右边缘."""
         # 左面板在 central_widget 中的位置
-        splitter_geo = self._splitter.geometry()
         panel_geo = self._left_panel.geometry()
 
         # 按钮位于面板右边缘, 垂直居中
@@ -966,13 +958,8 @@ class MainWindowV2(QMainWindow):
 
     def _show_alarm_config_dialog(self) -> None:
         """打开报警规则配置对话框（系统设置对话框中的报警页）"""
-        from ui.dialogs.settings_dialog import SettingsDialog
-
-        logger.debug("Opening alarm configuration dialog")
-        settings_dialog = SettingsDialog(self)
-        # 切换到报警设置页（索引2，因为0=主题,1=数据采集,2=报警,3=日志,4=界面）
-        settings_dialog._tab_widget.setCurrentIndex(2)
-        settings_dialog.exec()
+        logger.warning("SettingsDialog not implemented yet")
+        QMessageBox.information(self, UIMessages.ALARM_DIALOG_TITLE, UIMessages.ALARM_DIALOG_MSG)
 
     def _show_export_dialog(self) -> None:
         file_path, _ = QFileDialog.getSaveFileName(

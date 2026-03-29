@@ -7,10 +7,11 @@ import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
 from PySide6.QtCore import QObject, Qt, QThread, Signal
 from PySide6.QtWidgets import (
+    QCheckBox,
     QDialog,
     QFileDialog,
     QFormLayout,
@@ -25,18 +26,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ui.widgets import (
-    Checkbox,
-    ComboBox,
-    DangerButton,
-    DataTable,
-    LineEdit,
-    PrimaryButton,
-    SecondaryButton,
-    SuccessButton,
-)
+from ui.widgets import Checkbox, ComboBox, DataTable, PrimaryButton, SecondaryButton
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from core.device.device_manager import DeviceManager
 
 
 @dataclass(frozen=True)
@@ -205,8 +200,7 @@ class BatchOperationsDialog(QDialog):
         filter_layout.addWidget(self.clear_selection_btn)
         layout.addLayout(filter_layout)
 
-        self.device_table = DataTable()
-        self.device_table.set_headers(["选择", "设备名称", "设备 ID", "类型", "状态"])
+        self.device_table = DataTable(columns=["选择", "设备名称", "设备 ID", "类型", "状态"])
         self.device_table.setAlternatingRowColors(False)
         self.device_table.verticalHeader().setVisible(False)
         self.device_table.horizontalHeader().setStretchLastSection(True)
