@@ -957,9 +957,12 @@ class MainWindowV2(QMainWindow):
         QMessageBox.information(self, UIMessages.ALARM_DIALOG_TITLE, UIMessages.ALARM_DIALOG_MSG)
 
     def _show_alarm_config_dialog(self) -> None:
-        """打开报警规则配置对话框（系统设置对话框中的报警页）"""
-        logger.warning("SettingsDialog not implemented yet")
-        QMessageBox.information(self, UIMessages.ALARM_DIALOG_TITLE, UIMessages.ALARM_DIALOG_MSG)
+        """打开报警规则配置对话框"""
+        from ui.alarm_config_dialog import AlarmConfigDialog
+
+        logger.debug("Opening alarm config dialog")
+        dialog = AlarmConfigDialog(self._alarm_manager, self._device_manager, self)
+        dialog.exec()
 
     def _show_export_dialog(self) -> None:
         file_path, _ = QFileDialog.getSaveFileName(
