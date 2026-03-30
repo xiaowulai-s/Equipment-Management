@@ -5,7 +5,7 @@
 
 [project]
 name = "equipment-management"
-version = "1.5.2"
+version = "1.5.3"
 description = "工业设备管理系统 - Modbus设备监控与管理"
 requires-python = ">=3.10"
 license = {text = "MIT"}

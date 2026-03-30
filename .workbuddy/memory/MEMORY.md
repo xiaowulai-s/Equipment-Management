@@ -33,6 +33,8 @@
 - **按钮**: PrimaryButton(蓝/编辑), SuccessButton(绿/连接), DangerButton(红/断开)
 - **数据持久化**: DatabaseManager + 6表ORM + 5个Repository
 - **报警**: AlarmManager(信号聚合+持久化), Register._check_alarm(阈值检测)
+- **报警规则配置**: ui/alarm_config_dialog.py (AlarmConfigDialog + _AddRuleDialog), 运行时内存模式
+- **循环导入**: core.utils.alarm_manager ↔ core.data.alarm_rule_persistence 存在已知循环导入
 - **枚举注意**: DataType/ProtocolType的.value可能是tuple, 取[0]作字符串存储
 
 ## 版本号位置

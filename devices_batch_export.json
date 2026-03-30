@@ -1,0 +1,22 @@
+{
+  "version": "1.0",
+  "devices": [
+    {
+      "device_type": "传感器",
+      "name": "Modbus TCP 设备 1",
+      "device_number": "0001",
+      "protocol_type": "modbus_tcp",
+      "use_simulator": true,
+      "register_map": [],
+      "slave_id": 1,
+      "tcp_params": {
+        "host": "192.168.31.140",
+        "port": 8888,
+        "timeout": 3.0,
+        "keepalive": true
+      },
+      "ip": "192.168.31.140",
+      "device_id": "tcp_001"
+    }
+  ]
+}

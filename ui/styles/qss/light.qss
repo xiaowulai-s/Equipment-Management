@@ -59,7 +59,12 @@ QComboBox::down-arrow {
     border-left: 5px solid transparent;
     border-right: 5px solid transparent;
     border-top: 6px solid #6B7280;
+    border-bottom: none;
     margin-right: 8px;
+}
+QComboBox::down-arrow:on {
+    border-top: none;
+    border-bottom: 6px solid #6B7280;
 }
 QComboBox QAbstractItemView {
     background-color: #FFFFFF;

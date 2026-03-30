@@ -4,12 +4,31 @@
 Device Factory
 """
 
+import socket
 from typing import Any, Dict, Optional
 
 from ..communication.serial_driver import SerialDriver
 from ..communication.tcp_driver import TCPDriver
 from ..protocols.modbus_protocol import ModbusProtocol
 from .device_model import Device
+
+
+def get_local_ip() -> str:
+    """获取本机 IP 地址"""
+    try:
+        # 尝试连接到一个外部地址来获取本机 IP
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(0)
+        try:
+            s.connect(("10.254.254.254", 1))
+            ip = s.getsockname()[0]
+        except Exception:
+            ip = "127.0.0.1"
+        finally:
+            s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
 
 
 class ProtocolType:
@@ -31,7 +50,7 @@ class DeviceFactory:
         ProtocolType.MODBUS_TCP: {
             "name": "Modbus TCP",
             "fields": [
-                {"name": "host", "label": "IP地址", "type": "text", "default": "127.0.0.1"},
+                {"name": "host", "label": "IP地址", "type": "text", "default": "AUTO"},
                 {"name": "port", "label": "端口号", "type": "number", "default": 502},
                 {"name": "unit_id", "label": "单元ID", "type": "number", "default": 1},
             ],
@@ -48,7 +67,13 @@ class DeviceFactory:
                     "default": 9600,
                 },
                 {"name": "bytesize", "label": "数据位", "type": "dropdown", "options": [5, 6, 7, 8], "default": 8},
-                {"name": "parity", "label": "校验位", "type": "dropdown", "options": ["N", "E", "O"], "default": "N"},
+                {
+                    "name": "parity",
+                    "label": "校验位",
+                    "type": "dropdown",
+                    "options": ["无校验", "偶校验", "奇校验"],
+                    "default": "无校验",
+                },
                 {"name": "stopbits", "label": "停止位", "type": "dropdown", "options": [1, 1.5, 2], "default": 1},
                 {"name": "unit_id", "label": "从机ID", "type": "number", "default": 1},
             ],
@@ -127,7 +152,10 @@ class DeviceFactory:
             port = device_config.get("port", "COM1")
             baudrate = device_config.get("baudrate", 9600)
             bytesize = device_config.get("bytesize", 8)
-            parity = device_config.get("parity", "N")
+            parity_display = device_config.get("parity", "无校验")
+            # 将中文校验位转换为 pyserial 所需的缩写
+            parity_map = {"无校验": "N", "偶校验": "E", "奇校验": "O"}
+            parity = parity_map.get(parity_display, "N")
             stopbits = device_config.get("stopbits", 1)
             return SerialDriver(port, baudrate, bytesize, parity, stopbits)
 

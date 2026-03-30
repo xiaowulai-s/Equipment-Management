@@ -1,10 +1,5 @@
 [
   {
-    "name": "阀门",
-    "code": "VALVE",
-    "description": "通用阀门设备"
-  },
-  {
     "name": "传感器",
     "code": "SENSOR",
     "description": "通用传感器设备"

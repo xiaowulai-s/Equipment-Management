@@ -4,10 +4,10 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict, Optional
+from typing import TYPE_CHECKING, Dict, Optional
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QDialog,
     QFormLayout,
@@ -21,7 +21,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from core.utils.alarm_manager import AlarmLevel, AlarmManager, AlarmRule, AlarmType
+from core.utils.alarm_enums import AlarmLevel, AlarmType
+from core.utils.alarm_manager import AlarmManager
 from ui.widgets import (
     Checkbox,
     ComboBox,
@@ -460,8 +461,8 @@ class AlarmConfigDialog(QDialog):
 
         level_text = self.LEVEL_TEXT.get(rule.level, str(rule.level))
         level_item = _item(level_text)
-        color = self.LEVEL_COLOR.get(rule.level, "#6B7280")
-        level_item.setForeground(color)
+        color_str = self.LEVEL_COLOR.get(rule.level, "#6B7280")
+        level_item.setForeground(QColor(color_str))
         self._table.setItem(row, 4, level_item)
 
         self._table.setItem(row, 5, _item(str(rule.threshold_high) if rule.threshold_high is not None else "-"))
@@ -474,21 +475,9 @@ class AlarmConfigDialog(QDialog):
         status_layout.setContentsMargins(4, 4, 4, 4)
         status_layout.setSpacing(4)
 
-        toggle_btn = SuccessButton("启用" if not rule.enabled else "已启用")
+        toggle_btn = SuccessButton("启用" if not rule.enabled else "已禁用")
         toggle_btn.setFixedHeight(28)
         toggle_btn.setMinimumWidth(64)
-        if rule.enabled:
-            toggle_btn.setStyleSheet(
-                "QPushButton { background: #4CAF50; color: white; border: none;"
-                " border-radius: 4px; font-size: 12px; font-weight: 500; }"
-                "QPushButton:hover { background: #43A047; }"
-            )
-        else:
-            toggle_btn.setStyleSheet(
-                "QPushButton { background: #F3F4F6; color: #6B7280; border: 1px solid #D1D5DB;"
-                " border-radius: 4px; font-size: 12px; font-weight: 500; }"
-                "QPushButton:hover { background: #E5E7EB; }"
-            )
 
         toggle_btn.clicked.connect(lambda checked, rid=rule.rule_id, en=rule.enabled: self._toggle_rule(rid, en))
         status_layout.addWidget(toggle_btn)

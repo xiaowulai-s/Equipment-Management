@@ -6,7 +6,7 @@ from __future__ import annotations
 import uuid
 from typing import Any, Dict, List, Optional
 
-from core.utils.alarm_manager import AlarmLevel, AlarmRule, AlarmType
+from core.utils.alarm_enums import AlarmLevel, AlarmRule, AlarmType
 from core.utils.logger import get_logger
 
 from .models import DatabaseManager

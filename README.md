@@ -25,6 +25,16 @@
 - **TrendChart** — Canvas 趋势图
 - **RealTimeChart** — pyqtgraph 高性能实时曲线图（支持缩放/平移/多系列）
 
+### UI组件库
+- **按钮系统**：PrimaryButton（主要）、SecondaryButton（次要）、SuccessButton（成功）、DangerButton（危险）、GhostButton（幽灵）
+- **输入控件**：LineEdit（行编辑）、ComboBox（下拉框）、InputWithLabel（带标签输入）、Checkbox（复选框）
+- **卡片组件**：DataCard（数据卡片）、InfoCard（信息卡片）、ActionCard（操作卡片）
+- **表格组件**：DeviceTree（设备树）、DataTable（数据表格）、DeviceTable（设备表格）
+- **状态组件**：StatusLabel（状态标签）、StatusBadge（状态徽章）、AnimatedStatusBadge（动画状态徽章）
+- **可视化组件**：ModernGauge（动态圆形仪表盘）、RealtimeChart（实时图表）
+- **开关组件**：Switch（开关）、Checkbox（复选框）、SwitchGroup（开关组）
+- **主题管理**：ThemeManager（主题切换）、浅色/深色主题支持
+
 ### 报警系统
 - 四级报警：高高(HH) / 高(H) / 低(L) / 低低(LL)
 - 死区控制，防止频繁报警
@@ -67,7 +77,15 @@
 
 ```
 equipment-management/
-├── src/                        # 核心源码
+├── core/                       # 核心源码（旧架构兼容）
+│   ├── protocols/              # 协议层
+│   ├── communication/          # 通信驱动层
+│   ├── device/                 # 设备管理层
+│   ├── data/                   # 数据持久化层 (SQLite)
+│   │   └── repository/         # Repository 模式
+│   ├── utils/                  # 工具模块
+│   └── config/                # 配置管理
+├── src/                        # 新架构源码（v2.0）
 │   ├── protocols/              # 第一层: 协议层
 │   ├── communication/          # 第二层: 通信驱动层
 │   ├── device/                 # 第三层: 设备管理层
@@ -77,15 +95,46 @@ equipment-management/
 │   └── utils/                  # 工具模块
 ├── ui/                         # 第四层: UI 层
 │   ├── styles/                 # Fluent Design 样式系统
-│   │   ├── theme.py            # 色彩/字体/间距常量
-│   │   └── qss/                # QSS 样式表 (base/dark/light)
+│   │   ├── qss/                # QSS 样式表 (base/light/dark)
+│   │   └── theme.py            # 色彩常量
+│   ├── core/                   # UI 核心模块
+│   │   └── theme.py           # ThemeManager 主题管理器
+│   ├── widgets/                # 自定义UI组件库
+│   │   ├── buttons.py          # 按钮组件
+│   │   ├── inputs.py           # 输入控件
+│   │   ├── cards.py           # 卡片组件
+│   │   ├── tables.py          # 表格组件
+│   │   ├── status.py          # 状态组件
+│   │   ├── visual.py          # 可视化组件
+│   │   └── switches.py        # 开关组件
 │   ├── dialogs/                # 对话框集合
-│   ├── widgets/                # 自定义可视化组件
-│   └── main_window.py          # 主窗口
+│   │   ├── add_device_dialog.py
+│   │   ├── batch_operations_dialog.py
+│   │   ├── data_export_dialog.py
+│   │   ├── device_type_dialogs.py
+│   │   ├── log_viewer_dialog.py
+│   │   ├── register_config_dialog.py
+│   │   └── settings_dialog.py
+│   ├── main_window_v2.py      # 主窗口（已重构）
+│   └── app_styles.py          # 应用样式
 ├── tests/                      # 测试套件 (pytest)
+│   ├── test_core/             # 核心模块测试
+│   ├── test_ui/               # UI 组件测试
+│   ├── integration/           # 集成测试
+│   ├── performance/           # 性能测试
+│   └── unit/                # 单元测试
 ├── docs/                       # 文档
+│   ├── architecture/          # 架构文档
+│   ├── project/              # 项目文档
+│   ├── design/               # 设计文档
+│   ├── reports/              # 报告文档
+│   └── meta/                # 元数据
+├── scripts/                    # 构建和工具脚本
+│   ├── build.py              # PyInstaller 打包
+│   ├── refactor_dialogs.py    # 批量重构脚本
+│   └── migrate_database.py   # 数据库迁移
+├── assets/                     # 资源文件（截图、图标等）
 ├── config/                     # 配置文件
-├── scripts/                    # 构建脚本
 ├── data/                       # 数据库文件
 └── logs/                       # 日志文件
 ```
@@ -208,6 +257,33 @@ autopep8 src/ ui/ --in-place
 
 ## 📋 版本历史
 
+### v1.5.3 (2026-03-30)
+
+**UI/UX 优化与功能增强**
+- 添加设备对话框：RTU/ASCII 协议串口改为下拉框，自动检测可用串口
+- 串口测试功能：自动检测可用串口，默认填充 9600/8/无校验/1 位参数
+- TCP 设备添加：自动获取并显示本机 IP 地址，默认填充通信参数
+- 下拉框箭头样式：展开状态显示向上箭头，收起状态显示向下箭头
+- 寄存器计数标签：黑色字体，移至配置按钮左侧
+- 操作按钮布局：添加设备按钮移至底部，与批量操作、移除设备按钮靠右对齐
+- 修复启动问题：补充缺失的模块导出，解决循环导入
+
+---
+
+### v1.6.0 (2026-03-30)
+
+**UI组件库重构**
+- 创建完整的UI组件库模块（23个可复用组件）
+- 组件分类：按钮、输入、卡片、表格、状态、可视化、开关
+- 实现 ThemeManager 主题管理器（单例模式，线程安全）
+- 主窗口重构：使用组件库替换所有原生控件
+- 对话框重构：add_device_dialog、batch_operations_dialog、data_export_dialog
+- 移除所有内联样式，使用统一样式系统
+- 添加完整的类型提示和文档字符串
+- 向后兼容：保留旧组件，确保平滑迁移
+
+---
+
 ### v1.5.2 (2026-03-29)
 
 **项目整理**
@@ -287,5 +363,4 @@ autopep8 src/ ui/ --in-place
 MIT License
 
 ---
-
-**版本**: v1.5.2 | **更新**: 2026-03-29
+**版本**: v1.5.3 | **更新**: 2026-03-30

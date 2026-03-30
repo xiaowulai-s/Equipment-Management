@@ -48,8 +48,10 @@ from ui.widgets import (
     DataCard,
     DataTable,
     DeviceTree,
+    GhostButton,
     LineEdit,
     PrimaryButton,
+    SecondaryButton,
     StatusBadge,
     SuccessButton,
 )
@@ -320,11 +322,6 @@ class MainWindowV2(QMainWindow):
 
         file_menu.addSeparator()
 
-        batch_action = file_menu.addAction(TextConstants.ACTION_BATCH_OPS)
-        batch_action.triggered.connect(self._show_batch_operations)
-
-        file_menu.addSeparator()
-
         exit_action = file_menu.addAction(TextConstants.ACTION_EXIT)
         exit_action.triggered.connect(self.close)
 
@@ -518,12 +515,6 @@ class MainWindowV2(QMainWindow):
         title_layout.addWidget(self._left_title_label)
         title_layout.addStretch()
 
-        self._add_device_btn = SuccessButton(TextConstants.ADD_DEVICE_BTN)
-        self._add_device_btn.setMinimumHeight(30)
-        self._add_device_btn.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-        self._add_device_btn.clicked.connect(self._add_device)
-        title_layout.addWidget(self._add_device_btn)
-
         left_layout.addLayout(title_layout)
 
         # ── 搜索框 ──
@@ -543,12 +534,24 @@ class MainWindowV2(QMainWindow):
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(8)
 
+        self._add_device_btn = SuccessButton(TextConstants.ADD_DEVICE_BTN)
+        self._add_device_btn.setMinimumHeight(30)
+        self._add_device_btn.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        self._add_device_btn.clicked.connect(self._add_device)
+
+        self._batch_ops_btn = SecondaryButton(TextConstants.ACTION_BATCH_OPS)
+        self._batch_ops_btn.setMinimumHeight(30)
+        self._batch_ops_btn.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        self._batch_ops_btn.clicked.connect(self._show_batch_operations)
+
         self._remove_btn = DangerButton(TextConstants.REMOVE_DEVICE_BTN)
         self._remove_btn.setMinimumHeight(30)
         self._remove_btn.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         self._remove_btn.clicked.connect(self._remove_device)
 
         btn_layout.addStretch()
+        btn_layout.addWidget(self._add_device_btn)
+        btn_layout.addWidget(self._batch_ops_btn)
         btn_layout.addWidget(self._remove_btn)
         left_layout.addLayout(btn_layout)
 

@@ -1,490 +1,225 @@
 {
-  "version": "1.5.2",
+  "version": "2.0",
   "devices": [
     {
-      "device_id": "tcp_001",
-      "name": "Modbus TCP 设备 1",
-      "device_type": "Modbus TCP",
-      "protocol_type": "modbus_tcp",
-      "host": "127.0.0.1",
-      "port": 502,
-      "unit_id": 1,
-      "use_simulator": true,
-      "register_map": [
-        {
-          "name": "温度",
-          "address": 0,
-          "type": "uint16",
-          "scale": 0.1,
-          "unit": "°C"
-        },
-        {
-          "name": "压力",
-          "address": 1,
-          "type": "uint16",
-          "scale": 0.1,
-          "unit": "MPa"
-        },
-        {
-          "name": "流量",
-          "address": 2,
-          "type": "uint16",
-          "scale": 0.1,
-          "unit": "m³/h"
-        },
-        {
-          "name": "状态",
-          "address": 3,
-          "type": "uint16",
-          "scale": 1,
-          "unit": ""
-        },
-        {
-          "name": "报警",
-          "address": 4,
-          "type": "uint16",
-          "scale": 1,
-          "unit": ""
-        }
-      ]
-    },
-    {
-      "device_id": "tcp_002",
+      "id": "tcp_002",
       "name": "Modbus TCP 设备 2",
       "device_type": "Modbus TCP",
+      "device_number": null,
       "protocol_type": "modbus_tcp",
       "host": "127.0.0.1",
       "port": 502,
       "unit_id": 2,
       "use_simulator": true,
-      "register_map": [
-        {
-          "name": "温度",
-          "address": 0,
-          "type": "uint16",
-          "scale": 0.1,
-          "unit": "°C"
-        },
-        {
-          "name": "压力",
-          "address": 1,
-          "type": "uint16",
-          "scale": 0.1,
-          "unit": "MPa"
-        },
-        {
-          "name": "流量",
-          "address": 2,
-          "type": "uint16",
-          "scale": 0.1,
-          "unit": "m³/h"
-        },
-        {
-          "name": "状态",
-          "address": 3,
-          "type": "uint16",
-          "scale": 1,
-          "unit": ""
-        },
-        {
-          "name": "报警",
-          "address": 4,
-          "type": "uint16",
-          "scale": 1,
-          "unit": ""
-        }
-      ]
+      "status": 0,
+      "last_connected_at": null,
+      "connection_count": 0,
+      "error_count": 0,
+      "created_at": "2026-03-30T07:53:12.280295",
+      "updated_at": "2026-03-30T07:53:12.280297",
+      "device_id": "tcp_002",
+      "protocol": "modbus_tcp",
+      "ip": "127.0.0.1",
+      "slave_id": 2,
+      "register_map": []
     },
     {
-      "device_id": "tcp_003",
+      "id": "tcp_003",
       "name": "Modbus TCP 设备 3",
       "device_type": "Modbus TCP",
+      "device_number": null,
       "protocol_type": "modbus_tcp",
       "host": "127.0.0.1",
       "port": 502,
       "unit_id": 3,
       "use_simulator": true,
-      "register_map": [
-        {
-          "name": "温度",
-          "address": 0,
-          "type": "uint16",
-          "scale": 0.1,
-          "unit": "°C"
-        },
-        {
-          "name": "压力",
-          "address": 1,
-          "type": "uint16",
-          "scale": 0.1,
-          "unit": "MPa"
-        },
-        {
-          "name": "流量",
-          "address": 2,
-          "type": "uint16",
-          "scale": 0.1,
-          "unit": "m³/h"
-        },
-        {
-          "name": "状态",
-          "address": 3,
-          "type": "uint16",
-          "scale": 1,
-          "unit": ""
-        },
-        {
-          "name": "报警",
-          "address": 4,
-          "type": "uint16",
-          "scale": 1,
-          "unit": ""
-        }
-      ]
+      "status": 0,
+      "last_connected_at": null,
+      "connection_count": 0,
+      "error_count": 0,
+      "created_at": "2026-03-30T07:53:12.281030",
+      "updated_at": "2026-03-30T07:53:12.281032",
+      "device_id": "tcp_003",
+      "protocol": "modbus_tcp",
+      "ip": "127.0.0.1",
+      "slave_id": 3,
+      "register_map": []
     },
     {
-      "device_id": "tcp_004",
+      "id": "tcp_004",
       "name": "Modbus TCP 设备 4",
       "device_type": "Modbus TCP",
+      "device_number": null,
       "protocol_type": "modbus_tcp",
       "host": "127.0.0.1",
       "port": 502,
       "unit_id": 4,
       "use_simulator": true,
-      "register_map": [
-        {
-          "name": "温度",
-          "address": 0,
-          "type": "uint16",
-          "scale": 0.1,
-          "unit": "°C"
-        },
-        {
-          "name": "压力",
-          "address": 1,
-          "type": "uint16",
-          "scale": 0.1,
-          "unit": "MPa"
-        },
-        {
-          "name": "流量",
-          "address": 2,
-          "type": "uint16",
-          "scale": 0.1,
-          "unit": "m³/h"
-        },
-        {
-          "name": "状态",
-          "address": 3,
-          "type": "uint16",
-          "scale": 1,
-          "unit": ""
-        },
-        {
-          "name": "报警",
-          "address": 4,
-          "type": "uint16",
-          "scale": 1,
-          "unit": ""
-        }
-      ]
+      "status": 0,
+      "last_connected_at": null,
+      "connection_count": 0,
+      "error_count": 0,
+      "created_at": "2026-03-30T07:53:12.281627",
+      "updated_at": "2026-03-30T07:53:12.281628",
+      "device_id": "tcp_004",
+      "protocol": "modbus_tcp",
+      "ip": "127.0.0.1",
+      "slave_id": 4,
+      "register_map": []
     },
     {
-      "device_id": "tcp_005",
+      "id": "tcp_005",
       "name": "Modbus TCP 设备 5",
       "device_type": "Modbus TCP",
+      "device_number": null,
       "protocol_type": "modbus_tcp",
       "host": "127.0.0.1",
       "port": 502,
       "unit_id": 5,
       "use_simulator": true,
-      "register_map": [
-        {
-          "name": "温度",
-          "address": 0,
-          "type": "uint16",
-          "scale": 0.1,
-          "unit": "°C"
-        },
-        {
-          "name": "压力",
-          "address": 1,
-          "type": "uint16",
-          "scale": 0.1,
-          "unit": "MPa"
-        },
-        {
-          "name": "流量",
-          "address": 2,
-          "type": "uint16",
-          "scale": 0.1,
-          "unit": "m³/h"
-        },
-        {
-          "name": "状态",
-          "address": 3,
-          "type": "uint16",
-          "scale": 1,
-          "unit": ""
-        },
-        {
-          "name": "报警",
-          "address": 4,
-          "type": "uint16",
-          "scale": 1,
-          "unit": ""
-        }
-      ]
+      "status": 0,
+      "last_connected_at": null,
+      "connection_count": 0,
+      "error_count": 0,
+      "created_at": "2026-03-30T07:53:12.282177",
+      "updated_at": "2026-03-30T07:53:12.282179",
+      "device_id": "tcp_005",
+      "protocol": "modbus_tcp",
+      "ip": "127.0.0.1",
+      "slave_id": 5,
+      "register_map": []
     },
     {
-      "device_id": "rtu_001",
+      "id": "rtu_001",
       "name": "Modbus RTU 设备 1",
       "device_type": "Modbus RTU",
+      "device_number": null,
       "protocol_type": "modbus_rtu",
+      "host": null,
       "port": "COM1",
-      "baudrate": 9600,
-      "bytesize": 8,
-      "parity": "N",
-      "stopbits": 1,
       "unit_id": 1,
       "use_simulator": true,
-      "register_map": [
-        {
-          "name": "温度",
-          "address": 0,
-          "type": "uint16",
-          "scale": 0.1,
-          "unit": "°C"
-        },
-        {
-          "name": "压力",
-          "address": 1,
-          "type": "uint16",
-          "scale": 0.1,
-          "unit": "MPa"
-        },
-        {
-          "name": "流量",
-          "address": 2,
-          "type": "uint16",
-          "scale": 0.1,
-          "unit": "m³/h"
-        },
-        {
-          "name": "状态",
-          "address": 3,
-          "type": "uint16",
-          "scale": 1,
-          "unit": ""
-        },
-        {
-          "name": "报警",
-          "address": 4,
-          "type": "uint16",
-          "scale": 1,
-          "unit": ""
-        }
-      ]
+      "status": 0,
+      "last_connected_at": null,
+      "connection_count": 0,
+      "error_count": 0,
+      "created_at": "2026-03-30T07:53:12.282726",
+      "updated_at": "2026-03-30T07:53:12.282727",
+      "device_id": "rtu_001",
+      "protocol": "modbus_rtu",
+      "ip": null,
+      "slave_id": 1,
+      "register_map": []
     },
     {
-      "device_id": "rtu_002",
+      "id": "rtu_002",
       "name": "Modbus RTU 设备 2",
       "device_type": "Modbus RTU",
+      "device_number": null,
       "protocol_type": "modbus_rtu",
+      "host": null,
       "port": "COM2",
-      "baudrate": 9600,
-      "bytesize": 8,
-      "parity": "N",
-      "stopbits": 1,
       "unit_id": 2,
       "use_simulator": true,
-      "register_map": [
-        {
-          "name": "温度",
-          "address": 0,
-          "type": "uint16",
-          "scale": 0.1,
-          "unit": "°C"
-        },
-        {
-          "name": "压力",
-          "address": 1,
-          "type": "uint16",
-          "scale": 0.1,
-          "unit": "MPa"
-        },
-        {
-          "name": "流量",
-          "address": 2,
-          "type": "uint16",
-          "scale": 0.1,
-          "unit": "m³/h"
-        },
-        {
-          "name": "状态",
-          "address": 3,
-          "type": "uint16",
-          "scale": 1,
-          "unit": ""
-        },
-        {
-          "name": "报警",
-          "address": 4,
-          "type": "uint16",
-          "scale": 1,
-          "unit": ""
-        }
-      ]
+      "status": 0,
+      "last_connected_at": null,
+      "connection_count": 0,
+      "error_count": 0,
+      "created_at": "2026-03-30T07:53:12.283277",
+      "updated_at": "2026-03-30T07:53:12.283278",
+      "device_id": "rtu_002",
+      "protocol": "modbus_rtu",
+      "ip": null,
+      "slave_id": 2,
+      "register_map": []
     },
     {
-      "device_id": "rtu_003",
+      "id": "rtu_003",
       "name": "Modbus RTU 设备 3",
       "device_type": "Modbus RTU",
+      "device_number": null,
       "protocol_type": "modbus_rtu",
+      "host": null,
       "port": "COM3",
-      "baudrate": 9600,
-      "bytesize": 8,
-      "parity": "N",
-      "stopbits": 1,
       "unit_id": 3,
       "use_simulator": true,
-      "register_map": [
-        {
-          "name": "温度",
-          "address": 0,
-          "type": "uint16",
-          "scale": 0.1,
-          "unit": "°C"
-        },
-        {
-          "name": "压力",
-          "address": 1,
-          "type": "uint16",
-          "scale": 0.1,
-          "unit": "MPa"
-        },
-        {
-          "name": "流量",
-          "address": 2,
-          "type": "uint16",
-          "scale": 0.1,
-          "unit": "m³/h"
-        },
-        {
-          "name": "状态",
-          "address": 3,
-          "type": "uint16",
-          "scale": 1,
-          "unit": ""
-        },
-        {
-          "name": "报警",
-          "address": 4,
-          "type": "uint16",
-          "scale": 1,
-          "unit": ""
-        }
-      ]
+      "status": 0,
+      "last_connected_at": null,
+      "connection_count": 0,
+      "error_count": 0,
+      "created_at": "2026-03-30T07:53:12.283813",
+      "updated_at": "2026-03-30T07:53:12.283815",
+      "device_id": "rtu_003",
+      "protocol": "modbus_rtu",
+      "ip": null,
+      "slave_id": 3,
+      "register_map": []
     },
     {
-      "device_id": "rtu_004",
+      "id": "rtu_004",
       "name": "Modbus RTU 设备 4",
       "device_type": "Modbus RTU",
+      "device_number": null,
       "protocol_type": "modbus_rtu",
+      "host": null,
       "port": "COM4",
-      "baudrate": 9600,
-      "bytesize": 8,
-      "parity": "N",
-      "stopbits": 1,
       "unit_id": 4,
       "use_simulator": true,
-      "register_map": [
-        {
-          "name": "温度",
-          "address": 0,
-          "type": "uint16",
-          "scale": 0.1,
-          "unit": "°C"
-        },
-        {
-          "name": "压力",
-          "address": 1,
-          "type": "uint16",
-          "scale": 0.1,
-          "unit": "MPa"
-        },
-        {
-          "name": "流量",
-          "address": 2,
-          "type": "uint16",
-          "scale": 0.1,
-          "unit": "m³/h"
-        },
-        {
-          "name": "状态",
-          "address": 3,
-          "type": "uint16",
-          "scale": 1,
-          "unit": ""
-        },
-        {
-          "name": "报警",
-          "address": 4,
-          "type": "uint16",
-          "scale": 1,
-          "unit": ""
-        }
-      ]
+      "status": 0,
+      "last_connected_at": null,
+      "connection_count": 0,
+      "error_count": 0,
+      "created_at": "2026-03-30T07:53:12.284380",
+      "updated_at": "2026-03-30T07:53:12.284381",
+      "device_id": "rtu_004",
+      "protocol": "modbus_rtu",
+      "ip": null,
+      "slave_id": 4,
+      "register_map": []
     },
     {
-      "device_id": "rtu_005",
+      "id": "rtu_005",
       "name": "Modbus RTU 设备 5",
       "device_type": "Modbus RTU",
+      "device_number": null,
       "protocol_type": "modbus_rtu",
+      "host": null,
       "port": "COM5",
-      "baudrate": 9600,
-      "bytesize": 8,
-      "parity": "N",
-      "stopbits": 1,
       "unit_id": 5,
       "use_simulator": true,
-      "register_map": [
-        {
-          "name": "温度",
-          "address": 0,
-          "type": "uint16",
-          "scale": 0.1,
-          "unit": "°C"
-        },
-        {
-          "name": "压力",
-          "address": 1,
-          "type": "uint16",
-          "scale": 0.1,
-          "unit": "MPa"
-        },
-        {
-          "name": "流量",
-          "address": 2,
-          "type": "uint16",
-          "scale": 0.1,
-          "unit": "m³/h"
-        },
-        {
-          "name": "状态",
-          "address": 3,
-          "type": "uint16",
-          "scale": 1,
-          "unit": ""
-        },
-        {
-          "name": "报警",
-          "address": 4,
-          "type": "uint16",
-          "scale": 1,
-          "unit": ""
-        }
-      ]
+      "status": 0,
+      "last_connected_at": null,
+      "connection_count": 0,
+      "error_count": 0,
+      "created_at": "2026-03-30T07:53:12.284912",
+      "updated_at": "2026-03-30T07:53:12.284913",
+      "device_id": "rtu_005",
+      "protocol": "modbus_rtu",
+      "ip": null,
+      "slave_id": 5,
+      "register_map": []
+    },
+    {
+      "id": "625159ed",
+      "name": "未命名设备",
+      "device_type": "传感器",
+      "device_number": "",
+      "protocol_type": "modbus_tcp",
+      "host": null,
+      "port": null,
+      "unit_id": 1,
+      "use_simulator": false,
+      "status": 0,
+      "last_connected_at": null,
+      "connection_count": 0,
+      "error_count": 0,
+      "created_at": "2026-03-30T08:03:03.298580",
+      "updated_at": "2026-03-30T08:03:03.298583",
+      "device_id": "625159ed",
+      "protocol": "modbus_tcp",
+      "ip": null,
+      "slave_id": 1,
+      "register_map": []
     }
   ]
 }

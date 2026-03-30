@@ -1,0 +1,11 @@
+﻿Device ID,Device Name,Device Type,Status,IP Address,Port,Export Time
+tcp_001,Modbus TCP 设备 1,Modbus TCP,未连接,127.0.0.1,502,2026-03-29 11:59:20
+tcp_002,Modbus TCP 设备 2,Modbus TCP,未连接,127.0.0.1,502,2026-03-29 11:59:20
+tcp_003,Modbus TCP 设备 3,Modbus TCP,未连接,127.0.0.1,502,2026-03-29 11:59:20
+tcp_004,Modbus TCP 设备 4,Modbus TCP,未连接,127.0.0.1,502,2026-03-29 11:59:20
+tcp_005,Modbus TCP 设备 5,Modbus TCP,未连接,127.0.0.1,502,2026-03-29 11:59:20
+rtu_001,Modbus RTU 设备 1,Modbus RTU,未连接,,COM1,2026-03-29 11:59:20
+rtu_002,Modbus RTU 设备 2,Modbus RTU,未连接,,COM2,2026-03-29 11:59:20
+rtu_003,Modbus RTU 设备 3,Modbus RTU,未连接,,COM3,2026-03-29 11:59:20
+rtu_004,Modbus RTU 设备 4,Modbus RTU,未连接,,COM4,2026-03-29 11:59:20
+rtu_005,Modbus RTU 设备 5,Modbus RTU,未连接,,COM5,2026-03-29 11:59:20

@@ -228,7 +228,12 @@ class ComboBox(QComboBox):
                 border-left: 4px solid transparent;
                 border-right: 4px solid transparent;
                 border-top: 6px solid {Colors.TEXT_SECONDARY};
+                border-bottom: none;
                 margin-right: 8px;
+            }}
+            QComboBox::down-arrow:on {{
+                border-top: none;
+                border-bottom: 6px solid {Colors.TEXT_SECONDARY};
             }}
             QComboBox QAbstractItemView {{
                 background: {Colors.BG_BASE};

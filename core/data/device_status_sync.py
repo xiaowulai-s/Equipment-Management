@@ -4,13 +4,15 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
-from core.device.device_model import DeviceStatus
 from core.utils.logger import get_logger
 
 from .models import DatabaseManager, utc_now
 from .repository.device_repository import DeviceRepository
+
+if TYPE_CHECKING:
+    from core.device.device_model import DeviceStatus
 
 logger = get_logger(__name__)
 

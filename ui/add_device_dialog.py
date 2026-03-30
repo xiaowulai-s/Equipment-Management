@@ -104,19 +104,24 @@ class AddDeviceDialog(QDialog):
         layout.addRow(simulator_layout)
 
         register_button_layout = QHBoxLayout()
+        self.register_count_label = QLabel()
+        self.register_count_label.setStyleSheet("color: #000000; font-size: 12px;")
+        register_button_layout.addWidget(self.register_count_label)
         register_button_layout.addStretch()
         self.register_config_btn = PrimaryButton("配置寄存器地址")
         self.register_config_btn.clicked.connect(self._show_register_config)
         register_button_layout.addWidget(self.register_config_btn)
         layout.addRow(register_button_layout)
 
-        self.register_count_label = QLabel()
-        self.register_count_label.setStyleSheet("color: #57606A; font-size: 12px;")
-        layout.addRow("", self.register_count_label)
-
         self.params_group = QGroupBox("通信参数配置")
         self.params_layout = QFormLayout()
         self.params_layout.setSpacing(12)
+
+        # 本机 IP 显示标签（仅用于 TCP 设备）
+        self._local_ip_label = QLabel()
+        self._local_ip_label.setStyleSheet("color: #2196F3; font-size: 12px;")
+        self.params_layout.addRow(self._local_ip_label)
+
         self.params_group.setLayout(self.params_layout)
         layout.addRow(self.params_group)
 
@@ -166,10 +171,23 @@ class AddDeviceDialog(QDialog):
                 continue
             value = config[field_name]
             if isinstance(widget, QComboBox):
-                for index in range(widget.count()):
-                    if widget.itemData(index) == value:
-                        widget.setCurrentIndex(index)
-                        break
+                # 对于串口下拉框，如果配置中的串口不在列表中，先添加它
+                if field_name == "port":
+                    found = False
+                    for index in range(widget.count()):
+                        if widget.itemData(index) == value:
+                            widget.setCurrentIndex(index)
+                            found = True
+                            break
+                    if not found and value:
+                        # 添加配置中的串口到列表（可能是当前未连接的设备）
+                        widget.addItem(value, value)
+                        widget.setCurrentIndex(widget.count() - 1)
+                else:
+                    for index in range(widget.count()):
+                        if widget.itemData(index) == value:
+                            widget.setCurrentIndex(index)
+                            break
             elif isinstance(widget, QLineEdit):
                 widget.setText(str(value))
 
@@ -186,12 +204,31 @@ class AddDeviceDialog(QDialog):
         if not params_info:
             return
 
+        # 获取本机 IP 地址（用于 TCP 设备默认值）
+        local_ip = None
+        if protocol_type == "modbus_tcp":
+            from core.device.device_factory import get_local_ip
+
+            local_ip = get_local_ip()
+
         for field in params_info["fields"]:
             field_name = field["name"]
-            widget = self._build_param_widget(field)
+
+            # RTU/ASCII 协议的串口字段使用 ComboBox
+            if field_name == "port" and protocol_type in ("modbus_rtu", "modbus_ascii"):
+                widget = self._build_serial_port_combo()
+            # TCP 设备的 host 字段，将 AUTO 替换为本机 IP
+            elif field_name == "host" and protocol_type == "modbus_tcp" and local_ip:
+                field = dict(field)  # 复制字段配置
+                if field.get("default") == "AUTO":
+                    field["default"] = local_ip
+                widget = self._build_param_widget(field)
+            else:
+                widget = self._build_param_widget(field)
+
             self._param_widgets[field_name] = widget
 
-            if field_name == "port" and protocol_type == "modbus_rtu":
+            if field_name == "port" and protocol_type in ("modbus_rtu", "modbus_ascii"):
                 from ui.widgets import SecondaryButton
 
                 layout = QHBoxLayout()
@@ -204,8 +241,55 @@ class AddDeviceDialog(QDialog):
             else:
                 self.params_layout.addRow(f"{field['label']}:", widget)
 
+        # 填充可用串口列表
+        if protocol_type in ("modbus_rtu", "modbus_ascii"):
+            self._refresh_serial_port_list()
+
+        # 更新本机 IP 显示
+        if protocol_type == "modbus_tcp" and local_ip:
+            self._local_ip_label.setText(f"本机 IP: {local_ip}")
+            self._local_ip_label.show()
+        else:
+            self._local_ip_label.hide()
+
         if self._edit_mode and self._device_config:
             self._populate_protocol_fields(self._device_config)
+
+    def _build_serial_port_combo(self) -> ComboBox:
+        """创建串口下拉框"""
+        widget = ComboBox()
+        widget.setMinimumWidth(150)
+        return widget
+
+    def _refresh_serial_port_list(self) -> None:
+        """刷新可用串口列表，不自动选择"""
+        port_widget = self._param_widgets.get("port")
+        if not isinstance(port_widget, ComboBox):
+            return
+
+        from core.utils.serial_utils import list_serial_ports
+
+        available_ports = list_serial_ports()
+
+        # 保存当前选择（如果有）
+        current_port = port_widget.currentData()
+
+        # 清空并重新填充
+        port_widget.clear()
+
+        if available_ports:
+            for port in available_ports:
+                port_widget.addItem(port, port)
+
+            # 仅恢复之前的选择，不自动选择第一个
+            if current_port and current_port in available_ports:
+                index = available_ports.index(current_port)
+                port_widget.setCurrentIndex(index)
+            else:
+                # 不自动选择，显示提示项
+                port_widget.setCurrentIndex(-1)
+        else:
+            port_widget.addItem("未检测到串口", "")
 
     def _build_param_widget(self, field: Dict[str, Any]) -> QWidget:
         field_type = field["type"]
@@ -232,37 +316,107 @@ class AddDeviceDialog(QDialog):
     def _update_register_count(self) -> None:
         count = len(self._register_map)
         self.register_count_label.setText(f"已配置 {count} 个寄存器")
-        if count > 0:
-            self.register_count_label.setStyleSheet("color: #1A7F37; font-size: 12px; font-weight: 500;")
-        else:
-            self.register_count_label.setStyleSheet("color: #57606A; font-size: 12px;")
+        # 统一使用黑色字体
+        self.register_count_label.setStyleSheet("color: #000000; font-size: 12px;")
 
     def _on_test_serial(self) -> None:
+        """测试串口连接，刷新串口列表并填充默认参数"""
         port_widget = self._param_widgets.get("port")
-        if not isinstance(port_widget, QLineEdit):
+        if not isinstance(port_widget, ComboBox):
             QMessageBox.warning(self, "警告", "未找到串口号配置")
             return
 
-        port = port_widget.text().strip()
+        # 刷新串口列表（检测新接入的设备）
+        self._refresh_serial_port_list()
+
+        port = port_widget.currentData()
+
+        # 检查是否有可用串口
         if not port:
-            QMessageBox.warning(self, "警告", "请输入串口号")
+            QMessageBox.warning(self, "警告", "未检测到可用串口")
             return
 
-        baudrate_widget = self._param_widgets.get("baudrate")
-        baudrate = 9600
-        if isinstance(baudrate_widget, QComboBox):
-            baudrate = int(baudrate_widget.currentData())
-        elif isinstance(baudrate_widget, QLineEdit):
-            try:
-                baudrate = int(baudrate_widget.text().strip())
-            except Exception:
-                baudrate = 9600
+        # 设置默认参数（如果未设置）
+        self._set_default_serial_params()
 
+        # 获取测试参数
+        baudrate = self._get_serial_param("baudrate", 9600)
+        data_bits = self._get_serial_param("bytesize", 8)
+        parity = self._get_serial_param("parity", "无校验")
+        stop_bits = self._get_serial_param("stopbits", 1)
+
+        # 执行测试
         success, message = test_serial_port(port, baudrate)
+
+        # 获取当前可用串口列表用于显示
+        from core.utils.serial_utils import list_serial_ports
+
+        available_ports = list_serial_ports()
+
+        # 构建详细信息
+        detail_msg = (
+            f"{message}\n\n"
+            f"测试参数：\n"
+            f"  串口：{port}\n"
+            f"  波特率：{baudrate} bit/s\n"
+            f"  数据位：{data_bits}\n"
+            f"  校验位：{parity}\n"
+            f"  停止位：{stop_bits}\n"
+            f"\n可用串口：{', '.join(available_ports) if available_ports else '无'}"
+        )
+
         if success:
-            QMessageBox.information(self, "测试成功", message)
+            QMessageBox.information(self, "测试成功", detail_msg)
         else:
-            QMessageBox.critical(self, "测试失败", message)
+            QMessageBox.critical(self, "测试失败", detail_msg)
+
+    def _set_default_serial_params(self) -> None:
+        """设置串口默认参数（如果未设置）"""
+        defaults = {
+            "baudrate": ("9600", 9600),
+            "bytesize": ("8", 8),
+            "parity": ("无校验", "无校验"),
+            "stopbits": ("1", 1),
+        }
+
+        for field_name, (text_value, data_value) in defaults.items():
+            widget = self._param_widgets.get(field_name)
+            if widget is None:
+                continue
+
+            if isinstance(widget, QComboBox):
+                # 下拉框：检查是否已选择，未选择则设置为默认值
+                if widget.currentIndex() < 0 or not widget.currentData():
+                    for index in range(widget.count()):
+                        if widget.itemData(index) == data_value or widget.itemText(index) == text_value:
+                            widget.setCurrentIndex(index)
+                            break
+            elif isinstance(widget, QLineEdit):
+                # 输入框：如果为空则填充默认值
+                if not widget.text().strip():
+                    widget.setText(text_value)
+
+    def _get_serial_param(self, field_name: str, default: Any) -> Any:
+        """获取串口参数值"""
+        widget = self._param_widgets.get(field_name)
+        if widget is None:
+            return default
+
+        if isinstance(widget, QComboBox):
+            data = widget.currentData()
+            return data if data is not None else default
+        elif isinstance(widget, QLineEdit):
+            text = widget.text().strip()
+            if not text:
+                return default
+            try:
+                return int(text)
+            except ValueError:
+                try:
+                    return float(text)
+                except ValueError:
+                    return text
+        return default
 
     def get_device_config(self) -> Dict[str, Any]:
         """获取设备配置字典 (新架构兼容格式)
