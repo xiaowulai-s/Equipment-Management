@@ -13,12 +13,14 @@ from PySide6.QtCore import QSize, Qt, QTimer, Slot
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QTableWidget  # noqa: F401  (base class of DataTable)
 from PySide6.QtWidgets import (
+    QDialog,
     QFileDialog,
     QGridLayout,
     QHBoxLayout,
     QLabel,
     QMainWindow,
     QMessageBox,
+    QPlainTextEdit,
     QPushButton,
     QSizePolicy,
     QSplitter,
@@ -55,6 +57,7 @@ from ui.widgets import (
     StatusBadge,
     SuccessButton,
 )
+from ui.widgets.visual import ModernGauge
 
 if TYPE_CHECKING:
     from core.device.device_model import Device  # noqa: F401
@@ -84,7 +87,6 @@ class TextConstants:
 
     TAB_REALTIME_DATA = "实时数据"
     TAB_REGISTERS = "寄存器"
-    TAB_COMM_LOG = "通信日志"
 
     TREE_HEADER_NAME = "设备名称"
     TREE_HEADER_ID = "设备 ID"
@@ -103,7 +105,7 @@ class TextConstants:
     ACTION_ALARM_RULE_CONFIG = "报警规则配置 (&C)"
     ACTION_ALARM_SETTINGS = "报警设置 (&A)"
     ACTION_DATA_EXPORT = "数据导出 (&E)"
-    ACTION_BATCH_OPS = "批量操作 (&B)"
+    ACTION_BATCH_OPS = "批量操作"
     ACTION_EXIT = "退出 (&X)"
     ACTION_ALARM_HISTORY = "报警历史 (&H)"
     ACTION_ABOUT = "关于 (&A)"
@@ -189,17 +191,35 @@ class UIMessages:
     ABOUT_TITLE = "关于"
     ABOUT_MSG = (
         f"{TextConstants.APP_NAME} v{TextConstants.APP_VERSION}\n\n"
-        "基于 PySide6 构建\n"
-        "四层解耦架构\n\n"
+        "基于 PySide6 和 Modbus 协议的工业设备监控软件\n"
+        "采用四层解耦架构设计\n\n"
         "功能特性:\n"
-        "- 设备管理 (增删改查)\n"
-        "- 实时监控\n"
-        "- 报警系统\n"
-        "- 数据导出\n"
-        "- 设备类型管理\n"
-        "- 批量操作\n"
-        "- 寄存器配置\n\n"
-        "(c) 2026 工业设备公司"
+        "━━━━━━━━━━━━━━━━━━━━━\n"
+        "【协议支持】\n"
+        "  • Modbus TCP - 以太网通信\n"
+        "  • Modbus RTU - 串口通信\n"
+        "  • Modbus ASCII - ASCII编码通信\n\n"
+        "【设备管理】\n"
+        "  • 多设备并发管理 (100+设备、20000+寄存器)\n"
+        "  • 设备增删改查、搜索、批量操作\n"
+        "  • JSON配置持久化\n"
+        "  • 自动重连和失败重试\n\n"
+        "【数据可视化】\n"
+        "  • DataCard 数据卡片\n"
+        "  • Canvas 仪表盘\n"
+        "  • 实时趋势图\n"
+        "  • 高性能实时曲线图\n\n"
+        "【报警系统】\n"
+        "  • 四级报警 (高高/高/低/低低)\n"
+        "  • 死区控制，防止频繁报警\n"
+        "  • 报警确认、历史记录、统计分析\n\n"
+        "【系统功能】\n"
+        "  • Fluent Design 风格主题\n"
+        "  • 数据导出 (CSV/Excel)\n"
+        "  • 日志查看器\n"
+        "  • 设备仿真模式\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━\n"
+        "Power By 喝口阔落"
     )
 
 
@@ -242,6 +262,18 @@ class MainWindowV2(QMainWindow):
         self._current_device_id: Optional[str] = None
         self._left_panel_collapsed = False
         self._left_panel_saved_size = 480
+
+        # 仪表盘配置存储: {device_id: [gauge_configs]}
+        self._device_gauges: Dict[str, List[Dict[str, Any]]] = {}
+
+        # 数据卡片配置存储: {device_id: [card_configs]}
+        self._device_cards: Dict[str, List[Dict[str, Any]]] = {}
+
+        # 数据清理调度器
+        from core.data.cleanup_scheduler import CleanupScheduler
+
+        self._cleanup_scheduler = CleanupScheduler(self._db_manager)
+        self._cleanup_scheduler.start()
 
         self._init_ui()
         self._connect_signals()
@@ -286,6 +318,10 @@ class MainWindowV2(QMainWindow):
         self._stack_widget.addWidget(monitor_page)
 
         self._splitter.addWidget(self._stack_widget)
+
+        # 默认显示监控页面（显示日志栏目）
+        self._stack_widget.setCurrentIndex(1)
+        self._log_message("程序启动，等待设备连接...", "INFO")
 
         # Splitter 配置
         self._splitter.setStretchFactor(0, 20)
@@ -539,7 +575,7 @@ class MainWindowV2(QMainWindow):
         self._add_device_btn.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         self._add_device_btn.clicked.connect(self._add_device)
 
-        self._batch_ops_btn = SecondaryButton(TextConstants.ACTION_BATCH_OPS)
+        self._batch_ops_btn = PrimaryButton(TextConstants.ACTION_BATCH_OPS)
         self._batch_ops_btn.setMinimumHeight(30)
         self._batch_ops_btn.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         self._batch_ops_btn.clicked.connect(self._show_batch_operations)
@@ -602,20 +638,34 @@ class MainWindowV2(QMainWindow):
         info_layout.addWidget(self._device_status_badge)
         info_layout.addStretch()
         info_layout.addWidget(self._last_update_label)
+
         layout.addLayout(info_layout)
 
+        # 创建分割器：上方是标签页，下方是日志
+        self._right_splitter = QSplitter(Qt.Orientation.Vertical)
+
+        # 上部：标签页
         self._monitor_tabs = QTabWidget()
         self._monitor_tabs.setStyleSheet(AppStyles.TAB_WIDGET)
 
         self._data_tab = self._create_data_tab()
         self._register_tab = self._create_register_tab()
-        self._log_tab = self._create_log_tab()
 
         self._monitor_tabs.addTab(self._data_tab, TextConstants.TAB_REALTIME_DATA)
         self._monitor_tabs.addTab(self._register_tab, TextConstants.TAB_REGISTERS)
-        self._monitor_tabs.addTab(self._log_tab, TextConstants.TAB_COMM_LOG)
 
-        layout.addWidget(self._monitor_tabs)
+        self._right_splitter.addWidget(self._monitor_tabs)
+
+        # 下部：日志区域
+        self._log_widget = self._create_log_widget()
+        self._right_splitter.addWidget(self._log_widget)
+
+        # 设置分割比例（上部70%，下部30%）
+        self._right_splitter.setSizes([500, 200])
+        self._right_splitter.setStretchFactor(0, 7)
+        self._right_splitter.setStretchFactor(1, 3)
+
+        layout.addWidget(self._right_splitter)
 
         return page
 
@@ -623,6 +673,47 @@ class MainWindowV2(QMainWindow):
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(8, 8, 8, 8)
+
+        # 仪表盘区域
+        gauge_header_layout = QHBoxLayout()
+        gauge_title = QLabel("仪表盘")
+        gauge_title.setStyleSheet("font-size: 14px; font-weight: 600; color: #24292F;")
+        gauge_header_layout.addWidget(gauge_title)
+        gauge_header_layout.addStretch()
+
+        # 管理仪表盘按钮
+        self._manage_gauges_btn = SecondaryButton("管理仪表盘")
+        self._manage_gauges_btn.setFixedSize(110, 32)
+        self._manage_gauges_btn.clicked.connect(self._on_manage_gauges)
+        gauge_header_layout.addWidget(self._manage_gauges_btn)
+
+        layout.addLayout(gauge_header_layout)
+
+        # 仪表盘容器
+        self._gauges_layout = QHBoxLayout()
+        self._gauges_layout.setSpacing(16)
+        layout.addLayout(self._gauges_layout)
+
+        # 分隔线
+        line = QLabel()
+        line.setStyleSheet("background-color: #E5E7EB; min-height: 1px; max-height: 1px;")
+        line.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        layout.addWidget(line)
+
+        # 数据卡片区域
+        cards_header_layout = QHBoxLayout()
+        cards_title = QLabel("数据卡片")
+        cards_title.setStyleSheet("font-size: 14px; font-weight: 600; color: #24292F;")
+        cards_header_layout.addWidget(cards_title)
+        cards_header_layout.addStretch()
+
+        # 管理数据卡片按钮
+        self._manage_cards_btn = SecondaryButton("管理卡片")
+        self._manage_cards_btn.setFixedSize(110, 32)
+        self._manage_cards_btn.clicked.connect(self._on_manage_cards)
+        cards_header_layout.addWidget(self._manage_cards_btn)
+
+        layout.addLayout(cards_header_layout)
 
         self._data_cards_layout = QGridLayout()
         self._data_cards_layout.setSpacing(16)
@@ -643,29 +734,80 @@ class MainWindowV2(QMainWindow):
 
         return tab
 
-    def _create_log_tab(self) -> QWidget:
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
-        layout.setContentsMargins(8, 8, 8, 8)
+    def _create_log_widget(self) -> QWidget:
+        """创建日志区域（内嵌在主窗口右侧）"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
 
-        self._log_text = QTextEdit()
+        # 标题栏
+        header_layout = QHBoxLayout()
+        log_title = QLabel("通信日志")
+        log_title.setStyleSheet("font-size: 14px; font-weight: 600; color: #24292F;")
+        header_layout.addWidget(log_title)
+        header_layout.addStretch()
+
+        # 清空按钮
+        clear_btn = SecondaryButton("清空")
+        clear_btn.setFixedSize(70, 32)
+        clear_btn.clicked.connect(self._clear_log)
+        header_layout.addWidget(clear_btn)
+
+        layout.addLayout(header_layout)
+
+        # 日志文本框
+        self._log_text = QPlainTextEdit()
         self._log_text.setReadOnly(True)
+        self._log_text.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         self._log_text.setStyleSheet(
             """
-            QTextEdit {
+            QPlainTextEdit {
                 background-color: #1E1E1E;
                 color: #D4D4D4;
                 font-family: 'JetBrains Mono', 'Consolas', monospace;
-                font-size: 12px;
+                font-size: 11px;
                 border: 1px solid #30363D;
                 border-radius: 6px;
                 padding: 8px;
             }
         """
         )
+        font = QFont("JetBrains Mono", 9)
+        font.setStyleHint(QFont.StyleHint.Monospace)
+        self._log_text.setFont(font)
         layout.addWidget(self._log_text)
 
-        return tab
+        return widget
+
+    def _clear_log(self) -> None:
+        """清空日志"""
+        if hasattr(self, "_log_text") and self._log_text:
+            self._log_text.clear()
+
+    def _log_message(self, message: str, level: str = "INFO") -> None:
+        """记录日志消息到日志区域"""
+        if not hasattr(self, "_log_text") or not self._log_text:
+            return
+
+        timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+
+        # 根据级别设置颜色（使用ANSI风格的文本标记）
+        level_markers = {
+            "INFO": "",
+            "WARNING": "[WARN] ",
+            "ERROR": "[ERR] ",
+            "DEBUG": "[DBG] ",
+            "SUCCESS": "[OK] ",
+        }
+        marker = level_markers.get(level, "")
+
+        log_line = f"[{timestamp}] {marker}{message}"
+        self._log_text.appendPlainText(log_line)
+
+        # 自动滚动到底部
+        scrollbar = self._log_text.verticalScrollBar()
+        scrollbar.setValue(scrollbar.maximum())
 
     def _connect_signals(self) -> None:
         self._device_manager.device_added.connect(self._on_device_added)
@@ -706,6 +848,11 @@ class MainWindowV2(QMainWindow):
         self._theme_manager.apply_theme()
 
     def _refresh_device_list(self, search_text: str = "") -> None:
+        # 保存当前选中的设备ID
+        current_device_id = self._current_device_id
+
+        # 临时断开信号，避免clear时触发不必要的切换
+        self._device_tree.currentItemChanged.disconnect(self._on_device_selected)
         self._device_tree.clear()
 
         for device_info in self._device_manager.get_all_devices():
@@ -759,6 +906,17 @@ class MainWindowV2(QMainWindow):
             action_layout.addWidget(conn_btn)
 
             self._device_tree.setItemWidget(item, 3, action_widget)
+
+        # 重新连接信号
+        self._device_tree.currentItemChanged.connect(self._on_device_selected)
+
+        # 恢复之前选中的设备
+        if current_device_id:
+            for i in range(self._device_tree.topLevelItemCount()):
+                item = self._device_tree.topLevelItem(i)
+                if item and item.data(0, Qt.ItemDataRole.UserRole) == current_device_id:
+                    self._device_tree.setCurrentItem(item)
+                    break
 
         # 刷新后自适应调整尺寸
         QTimer.singleShot(0, self._update_tree_adaptive_sizes)
@@ -849,6 +1007,14 @@ class MainWindowV2(QMainWindow):
     def _toggle_connection_by_id(self, device_id: str) -> None:
         device = self._device_manager.get_device(device_id)
         if device:
+            # 自动选中当前设备（如果未选中）
+            if self._current_device_id != device_id:
+                for i in range(self._device_tree.topLevelItemCount()):
+                    item = self._device_tree.topLevelItem(i)
+                    if item and item.data(0, Qt.ItemDataRole.UserRole) == device_id:
+                        self._device_tree.setCurrentItem(item)
+                        break
+
             if device.get_status() == DeviceStatus.CONNECTED:
                 self._disconnect_device_by_id(device_id)
             else:
@@ -881,6 +1047,14 @@ class MainWindowV2(QMainWindow):
     def _update_monitor_page(self, device_id: str) -> None:
         device = self._device_manager.get_device(device_id)
         if not device:
+            # 没有选中设备时，显示默认信息
+            self._device_title_label.setText(f"{TextConstants.DEVICE_MONITOR_TITLE} - 未选择设备")
+            self._device_name_label.setText(f"{TextConstants.DEVICE_NAME_LABEL} -")
+            self._device_status_badge.set_status("offline")
+            self._last_update_label.setText(f"{TextConstants.LAST_UPDATE_LABEL} -")
+            self._update_gauges_display()
+            self._update_cards_display()
+            self._update_register_table([])
             return
 
         config = device.get_device_config()
@@ -897,10 +1071,16 @@ class MainWindowV2(QMainWindow):
 
         self._last_update_label.setText(f"{TextConstants.LAST_UPDATE_LABEL} {datetime.now().strftime('%H:%M:%S')}")
 
-        self._update_data_cards(device.get_current_data())
-        self._update_register_table(device.get_device_config().get("register_map", []))
+        # 获取寄存器列表 (从设备对象或配置中获取)
+        register_map = config.get("register_map", [])
+        if not register_map and hasattr(device, "_register_map"):
+            register_map = device._register_map
 
-        self._log_text.append(f"[{datetime.now().strftime('%H:%M:%S')}] Device {config.get('name')} selected")
+        self._update_gauges_display()
+        self._update_cards_display()
+        self._update_register_table(register_map)
+
+        self._log_message(f"Device {config.get('name')} selected", "INFO")
 
     def _update_data_cards(self, data: Dict) -> None:
         while self._data_cards_layout.count():
@@ -1096,7 +1276,8 @@ class MainWindowV2(QMainWindow):
                 self._alarm_manager.check_value(device_id, param_name, param_info["value"])
 
         if self._current_device_id == device_id:
-            self._update_data_cards(data)
+            self._update_card_values(data)
+            self._update_gauge_values(data)
             self._last_update_label.setText(f"{TextConstants.LAST_UPDATE_LABEL} {datetime.now().strftime('%H:%M:%S')}")
 
     @Slot(str, str)
@@ -1107,10 +1288,11 @@ class MainWindowV2(QMainWindow):
 
     def _on_alarm_triggered(self, alarm) -> None:
         alarm_dict = alarm.to_dict()
-        self._log_text.append(
-            f"[{alarm_dict['timestamp']}] Alarm: {alarm_dict['device_id']} - "
+        self._log_message(
+            f"Alarm: {alarm_dict['device_id']} - "
             f"{alarm_dict['parameter']} ({alarm_dict['level_name']}): "
-            f"{alarm_dict['value']} {alarm_dict.get('threshold_high', '')}"
+            f"{alarm_dict['value']} {alarm_dict.get('threshold_high', '')}",
+            "WARNING",
         )
 
         QMessageBox.warning(
@@ -1135,8 +1317,210 @@ class MainWindowV2(QMainWindow):
         self._status_offline_label.setText(f"● 离线 {offline_count}")
         self._status_error_label.setText(f"● 错误 {error_count}")
 
+    def _on_manage_gauges(self) -> None:
+        """打开仪表盘管理对话框"""
+        if not self._current_device_id:
+            QMessageBox.information(self, "提示", "请先选择一个设备")
+            return
+
+        device = self._device_manager.get_device(self._current_device_id)
+        if not device:
+            return
+
+        # 获取设备寄存器列表 (从 register_map 获取)
+        if isinstance(device, dict):
+            register_map = device.get("register_map", [])
+        else:
+            # Device 对象
+            config = device.get_device_config()
+            register_map = config.get("register_map", [])
+
+        # 转换为可用格式
+        available_registers = []
+        for reg in register_map:
+            if isinstance(reg, dict):
+                available_registers.append(
+                    {
+                        "name": reg.get("name", ""),
+                        "address": reg.get("address", ""),
+                    }
+                )
+
+        # 获取当前仪表盘配置
+        existing_gauges = self._device_gauges.get(self._current_device_id, [])
+
+        # 打开管理对话框
+        from ui.widgets.gauge_config_dialog import GaugeManagerDialog
+
+        dialog = GaugeManagerDialog(
+            device_id=self._current_device_id,
+            device_name=device.get("name", "") if isinstance(device, dict) else getattr(device, "name", ""),
+            available_registers=available_registers,
+            existing_gauges=existing_gauges,
+            parent=self,
+        )
+
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self._device_gauges[self._current_device_id] = dialog.get_gauges()
+            self._update_gauges_display()
+
+    def _update_gauges_display(self) -> None:
+        """更新仪表盘显示"""
+        # 清除现有仪表盘
+        while self._gauges_layout.count():
+            item = self._gauges_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+
+        if not self._current_device_id:
+            return
+
+        gauges_config = self._device_gauges.get(self._current_device_id, [])
+
+        # 添加仪表盘
+        for config in gauges_config:
+            gauge = ModernGauge(
+                title=config.get("title", ""),
+                value=0.0,
+                color=config.get("color", "#2196F3"),
+                min_value=config.get("min_value", 0),
+                max_value=config.get("max_value", 100),
+                unit=config.get("unit", ""),
+                register_name=config.get("register_name", ""),
+            )
+            gauge.setMinimumSize(140, 180)
+            self._gauges_layout.addWidget(gauge)
+
+        self._gauges_layout.addStretch()
+
+    def _update_gauge_values(self, data: Dict[str, Any]) -> None:
+        """更新仪表盘数值"""
+        # 遍历所有仪表盘，根据关联的寄存器名更新数值
+        for i in range(self._gauges_layout.count()):
+            item = self._gauges_layout.itemAt(i)
+            if item and item.widget():
+                gauge = item.widget()
+                if isinstance(gauge, ModernGauge):
+                    register_name = gauge.register_name
+                    if register_name and register_name in data:
+                        value_info = data[register_name]
+                        if isinstance(value_info, dict):
+                            value = value_info.get("value", 0)
+                        else:
+                            value = float(value_info) if value_info else 0
+                        gauge.update_from_register(value)
+
+    def _on_manage_cards(self) -> None:
+        """打开数据卡片管理对话框"""
+        if not self._current_device_id:
+            QMessageBox.information(self, "提示", "请先选择一个设备")
+            return
+
+        device = self._device_manager.get_device(self._current_device_id)
+        if not device:
+            return
+
+        # 获取设备寄存器列表 (从 register_map 获取)
+        if isinstance(device, dict):
+            register_map = device.get("register_map", [])
+        else:
+            # Device 对象
+            config = device.get_device_config()
+            register_map = config.get("register_map", [])
+
+        # 转换为可用格式
+        available_registers = []
+        for reg in register_map:
+            if isinstance(reg, dict):
+                available_registers.append(
+                    {
+                        "name": reg.get("name", ""),
+                        "address": reg.get("address", ""),
+                    }
+                )
+
+        # 获取当前数据卡片配置
+        existing_cards = self._device_cards.get(self._current_device_id, [])
+
+        # 打开管理对话框 (复用仪表盘管理对话框)
+        from ui.widgets.gauge_config_dialog import GaugeManagerDialog
+
+        dialog = GaugeManagerDialog(
+            device_id=self._current_device_id,
+            device_name=device.get("name", "") if isinstance(device, dict) else getattr(device, "name", ""),
+            available_registers=available_registers,
+            existing_gauges=existing_cards,
+            parent=self,
+        )
+
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self._device_cards[self._current_device_id] = dialog.get_gauges()
+            self._update_cards_display()
+
+    def _update_cards_display(self) -> None:
+        """更新数据卡片显示"""
+        # 清除现有卡片
+        while self._data_cards_layout.count():
+            item = self._data_cards_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+
+        if not self._current_device_id:
+            return
+
+        cards_config = self._device_cards.get(self._current_device_id, [])
+
+        # 添加数据卡片
+        row, col = 0, 0
+        max_cols = 3
+
+        for config in cards_config:
+            card = DataCard(
+                title=config.get("title", ""),
+                value="--",
+            )
+            card.register_name = config.get("register_name", "")
+
+            # 添加单位标签
+            unit = config.get("unit", "")
+            if unit:
+                card.unit_label = QLabel(unit)
+                card.unit_label.setStyleSheet("color: #8B949E; font-size: 12px;")
+                card.unit_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                card.layout().addWidget(card.unit_label)
+
+            card.setMinimumSize(140, 100)
+            self._data_cards_layout.addWidget(card, row, col)
+
+            col += 1
+            if col >= max_cols:
+                col = 0
+                row += 1
+
+    def _update_card_values(self, data: Dict[str, Any]) -> None:
+        """更新数据卡片数值"""
+        # 遍历所有数据卡片，根据关联的寄存器名更新数值
+        for i in range(self._data_cards_layout.count()):
+            item = self._data_cards_layout.itemAt(i)
+            if item and item.widget():
+                card = item.widget()
+                if isinstance(card, DataCard) and hasattr(card, "register_name"):
+                    register_name = card.register_name
+                    if register_name and register_name in data:
+                        value_info = data[register_name]
+                        if isinstance(value_info, dict):
+                            value = value_info.get("value", 0)
+                        else:
+                            value = float(value_info) if value_info else 0
+                        card.set_value(f"{value:.2f}")
+
     def cleanup(self) -> None:
         logger.info(LogMessages.APP_SHUTDOWN)
+        # 停止数据清理调度器
+        if hasattr(self, "_cleanup_scheduler") and self._cleanup_scheduler:
+            self._cleanup_scheduler.stop()
         self._device_manager.cleanup()
 
     def closeEvent(self, event) -> None:

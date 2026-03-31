@@ -4,30 +4,44 @@
     {
       "id": "tcp_002",
       "name": "Modbus TCP 设备 2",
-      "device_type": "Modbus TCP",
-      "device_number": null,
+      "device_type": "传感器",
+      "device_number": "None",
       "protocol_type": "modbus_tcp",
       "host": "127.0.0.1",
       "port": 502,
-      "unit_id": 2,
-      "use_simulator": true,
+      "unit_id": 1,
+      "use_simulator": false,
       "status": 0,
       "last_connected_at": null,
       "connection_count": 0,
       "error_count": 0,
       "created_at": "2026-03-30T07:53:12.280295",
-      "updated_at": "2026-03-30T07:53:12.280297",
+      "updated_at": "2026-03-30T09:16:23.936081",
       "device_id": "tcp_002",
       "protocol": "modbus_tcp",
       "ip": "127.0.0.1",
-      "slave_id": 2,
-      "register_map": []
+      "slave_id": 1,
+      "register_map": [
+        {
+          "id": 3,
+          "device_id": "tcp_002",
+          "name": "温度",
+          "address": 40001,
+          "function_code": 3,
+          "data_type": "uint16",
+          "read_write": "R",
+          "scale": 1.0,
+          "unit": "℃",
+          "description": "温度信息",
+          "enabled": true
+        }
+      ]
     },
     {
       "id": "tcp_003",
       "name": "Modbus TCP 设备 3",
-      "device_type": "Modbus TCP",
-      "device_number": null,
+      "device_type": "传感器",
+      "device_number": "None",
       "protocol_type": "modbus_tcp",
       "host": "127.0.0.1",
       "port": 502,
@@ -38,12 +52,26 @@
       "connection_count": 0,
       "error_count": 0,
       "created_at": "2026-03-30T07:53:12.281030",
-      "updated_at": "2026-03-30T07:53:12.281032",
+      "updated_at": "2026-03-31T02:11:32.000939",
       "device_id": "tcp_003",
       "protocol": "modbus_tcp",
       "ip": "127.0.0.1",
       "slave_id": 3,
-      "register_map": []
+      "register_map": [
+        {
+          "id": 4,
+          "device_id": "tcp_003",
+          "name": "压力",
+          "address": 40001,
+          "function_code": 3,
+          "data_type": "uint16",
+          "read_write": "R",
+          "scale": 1.0,
+          "unit": "兆帕",
+          "description": "",
+          "enabled": false
+        }
+      ]
     },
     {
       "id": "tcp_004",
@@ -197,28 +225,6 @@
       "protocol": "modbus_rtu",
       "ip": null,
       "slave_id": 5,
-      "register_map": []
-    },
-    {
-      "id": "625159ed",
-      "name": "未命名设备",
-      "device_type": "传感器",
-      "device_number": "",
-      "protocol_type": "modbus_tcp",
-      "host": null,
-      "port": null,
-      "unit_id": 1,
-      "use_simulator": false,
-      "status": 0,
-      "last_connected_at": null,
-      "connection_count": 0,
-      "error_count": 0,
-      "created_at": "2026-03-30T08:03:03.298580",
-      "updated_at": "2026-03-30T08:03:03.298583",
-      "device_id": "625159ed",
-      "protocol": "modbus_tcp",
-      "ip": null,
-      "slave_id": 1,
       "register_map": []
     }
   ]

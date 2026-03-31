@@ -556,3 +556,10 @@ class ActionCard(QFrame):
     def add_layout(self, layout) -> None:
         """添加子布局"""
         self._layout.addLayout(layout)
+
+
+# ═══════════════════════════════════════════════════════════
+# 可视化组件 (从 visual 模块导入)
+# ═══════════════════════════════════════════════════════════
+
+from .visual import AnimatedStatusBadge, ModernGauge, RealtimeChart

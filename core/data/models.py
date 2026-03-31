@@ -363,6 +363,45 @@ class SystemLogModel(Base):
         }
 
 
+class DeviceStatusHistoryModel(Base):
+    """Device status history record.
+
+    Tracks device status changes for history and trend analysis.
+    """
+
+    __tablename__ = "device_status_history"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    device_id = Column(String(64), ForeignKey("devices.id", ondelete="CASCADE"), nullable=False, index=True)
+    status = Column(String(32), nullable=False, index=True)  # connected, disconnected, error
+    status_code = Column(Integer, nullable=True)
+    message = Column(Text, nullable=True)
+    ip_address = Column(String(64), nullable=True)
+    port = Column(Integer, nullable=True)
+    duration_ms = Column(Integer, nullable=True)
+    timestamp = Column(DateTime, default=utc_now, nullable=False, index=True)
+
+    device = relationship("DeviceModel", backref="status_history")
+
+    __table_args__ = (
+        Index("idx_status_history_device_time", "device_id", "timestamp"),
+        Index("idx_status_history_status_time", "status", "timestamp"),
+    )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "device_id": self.device_id,
+            "status": self.status,
+            "status_code": self.status_code,
+            "message": self.message,
+            "ip_address": self.ip_address,
+            "port": self.port,
+            "duration_ms": self.duration_ms,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+        }
+
+
 class DatabaseManager:
     """SQLite database/session manager."""
 

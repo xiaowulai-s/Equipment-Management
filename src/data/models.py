@@ -1,7 +1,7 @@
 """
 ORM 数据模型
 
-定义6张数据表:
+定义7张数据表:
     1. devices           — 设备持久化 (与新Device模型双向转换)
     2. register_maps     — 寄存器映射 (与新Register模型双向转换)
     3. historical_data   — 历史数据点
@@ -563,3 +563,68 @@ class SystemLogModel(Base):
             "exception": self.exception,
             "timestamp": (self.timestamp.isoformat() if self.timestamp else None),
         }
+
+
+# ═══════════════════════════════════════════════════════════════
+# 设备状态历史模型
+# ═══════════════════════════════════════════════════════════════
+
+
+class DeviceStatusHistoryModel(Base):
+    """设备状态历史记录
+
+    记录设备的状态变化历史，用于状态追踪和趋势分析。
+    """
+
+    __tablename__ = "device_status_history"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    device_id = Column(String(64), ForeignKey("devices.id", ondelete="CASCADE"), nullable=False, index=True)
+    status = Column(String(32), nullable=False, index=True)  # connected, disconnected, error
+    status_code = Column(Integer, nullable=True)  # 数字状态码
+    message = Column(Text, nullable=True)  # 状态描述或错误信息
+    ip_address = Column(String(64), nullable=True)  # 连接时的IP
+    port = Column(Integer, nullable=True)  # 连接时的端口
+    duration_ms = Column(Integer, nullable=True)  # 状态持续时间(毫秒)
+    timestamp = Column(DateTime, default=_now, nullable=False, index=True)
+
+    # 关联关系
+    device = relationship("DeviceModel", backref="status_history")
+
+    __table_args__ = (
+        Index("idx_status_history_device_time", "device_id", "timestamp"),
+        Index("idx_status_history_status_time", "status", "timestamp"),
+    )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "device_id": self.device_id,
+            "status": self.status,
+            "status_code": self.status_code,
+            "message": self.message,
+            "ip_address": self.ip_address,
+            "port": self.port,
+            "duration_ms": self.duration_ms,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+        }
+
+    @classmethod
+    def from_event(
+        cls,
+        device_id: str,
+        status: str,
+        status_code: int = None,
+        message: str = None,
+        ip_address: str = None,
+        port: int = None,
+    ) -> "DeviceStatusHistoryModel":
+        """从状态事件创建设备状态历史记录"""
+        return cls(
+            device_id=device_id,
+            status=status,
+            status_code=status_code,
+            message=message,
+            ip_address=ip_address,
+            port=port,
+        )

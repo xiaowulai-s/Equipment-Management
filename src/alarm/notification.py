@@ -4,7 +4,6 @@
 提供多种通知渠道:
     - POPUP:   系统弹窗 (QMessageBox)
     - SOUND:   系统声音 (winsound / afplay / aplay)
-    - EMAIL:   邮件通知 (smtplib, 占位实现)
     - CUSTOM:  自定义回调函数
 
 设计要点:
@@ -33,7 +32,6 @@ class NotificationChannel(Enum):
 
     POPUP = "popup"
     SOUND = "sound"
-    EMAIL = "email"
     CUSTOM = "custom"
 
 
@@ -43,7 +41,6 @@ class NotificationConfig:
 
     enabled_channels: List[NotificationChannel] = field(default_factory=lambda: [NotificationChannel.POPUP])
     sound_file: Optional[Path] = None
-    email_recipients: List[str] = field(default_factory=list)
     custom_handler: Optional[Callable[[Dict[str, Any], str], None]] = None
     volume: float = 0.8
     cooldown_seconds: float = 30.0  # 报警通知冷却时间 (秒)
@@ -81,7 +78,6 @@ class AlarmNotificationService(QObject):
 
         self._config = config or NotificationConfig()
         self._sound_available = self._check_sound_available()
-        self._email_available = False
 
         # 报警抑制: {(device_id, register_name): last_notify_time}
         self._last_notify: Dict[tuple, float] = {}
@@ -90,10 +86,6 @@ class AlarmNotificationService(QObject):
         self._cleanup_timer = QTimer(self)
         self._cleanup_timer.timeout.connect(self._cleanup_suppression)
         self._cleanup_timer.start(60_000)
-
-        # 初始化邮件
-        if NotificationChannel.EMAIL in self._config.enabled_channels:
-            self._init_email()
 
         logger.info(
             f"AlarmNotificationService 初始化: "
@@ -178,8 +170,6 @@ class AlarmNotificationService(QObject):
                     self._send_popup(alarm_data)
                 elif channel == NotificationChannel.SOUND and self._sound_available:
                     self._send_sound(alarm_data)
-                elif channel == NotificationChannel.EMAIL and self._email_available:
-                    self._send_email(alarm_data)
                 elif channel == NotificationChannel.CUSTOM and self._config.custom_handler:
                     self._config.custom_handler(alarm_data, source)
 
@@ -289,15 +279,6 @@ class AlarmNotificationService(QObject):
         except Exception as e:
             logger.error(f"播放系统声音失败: {e}")
 
-    def _send_email(self, alarm_data: dict) -> None:
-        """邮件通知 (占位实现)"""
-        if not self._config.email_recipients:
-            logger.warning("邮件通知: 未配置收件人")
-            return
-
-        logger.info(f"邮件通知 (占位): 报警 {alarm_data.get('device_id')} " f"{alarm_data.get('register_name')}")
-        # TODO: 完善邮件发送实现 (需要SMTP配置)
-
     # ═══════════════════════════════════════════════════════
     # 维护
     # ═══════════════════════════════════════════════════════
@@ -305,8 +286,6 @@ class AlarmNotificationService(QObject):
     def update_config(self, config: NotificationConfig) -> None:
         """更新通知配置"""
         self._config = config
-        if NotificationChannel.EMAIL in config.enabled_channels and not self._email_available:
-            self._init_email()
         logger.info("通知配置已更新")
 
     def is_channel_available(self, channel: NotificationChannel) -> bool:
@@ -315,8 +294,6 @@ class AlarmNotificationService(QObject):
             return True
         elif channel == NotificationChannel.SOUND:
             return self._sound_available
-        elif channel == NotificationChannel.EMAIL:
-            return self._email_available
         elif channel == NotificationChannel.CUSTOM:
             return self._config.custom_handler is not None
         return False
@@ -336,16 +313,6 @@ class AlarmNotificationService(QObject):
         except ImportError:
             pass
         return False
-
-    def _init_email(self) -> None:
-        """初始化邮件"""
-        try:
-            import smtplib
-
-            self._email_available = True
-            logger.info("邮件通知已初始化")
-        except ImportError:
-            logger.warning("邮件通知不可用: smtplib 未安装")
 
     def _cleanup_suppression(self) -> None:
         """清理过期的报警抑制记录"""
