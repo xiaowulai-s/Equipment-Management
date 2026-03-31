@@ -7,7 +7,7 @@ import uuid
 from typing import Any, Dict, List, Optional
 
 from core.utils.alarm_enums import AlarmLevel, AlarmRule, AlarmType
-from core.utils.logger import get_logger
+from core.utils.logger_v2 import get_logger
 
 from .models import DatabaseManager
 from .repository.alarm_rule_repository import AlarmRuleRepository

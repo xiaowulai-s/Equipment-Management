@@ -44,23 +44,128 @@ class DevicePollInfo:
         self.max_errors = 3
         self.backoff_time = 0  # 退避时间
 
+        # 动态轮询间隔相关
+        self.response_times = deque(maxlen=10)  # 最近10次响应时间
+        self.min_interval = 100  # 最小轮询间隔 (ms)
+        self.max_interval = 10000  # 最大轮询间隔 (ms)
+        self.target_response_time = 50  # 目标响应时间 (ms)
+        self.adjustment_factor = 0.1  # 调整因子
+
+        # 轮询统计
+        self.total_polls = 0
+        self.successful_polls = 0
+        self.failed_polls = 0
+
+        # 故障诊断和恢复相关
+        self.error_history = deque(maxlen=20)  # 最近20次错误记录
+        self.fault_type = None  # 当前故障类型
+        self.fault_start_time = None  # 故障开始时间
+        self.fault_duration = 0  # 故障持续时间 (ms)
+        self.recovery_attempts = 0  # 恢复尝试次数
+        self.max_recovery_attempts = 5  # 最大恢复尝试次数
+        self.recovery_mode = "auto"  # 恢复模式: auto/manual
+        self.recovery_status = "none"  # 恢复状态: none/attempting/succeeded/failed
+        self.recovery_history = []  # 恢复历史记录
+        self.fault_detection_enabled = True  # 是否启用故障检测
+        self.recovery_enabled = True  # 是否启用自动恢复
+
+        # 自动重连开关
+        self.auto_reconnect_enabled = True  # 是否启用自动重连
+
+        # 常见故障类型
+        self.FAULT_TYPES = {
+            "communication_timeout": "通信超时",
+            "connection_refused": "连接被拒绝",
+            "invalid_response": "无效响应",
+            "device_offline": "设备离线",
+            "protocol_error": "协议错误",
+            "unknown": "未知错误",
+        }
+
     def should_poll(self, current_time: int) -> bool:
         """是否应该轮询"""
         if self.backoff_time > 0 and current_time < self.backoff_time:
             return False
         return current_time >= self.next_poll_time
 
-    def update_poll_time(self, current_time: int):
-        """更新轮询时间"""
-        self.last_poll_time = current_time
-        # 根据优先级调整间隔
-        intervals = {PollPriority.HIGH: 200, PollPriority.NORMAL: 1000, PollPriority.LOW: 5000}
-        self.poll_interval = intervals.get(self.priority, 1000)
-        self.next_poll_time = current_time + self.poll_interval
+    def update_poll_time(self, current_time: int, response_time: float = 0):
+        """更新轮询时间，支持动态调整
 
-    def on_error(self):
-        """处理错误 - 指数退避"""
+        Args:
+            current_time: 当前时间 (ms)
+            response_time: 本次轮询响应时间 (ms)
+        """
+        self.last_poll_time = current_time
+
+        # 记录响应时间
+        if response_time > 0:
+            self.response_times.append(response_time)
+            self._adjust_poll_interval()
+
+        # 如果没有响应时间记录，使用默认优先级间隔
+        if not self.response_times:
+            intervals = {PollPriority.HIGH: 200, PollPriority.NORMAL: 1000, PollPriority.LOW: 5000}
+            self.poll_interval = intervals.get(self.priority, 1000)
+
+        # 确保轮询间隔在合理范围内
+        self.poll_interval = max(self.min_interval, min(self.poll_interval, self.max_interval))
+        self.next_poll_time = current_time + int(self.poll_interval)
+
+        # 更新统计
+        self.total_polls += 1
+
+    def _adjust_poll_interval(self):
+        """根据响应时间动态调整轮询间隔"""
+        if not self.response_times:
+            return
+
+        # 计算平均响应时间
+        avg_response = sum(self.response_times) / len(self.response_times)
+
+        # 根据响应时间调整轮询间隔
+        if avg_response < self.target_response_time:
+            # 响应时间快，可以增加轮询频率（减小间隔）
+            self.poll_interval *= 1 - self.adjustment_factor
+        elif avg_response > self.target_response_time * 2:
+            # 响应时间慢，降低轮询频率（增加间隔）
+            self.poll_interval *= 1 + self.adjustment_factor
+        # 否则保持不变
+
+        logger.debug(
+            "动态调整轮询间隔",
+            device_id=self.device.get_device_id(),
+            avg_response=avg_response,
+            new_interval=self.poll_interval,
+            target_response=self.target_response_time,
+        )
+
+    def on_success(self):
+        """处理成功"""
+        if self.consecutive_errors > 0:
+            logger.info("设备轮询恢复", device_id=self.device.get_device_id(), previous_errors=self.consecutive_errors)
+
+        # 清除故障状态
+        self._clear_fault()
+
+        self.consecutive_errors = 0
+        self.backoff_time = 0
+
+    def on_error(self, error_type="unknown", error_msg=""):
+        """处理错误 - 指数退避并记录故障信息"""
         self.consecutive_errors += 1
+
+        # 记录错误历史
+        error_entry = {
+            "timestamp": int(time.time() * 1000),
+            "error_type": error_type,
+            "error_msg": error_msg,
+            "consecutive_errors": self.consecutive_errors,
+        }
+        self.error_history.append(error_entry)
+
+        # 检测故障
+        self._detect_fault(error_type, error_msg)
+
         if self.consecutive_errors >= self.max_errors:
             # 指数退避: 1s, 2s, 4s, 8s, max 30s
             backoff_seconds = min(2 ** (self.consecutive_errors - self.max_errors), 30)
@@ -72,12 +177,162 @@ class DevicePollInfo:
                 backoff_seconds=backoff_seconds,
             )
 
-    def on_success(self):
-        """处理成功"""
-        if self.consecutive_errors > 0:
-            logger.info("设备轮询恢复", device_id=self.device.get_device_id(), previous_errors=self.consecutive_errors)
-        self.consecutive_errors = 0
-        self.backoff_time = 0
+            # 触发恢复流程
+            if self.recovery_enabled:
+                self._start_recovery()
+
+    def _detect_fault(self, error_type, error_msg):
+        """检测并识别故障类型"""
+        if not self.fault_detection_enabled:
+            return
+
+        # 如果当前没有故障，开始新故障记录
+        if not self.fault_type:
+            self.fault_type = error_type
+            self.fault_start_time = int(time.time() * 1000)
+            logger.info(
+                "设备故障检测到",
+                device_id=self.device.get_device_id(),
+                fault_type=self.FAULT_TYPES.get(error_type, error_type),
+                error_msg=error_msg,
+            )
+
+        # 更新故障持续时间
+        self.fault_duration = int(time.time() * 1000) - self.fault_start_time
+
+    def _clear_fault(self):
+        """清除故障状态"""
+        if self.fault_type:
+            # 记录故障恢复
+            fault_info = {
+                "fault_type": self.fault_type,
+                "start_time": self.fault_start_time,
+                "duration": self.fault_duration,
+                "recovery_attempts": self.recovery_attempts,
+                "recovery_status": self.recovery_status,
+            }
+
+            logger.info(
+                "设备故障恢复",
+                device_id=self.device.get_device_id(),
+                fault_type=self.FAULT_TYPES.get(self.fault_type, self.fault_type),
+                duration=self.fault_duration,
+                recovery_attempts=self.recovery_attempts,
+            )
+
+            # 重置故障状态
+            self.fault_type = None
+            self.fault_start_time = None
+            self.fault_duration = 0
+            self.recovery_attempts = 0
+            self.recovery_status = "none"
+
+    def _start_recovery(self):
+        """启动恢复流程"""
+        if self.recovery_status in ["attempting", "succeeded"]:
+            return
+
+        self.recovery_status = "attempting"
+        self.recovery_attempts = 0
+        logger.info(
+            "启动设备故障恢复",
+            device_id=self.device.get_device_id(),
+            fault_type=self.FAULT_TYPES.get(self.fault_type, self.fault_type),
+        )
+
+        # 执行恢复尝试
+        self._attempt_recovery()
+
+    def _attempt_recovery(self):
+        """执行恢复尝试"""
+        if not self.recovery_enabled or self.recovery_status != "attempting":
+            return
+
+        self.recovery_attempts += 1
+
+        # 记录恢复尝试
+        recovery_entry = {
+            "timestamp": int(time.time() * 1000),
+            "attempt": self.recovery_attempts,
+            "status": "in_progress",
+            "fault_type": self.fault_type,
+        }
+
+        logger.info(
+            "设备恢复尝试",
+            device_id=self.device.get_device_id(),
+            attempt=self.recovery_attempts,
+            fault_type=self.FAULT_TYPES.get(self.fault_type, self.fault_type),
+        )
+
+        try:
+            # 根据故障类型执行不同的恢复策略
+            if self.fault_type in ["communication_timeout", "connection_refused", "device_offline"]:
+                # 通信相关故障 - 尝试重新连接
+                success = self.device.reconnect() if hasattr(self.device, "reconnect") else self.device.connect()
+            elif self.fault_type in ["invalid_response", "protocol_error"]:
+                # 协议相关故障 - 尝试重置设备状态
+                success = self.device.reset() if hasattr(self.device, "reset") else False
+            else:
+                # 未知故障 - 尝试重新连接
+                success = self.device.reconnect() if hasattr(self.device, "reconnect") else self.device.connect()
+
+            if success:
+                # 恢复成功
+                recovery_entry["status"] = "succeeded"
+                recovery_entry["message"] = "恢复成功"
+                self.recovery_status = "succeeded"
+                self.recovery_history.append(recovery_entry)
+                logger.info("设备恢复成功", device_id=self.device.get_device_id(), attempt=self.recovery_attempts)
+            else:
+                # 恢复失败
+                recovery_entry["status"] = "failed"
+                recovery_entry["message"] = "恢复失败"
+                self.recovery_history.append(recovery_entry)
+
+                if self.recovery_attempts >= self.max_recovery_attempts:
+                    # 达到最大尝试次数，放弃恢复
+                    self.recovery_status = "failed"
+                    logger.error(
+                        "设备恢复失败达到最大尝试次数",
+                        device_id=self.device.get_device_id(),
+                        max_attempts=self.max_recovery_attempts,
+                    )
+                else:
+                    # 稍后重试，使用指数退避
+                    backoff_time = min(2 ** (self.recovery_attempts - 1), 30) * 1000
+                    logger.info(
+                        "设备恢复失败，稍后重试",
+                        device_id=self.device.get_device_id(),
+                        attempt=self.recovery_attempts,
+                        backoff_time=backoff_time,
+                    )
+                    # 注意：这里需要在设备管理器中实现定时重试逻辑，因为当前类没有定时器
+
+        except Exception as e:
+            # 恢复过程中发生异常
+            recovery_entry["status"] = "failed"
+            recovery_entry["message"] = f"恢复异常: {str(e)}"
+            self.recovery_history.append(recovery_entry)
+            logger.error(
+                "设备恢复过程异常", device_id=self.device.get_device_id(), attempt=self.recovery_attempts, error=str(e)
+            )
+
+            if self.recovery_attempts >= self.max_recovery_attempts:
+                self.recovery_status = "failed"
+
+
+class PollingGroup:
+    """轮询组配置"""
+
+    def __init__(
+        self, name: str, priority: PollPriority = PollPriority.NORMAL, base_interval: int = 1000, enabled: bool = True
+    ):
+        self.name = name
+        self.priority = priority
+        self.base_interval = base_interval
+        self.enabled = enabled
+        self.device_ids = set()
 
 
 class DeviceManagerV2(QObject):
@@ -87,6 +342,7 @@ class DeviceManagerV2(QObject):
     - 指数退避重连
     - 优先级队列
     - 数据持久化
+    - 设备分组轮询
     """
 
     # 信号定义
@@ -122,6 +378,10 @@ class DeviceManagerV2(QObject):
         self._buffer_flush_timer.timeout.connect(self._flush_data_buffer)
         self._buffer_flush_interval = 5000  # 5秒刷新一次
 
+        # 设备分组管理
+        self._polling_groups: Dict[str, PollingGroup] = {"default": PollingGroup("default")}
+        self._device_groups: Dict[str, str] = {}  # device_id -> group_name
+
         self._load_devices()
         self._start_timers()
 
@@ -150,6 +410,9 @@ class DeviceManagerV2(QObject):
 
                 for device_model in devices:
                     config = repo.to_config(device_model)
+                    logger.info(
+                        f"加载设备: {device_model.name}, 端口: {device_model.port}, 配置端口: {config.get('port')}"
+                    )
                     self._create_device_internal(config["device_id"], config)
 
             logger.info(f"从数据库加载了 {len(devices)} 个设备")
@@ -242,6 +505,8 @@ class DeviceManagerV2(QObject):
         priority = self._determine_priority(config)
         poll_info = DevicePollInfo(device, priority)
         poll_info.poll_interval = config.get("poll_interval", 1000)
+        # 设置自动重连开关状态
+        poll_info.auto_reconnect_enabled = config.get("auto_reconnect_enabled", True)
 
         self._devices[device_id] = poll_info
         return device
@@ -316,11 +581,19 @@ class DeviceManagerV2(QObject):
             logger.error("移除设备失败", device_id=device_id, error=str(e))
             return False
 
-    def connect_device(self, device_id: str) -> bool:
-        """连接设备"""
+    def connect_device(self, device_id: str) -> tuple[bool, str, str]:
+        """连接设备
+
+        Returns:
+            tuple: (success, error_type, error_msg)
+                success: 连接是否成功
+                error_type: 错误类型
+                error_msg: 错误消息
+        """
         if device_id not in self._devices:
+            error_msg = "设备不存在"
             logger.error("设备不存在", device_id=device_id)
-            return False
+            return False, "device_not_found", error_msg
 
         poll_info = self._devices[device_id]
         device = poll_info.device
@@ -334,16 +607,87 @@ class DeviceManagerV2(QObject):
                 # 重置重连计数
                 if device_id in self._reconnect_attempts:
                     del self._reconnect_attempts[device_id]
+                return True, "", ""
             else:
-                # 加入重连队列
-                self._schedule_reconnect(device_id)
-
-            return success
+                # 检查是否启用了自动重连
+                if poll_info.auto_reconnect_enabled:
+                    self._schedule_reconnect(device_id)
+                error_msg = "设备连接失败"
+                return False, "connect_failed", error_msg
 
         except Exception as e:
-            logger.error("连接设备异常", device_id=device_id, error=str(e))
-            self._schedule_reconnect(device_id)
+            error_msg = str(e)
+            error_type = "unknown"
+
+            # 根据异常类型确定错误类型
+            if any(keyword in error_msg.lower() for keyword in ["timeout", "timed out"]):
+                error_type = "communication_timeout"
+            elif "connection refused" in error_msg.lower() or "connect failed" in error_msg.lower():
+                error_type = "connection_refused"
+            elif "invalid" in error_msg.lower() or "wrong" in error_msg.lower():
+                error_type = "invalid_response"
+            elif "offline" in error_msg.lower() or "disconnected" in error_msg.lower():
+                error_type = "device_offline"
+            elif "protocol" in error_msg.lower() or "modbus" in error_msg.lower():
+                error_type = "protocol_error"
+
+            logger.error("连接设备异常", device_id=device_id, error=error_msg)
+            # 检查是否启用了自动重连
+            if poll_info.auto_reconnect_enabled:
+                self._schedule_reconnect(device_id)
+            return False, error_type, error_msg
+
+    def set_device_auto_reconnect(self, device_id: str, enabled: bool) -> bool:
+        """设置单个设备的自动重连开关
+
+        Args:
+            device_id: 设备ID
+            enabled: 是否启用自动重连
+
+        Returns:
+            bool: 设置是否成功
+        """
+        if device_id not in self._devices:
+            logger.error("设备不存在", device_id=device_id)
             return False
+
+        poll_info = self._devices[device_id]
+        poll_info.auto_reconnect_enabled = enabled
+        logger.info("设置设备自动重连状态", device_id=device_id, enabled=enabled)
+        return True
+
+    def set_all_devices_auto_reconnect(self, enabled: bool) -> int:
+        """一键设置所有设备的自动重连开关
+
+        Args:
+            enabled: 是否启用自动重连
+
+        Returns:
+            int: 设置成功的设备数量
+        """
+        count = 0
+        for device_id, poll_info in self._devices.items():
+            poll_info.auto_reconnect_enabled = enabled
+            count += 1
+        logger.info("批量设置设备自动重连状态", count=count, enabled=enabled)
+        return count
+
+    def get_auto_reconnect_status(self) -> tuple[int, int]:
+        """获取所有设备的自动重连状态
+
+        Returns:
+            tuple: (enabled_count, disabled_count)
+                enabled_count: 启用自动重连的设备数量
+                disabled_count: 禁用自动重连的设备数量
+        """
+        enabled_count = 0
+        disabled_count = 0
+        for poll_info in self._devices.values():
+            if poll_info.auto_reconnect_enabled:
+                enabled_count += 1
+            else:
+                disabled_count += 1
+        return enabled_count, disabled_count
 
     def disconnect_device(self, device_id: str):
         """断开设备"""
@@ -390,19 +734,51 @@ class DeviceManagerV2(QObject):
             if poll_info.device.get_status() != DeviceStatus.CONNECTED:
                 continue
 
+            # 检查设备所属组是否启用
+            group_name = self._device_groups.get(device_id, "default")
+            group = self._polling_groups.get(group_name, None)
+            if not group or not group.enabled:
+                continue
+
             if not poll_info.should_poll(current_time):
                 continue
 
             try:
+                # 测量响应时间
+                start_time = time.time()
                 data = poll_info.device.poll_data()
+                end_time = time.time()
+                response_time = (end_time - start_time) * 1000  # 转换为 ms
+
                 if data:
                     poll_info.on_success()
+                    poll_info.successful_polls += 1
                     self._persist_data(device_id, data)
-                poll_info.update_poll_time(current_time)
+                else:
+                    poll_info.failed_polls += 1
+
+                # 更新轮询时间，传入响应时间进行动态调整
+                poll_info.update_poll_time(current_time, response_time)
 
             except Exception as e:
-                poll_info.on_error()
-                logger.error("轮询设备失败", device_id=device_id, error=str(e))
+                # 根据异常类型确定故障类型
+                error_msg = str(e)
+                error_type = "unknown"
+
+                if any(keyword in error_msg.lower() for keyword in ["timeout", "timed out"]):
+                    error_type = "communication_timeout"
+                elif "connection refused" in error_msg.lower() or "connect failed" in error_msg.lower():
+                    error_type = "connection_refused"
+                elif "invalid" in error_msg.lower() or "wrong" in error_msg.lower():
+                    error_type = "invalid_response"
+                elif "offline" in error_msg.lower() or "disconnected" in error_msg.lower():
+                    error_type = "device_offline"
+                elif "protocol" in error_msg.lower() or "modbus" in error_msg.lower():
+                    error_type = "protocol_error"
+
+                poll_info.on_error(error_type, error_msg)
+                poll_info.failed_polls += 1
+                logger.error("轮询设备失败", device_id=device_id, error=error_msg, fault_type=error_type)
 
     def _persist_data(self, device_id: str, data: Dict):
         """持久化数据到缓冲区"""
@@ -472,6 +848,8 @@ class DeviceManagerV2(QObject):
             success = device.connect()
             if success:
                 logger.info("设备重连成功", device_id=device_id)
+                poll_info = self._devices[device_id]
+                poll_info.on_success()
                 del self._reconnect_attempts[device_id]
                 self.device_connected.emit(device_id)
             else:
@@ -494,13 +872,17 @@ class DeviceManagerV2(QObject):
             self.device_connected.emit(device_id)
         elif status == DeviceStatus.DISCONNECTED:
             self.device_disconnected.emit(device_id)
-            # 手动断开的设备不自动重连
+            # 检查是否启用了自动重连，且不是手动断开的设备
             if device_id not in self._manually_disconnected:
-                self._schedule_reconnect(device_id)
+                poll_info = self._devices.get(device_id)
+                if poll_info and poll_info.auto_reconnect_enabled:
+                    self._schedule_reconnect(device_id)
         elif status == DeviceStatus.ERROR:
             # 错误状态也尝试重连（手动断开后不会进入ERROR状态，此处安全）
             if device_id not in self._manually_disconnected:
-                self._schedule_reconnect(device_id)
+                poll_info = self._devices.get(device_id)
+                if poll_info and poll_info.auto_reconnect_enabled:
+                    self._schedule_reconnect(device_id)
 
     def _on_device_data_updated(self, device_id: str, data: Dict):
         """处理设备数据更新"""
@@ -547,6 +929,15 @@ class DeviceManagerV2(QObject):
                     "config": config,
                     "priority": poll_info.priority.name,
                     "poll_interval": poll_info.poll_interval,
+                    # 故障恢复相关信息
+                    "fault_type": poll_info.fault_type,
+                    "fault_start_time": poll_info.fault_start_time,
+                    "fault_duration": poll_info.fault_duration,
+                    "recovery_attempts": poll_info.recovery_attempts,
+                    "recovery_status": poll_info.recovery_status,
+                    "recovery_mode": poll_info.recovery_mode,
+                    "recovery_enabled": poll_info.recovery_enabled,
+                    "fault_detection_enabled": poll_info.fault_detection_enabled,
                 }
             )
         return result
@@ -563,6 +954,200 @@ class DeviceManagerV2(QObject):
         """设置轮询间隔"""
         self._poll_interval = max(50, min(interval_ms, 1000))
         self._poll_timer.setInterval(self._poll_interval)
+
+    # ------------------- 故障恢复控制方法 -------------------
+
+    def enable_fault_detection(self, device_id: str, enabled: bool) -> bool:
+        """启用/禁用设备故障检测"""
+        if device_id not in self._devices:
+            return False
+
+        self._devices[device_id].fault_detection_enabled = enabled
+        logger.info("更新设备故障检测状态", device_id=device_id, enabled=enabled)
+        return True
+
+    def enable_auto_recovery(self, device_id: str, enabled: bool) -> bool:
+        """启用/禁用设备自动恢复"""
+        if device_id not in self._devices:
+            return False
+
+        self._devices[device_id].recovery_enabled = enabled
+        logger.info("更新设备自动恢复状态", device_id=device_id, enabled=enabled)
+        return True
+
+    def set_recovery_mode(self, device_id: str, mode: str) -> bool:
+        """设置设备恢复模式 (auto/manual)"""
+        if device_id not in self._devices or mode not in ["auto", "manual"]:
+            return False
+
+        self._devices[device_id].recovery_mode = mode
+        logger.info("更新设备恢复模式", device_id=device_id, mode=mode)
+        return True
+
+    def set_max_recovery_attempts(self, device_id: str, max_attempts: int) -> bool:
+        """设置设备最大恢复尝试次数"""
+        if device_id not in self._devices or max_attempts <= 0:
+            return False
+
+        self._devices[device_id].max_recovery_attempts = max_attempts
+        logger.info("更新设备最大恢复尝试次数", device_id=device_id, max_attempts=max_attempts)
+        return True
+
+    def get_fault_recovery_status(self, device_id: str) -> Dict:
+        """获取设备故障恢复状态"""
+        if device_id not in self._devices:
+            return {}
+
+        poll_info = self._devices[device_id]
+        return {
+            "fault_type": poll_info.fault_type,
+            "fault_start_time": poll_info.fault_start_time,
+            "fault_duration": poll_info.fault_duration,
+            "recovery_attempts": poll_info.recovery_attempts,
+            "max_recovery_attempts": poll_info.max_recovery_attempts,
+            "recovery_status": poll_info.recovery_status,
+            "recovery_mode": poll_info.recovery_mode,
+            "recovery_enabled": poll_info.recovery_enabled,
+            "fault_detection_enabled": poll_info.fault_detection_enabled,
+            "recovery_history": poll_info.recovery_history[-5:],  # 最近5次恢复尝试
+            "error_history": poll_info.error_history[-10:],  # 最近10次错误记录
+        }
+
+    def manual_recovery(self, device_id: str) -> bool:
+        """手动触发设备恢复"""
+        if device_id not in self._devices:
+            return False
+
+        poll_info = self._devices[device_id]
+        poll_info.recovery_mode = "manual"
+
+        try:
+            logger.info("手动触发设备恢复", device_id=device_id)
+
+            # 执行恢复尝试
+            poll_info._start_recovery()
+            return True
+        except Exception as e:
+            logger.error("手动恢复设备失败", device_id=device_id, error=str(e))
+            return False
+
+    # ------------------- 设备分组管理方法 -------------------
+
+    def add_polling_group(
+        self, name: str, priority: PollPriority = PollPriority.NORMAL, base_interval: int = 1000, enabled: bool = True
+    ) -> bool:
+        """添加轮询组"""
+        if name in self._polling_groups:
+            logger.error("轮询组已存在", group_name=name)
+            return False
+
+        group = PollingGroup(name, priority, base_interval, enabled)
+        self._polling_groups[name] = group
+        logger.info("添加轮询组成功", group_name=name)
+        return True
+
+    def remove_polling_group(self, name: str) -> bool:
+        """删除轮询组"""
+        if name == "default":
+            logger.error("不能删除默认轮询组")
+            return False
+
+        if name not in self._polling_groups:
+            logger.error("轮询组不存在", group_name=name)
+            return False
+
+        # 将组内设备移到默认组
+        group = self._polling_groups[name]
+        for device_id in group.device_ids:
+            self.assign_device_to_group(device_id, "default")
+
+        del self._polling_groups[name]
+        logger.info("删除轮询组成功", group_name=name)
+        return True
+
+    def assign_device_to_group(self, device_id: str, group_name: str) -> bool:
+        """将设备分配到轮询组"""
+        if device_id not in self._devices:
+            logger.error("设备不存在", device_id=device_id)
+            return False
+
+        if group_name not in self._polling_groups:
+            logger.error("轮询组不存在", group_name=group_name)
+            return False
+
+        # 从旧组移除
+        old_group = self._device_groups.get(device_id, "default")
+        if old_group in self._polling_groups:
+            self._polling_groups[old_group].device_ids.discard(device_id)
+
+        # 添加到新组
+        self._polling_groups[group_name].device_ids.add(device_id)
+        self._device_groups[device_id] = group_name
+
+        # 更新设备优先级
+        poll_info = self._devices[device_id]
+        poll_info.priority = self._polling_groups[group_name].priority
+
+        logger.info("设备分配到轮询组成功", device_id=device_id, group_name=group_name)
+        return True
+
+    def get_group_devices(self, group_name: str) -> List[str]:
+        """获取组内设备列表"""
+        if group_name not in self._polling_groups:
+            logger.error("轮询组不存在", group_name=group_name)
+            return []
+
+        return list(self._polling_groups[group_name].device_ids)
+
+    def get_device_group(self, device_id: str) -> str:
+        """获取设备所属组"""
+        return self._device_groups.get(device_id, "default")
+
+    def get_all_groups(self) -> List[Dict]:
+        """获取所有轮询组"""
+        result = []
+        for group_name, group in self._polling_groups.items():
+            result.append(
+                {
+                    "name": group_name,
+                    "priority": group.priority.name,
+                    "base_interval": group.base_interval,
+                    "enabled": group.enabled,
+                    "device_count": len(group.device_ids),
+                }
+            )
+        return result
+
+    def enable_group(self, group_name: str, enabled: bool) -> bool:
+        """启用/禁用轮询组"""
+        if group_name not in self._polling_groups:
+            logger.error("轮询组不存在", group_name=group_name)
+            return False
+
+        self._polling_groups[group_name].enabled = enabled
+        logger.info("更新轮询组状态成功", group_name=group_name, enabled=enabled)
+        return True
+
+    def get_polling_statistics(self) -> Dict:
+        """获取轮询统计信息"""
+        stats = {
+            "total_devices": len(self._devices),
+            "total_groups": len(self._polling_groups),
+            "total_polls": sum(p.total_polls for p in self._devices.values()),
+            "successful_polls": sum(p.successful_polls for p in self._devices.values()),
+            "failed_polls": sum(p.failed_polls for p in self._devices.values()),
+            "devices_by_group": {},
+        }
+
+        # 按组统计
+        for group_name, group in self._polling_groups.items():
+            stats["devices_by_group"][group_name] = {
+                "device_count": len(group.device_ids),
+                "enabled": group.enabled,
+                "priority": group.priority.name,
+            }
+
+        return stats
 
     def cleanup(self):
         """清理资源"""

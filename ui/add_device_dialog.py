@@ -24,7 +24,7 @@ from core.device.device_type_manager import DeviceTypeManager
 from core.utils.serial_utils import test_serial_port
 
 # 新架构导入
-from src.protocols import ProtocolType
+from core.device.device_factory import ProtocolType
 from ui.register_config_dialog import RegisterConfigDialog
 
 # UI组件库
@@ -103,6 +103,13 @@ class AddDeviceDialog(QDialog):
         simulator_layout.addWidget(self.simulator_check)
         layout.addRow(simulator_layout)
 
+        # 自动重连开关
+        self.auto_reconnect_check = QCheckBox("启用自动重连")
+        self.auto_reconnect_check.setChecked(True)  # 默认启用
+        auto_reconnect_layout = QHBoxLayout()
+        auto_reconnect_layout.addWidget(self.auto_reconnect_check)
+        layout.addRow(auto_reconnect_layout)
+
         register_button_layout = QHBoxLayout()
         self.register_count_label = QLabel()
         self.register_count_label.setStyleSheet("color: #000000; font-size: 12px;")
@@ -163,6 +170,8 @@ class AddDeviceDialog(QDialog):
                 break
 
         self.simulator_check.setChecked(bool(config.get("use_simulator", False)))
+        # 设置自动重连开关状态
+        self.auto_reconnect_check.setChecked(bool(config.get("auto_reconnect_enabled", True)))
         self._populate_protocol_fields(config)
 
     def _populate_protocol_fields(self, config: Dict[str, Any]) -> None:
@@ -434,6 +443,7 @@ class AddDeviceDialog(QDialog):
             "device_number": self.number_edit.text().strip(),
             "protocol_type": protocol_type_str,
             "use_simulator": self.simulator_check.isChecked(),
+            "auto_reconnect_enabled": self.auto_reconnect_check.isChecked(),  # 自动重连开关
             "register_map": list(self._register_map),  # 保留旧格式，待主窗口迁移时转换为 Register 对象
         }
 
@@ -500,6 +510,8 @@ class AddDeviceDialog(QDialog):
             tcp_params.setdefault("timeout", 3.0)
             tcp_params.setdefault("keepalive", True)
             config["tcp_params"] = tcp_params
+            # 兼容旧格式：将端口信息直接放在config顶层
+            config["port"] = tcp_params["port"]
 
         if serial_params:
             # 串口默认值
@@ -511,6 +523,8 @@ class AddDeviceDialog(QDialog):
             serial_params.setdefault("timeout", 3.0)
             serial_params.setdefault("flow_control", False)
             config["serial_params"] = serial_params
+            # 兼容旧格式：将端口信息直接放在config顶层
+            config["port"] = serial_params["port"]
 
         if poll_params:
             config["poll_config"] = poll_params
@@ -519,5 +533,6 @@ class AddDeviceDialog(QDialog):
         # 暂时保留 host/ip 映射
         if tcp_params and "host" in tcp_params:
             config["ip"] = tcp_params["host"]
+            config["host"] = tcp_params["host"]
 
         return config

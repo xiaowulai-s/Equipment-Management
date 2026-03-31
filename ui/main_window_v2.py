@@ -57,7 +57,7 @@ from ui.widgets import (
     StatusBadge,
     SuccessButton,
 )
-from ui.widgets.visual import ModernGauge
+
 
 if TYPE_CHECKING:
     from core.device.device_model import Device  # noqa: F401
@@ -69,11 +69,11 @@ class TextConstants:
     """UI text constants - centralized for easy maintenance"""
 
     APP_NAME = "工业设备管理系统"
-    APP_VERSION = "2.0.0"
+    APP_VERSION = "1.6.0"
     WINDOW_TITLE = f"{APP_NAME} v{APP_VERSION}"
 
     DEVICE_LIST_TITLE = "设备列表"
-    ADD_DEVICE_BTN = "+ 添加设备"
+    ADD_DEVICE_BTN = "添加设备"
     REMOVE_DEVICE_BTN = "移除设备"
     SEARCH_PLACEHOLDER = "搜索设备名称..."
 
@@ -263,11 +263,11 @@ class MainWindowV2(QMainWindow):
         self._left_panel_collapsed = False
         self._left_panel_saved_size = 480
 
-        # 仪表盘配置存储: {device_id: [gauge_configs]}
-        self._device_gauges: Dict[str, List[Dict[str, Any]]] = {}
-
         # 数据卡片配置存储: {device_id: [card_configs]}
         self._device_cards: Dict[str, List[Dict[str, Any]]] = {}
+
+        # 趋势图配置存储: {device_id: [chart_configs]}
+        self._device_charts: Dict[str, List[Dict[str, Any]]] = {}
 
         # 数据清理调度器
         from core.data.cleanup_scheduler import CleanupScheduler
@@ -298,7 +298,7 @@ class MainWindowV2(QMainWindow):
 
         self._create_tool_bar()
 
-        # ── QSplitter: 左面板 + 右面板 ──
+        # ── QSplitter: 左面板 + 右面板 + 报文生成工具 ──
         self._splitter = QSplitter(Qt.Orientation.Horizontal)
         main_layout.addWidget(self._splitter)
 
@@ -306,7 +306,7 @@ class MainWindowV2(QMainWindow):
         self._left_panel = self._create_left_panel()
         self._splitter.addWidget(self._left_panel)
 
-        # 右侧面板 (StackedWidget)
+        # 中间面板 (StackedWidget: 监控页面)
         self._stack_widget = QStackedWidget()
         self._stack_widget.setStyleSheet(AppStyles.STACKED_WIDGET)
         self._stack_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -319,16 +319,25 @@ class MainWindowV2(QMainWindow):
 
         self._splitter.addWidget(self._stack_widget)
 
+        # 右侧面板 (报文生成工具)
+        from ui.modbus_generator_widget import ModbusGeneratorWidget
+
+        self._modbus_generator = ModbusGeneratorWidget()
+        self._modbus_generator.setVisible(False)  # 默认隐藏
+        self._splitter.addWidget(self._modbus_generator)
+
         # 默认显示监控页面（显示日志栏目）
         self._stack_widget.setCurrentIndex(1)
         self._log_message("程序启动，等待设备连接...", "INFO")
 
         # Splitter 配置
-        self._splitter.setStretchFactor(0, 20)
-        self._splitter.setStretchFactor(1, 80)
-        self._splitter.setSizes([self._left_panel_saved_size, 1200])
+        self._splitter.setStretchFactor(0, 15)
+        self._splitter.setStretchFactor(1, 70)
+        self._splitter.setStretchFactor(2, 15)
+        self._splitter.setSizes([self._left_panel_saved_size, 1100, 0])
         self._splitter.setCollapsible(0, False)
         self._splitter.setCollapsible(1, False)
+        self._splitter.setCollapsible(2, True)
         self._splitter.setStyleSheet(AppStyles.SPLITTER)
         self._splitter.splitterMoved.connect(self._on_splitter_moved)
 
@@ -362,6 +371,13 @@ class MainWindowV2(QMainWindow):
         exit_action.triggered.connect(self.close)
 
         tools_menu = menubar.addMenu(TextConstants.MENU_TOOLS)
+
+        # 报文生成工具
+        self._modbus_gen_action = tools_menu.addAction("报文生成工具")
+        self._modbus_gen_action.setCheckable(True)
+        self._modbus_gen_action.triggered.connect(self._toggle_modbus_generator)
+
+        tools_menu.addSeparator()
 
         alarm_history_action = tools_menu.addAction(TextConstants.ACTION_ALARM_HISTORY)
         alarm_history_action.triggered.connect(self._show_alarm_history)
@@ -406,6 +422,18 @@ class MainWindowV2(QMainWindow):
         # 错误
         self._status_error_label = self._make_status_label("● 错误 0", "#F44336")
         status_bar.addPermanentWidget(self._status_error_label)
+
+        # 分隔符
+        sep2 = QLabel("|")
+        sep2.setStyleSheet("color: #D1D5DB; font-size: 12px; padding: 0 4px;")
+        status_bar.addPermanentWidget(sep2)
+
+        # 自动重连状态
+        self._status_auto_reconnect_enabled = self._make_status_label("● 自动重连启用 0", "#2196F3")
+        status_bar.addPermanentWidget(self._status_auto_reconnect_enabled)
+
+        self._status_auto_reconnect_disabled = self._make_status_label("● 自动重连禁用 0", "#FF9800")
+        status_bar.addPermanentWidget(self._status_auto_reconnect_disabled)
 
     @staticmethod
     def _make_status_label(text: str, color: str) -> QLabel:
@@ -568,24 +596,34 @@ class MainWindowV2(QMainWindow):
 
         # ── 底部按钮行 ──
         btn_layout = QHBoxLayout()
-        btn_layout.setSpacing(8)
+        btn_layout.setSpacing(12)  # 增加按钮之间的间距
+        btn_layout.setContentsMargins(16, 16, 16, 16)  # 添加边距
+
+        # 自动重连控制按钮 - 放置在添加设备按钮左侧
+        self._auto_reconnect_btn = PrimaryButton("启用重连")
+        self._auto_reconnect_btn.setCheckable(True)
+        self._auto_reconnect_btn.setChecked(True)
+        self._auto_reconnect_btn.setMinimumHeight(36)
+        self._auto_reconnect_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self._auto_reconnect_btn.clicked.connect(self._toggle_all_auto_reconnect)
+        self._auto_reconnect_btn.setToolTip("切换所有设备的自动重连功能")
 
         self._add_device_btn = SuccessButton(TextConstants.ADD_DEVICE_BTN)
-        self._add_device_btn.setMinimumHeight(30)
-        self._add_device_btn.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        self._add_device_btn.setMinimumHeight(36)
+        self._add_device_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._add_device_btn.clicked.connect(self._add_device)
 
         self._batch_ops_btn = PrimaryButton(TextConstants.ACTION_BATCH_OPS)
-        self._batch_ops_btn.setMinimumHeight(30)
-        self._batch_ops_btn.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        self._batch_ops_btn.setMinimumHeight(36)
+        self._batch_ops_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._batch_ops_btn.clicked.connect(self._show_batch_operations)
 
         self._remove_btn = DangerButton(TextConstants.REMOVE_DEVICE_BTN)
-        self._remove_btn.setMinimumHeight(30)
-        self._remove_btn.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        self._remove_btn.setMinimumHeight(36)
+        self._remove_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._remove_btn.clicked.connect(self._remove_device)
 
-        btn_layout.addStretch()
+        btn_layout.addWidget(self._auto_reconnect_btn)
         btn_layout.addWidget(self._add_device_btn)
         btn_layout.addWidget(self._batch_ops_btn)
         btn_layout.addWidget(self._remove_btn)
@@ -674,25 +712,26 @@ class MainWindowV2(QMainWindow):
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(8, 8, 8, 8)
 
-        # 仪表盘区域
-        gauge_header_layout = QHBoxLayout()
-        gauge_title = QLabel("仪表盘")
-        gauge_title.setStyleSheet("font-size: 14px; font-weight: 600; color: #24292F;")
-        gauge_header_layout.addWidget(gauge_title)
-        gauge_header_layout.addStretch()
+        # 趋势图区域
+        chart_header_layout = QHBoxLayout()
+        chart_title = QLabel("实时趋势图")
+        chart_title.setStyleSheet("font-size: 14px; font-weight: 600; color: #24292F;")
+        chart_header_layout.addWidget(chart_title)
+        chart_header_layout.addStretch()
 
-        # 管理仪表盘按钮
-        self._manage_gauges_btn = SecondaryButton("管理仪表盘")
-        self._manage_gauges_btn.setFixedSize(110, 32)
-        self._manage_gauges_btn.clicked.connect(self._on_manage_gauges)
-        gauge_header_layout.addWidget(self._manage_gauges_btn)
+        # 管理趋势图按钮
+        self._manage_charts_btn = SecondaryButton("管理趋势图")
+        self._manage_charts_btn.setFixedSize(110, 32)
+        self._manage_charts_btn.clicked.connect(self._on_manage_charts)
+        chart_header_layout.addWidget(self._manage_charts_btn)
 
-        layout.addLayout(gauge_header_layout)
+        layout.addLayout(chart_header_layout)
 
-        # 仪表盘容器
-        self._gauges_layout = QHBoxLayout()
-        self._gauges_layout.setSpacing(16)
-        layout.addLayout(self._gauges_layout)
+        # 趋势图容器
+        self._chart_container = QWidget()
+        self._chart_container.setMinimumHeight(300)
+        self._chart_layout = QVBoxLayout(self._chart_container)
+        layout.addWidget(self._chart_container)
 
         # 分隔线
         line = QLabel()
@@ -920,10 +959,66 @@ class MainWindowV2(QMainWindow):
 
         # 刷新后自适应调整尺寸
         QTimer.singleShot(0, self._update_tree_adaptive_sizes)
+        # 更新自动重连状态显示
+        self._update_auto_reconnect_status()
 
     def _filter_devices(self) -> None:
         search_text = self._search_edit.text()
         self._refresh_device_list(search_text)
+
+    def _toggle_all_auto_reconnect(self) -> None:
+        """一键控制所有设备的自动重连功能"""
+        # 获取按钮当前状态（已经自动切换）
+        enabled = self._auto_reconnect_btn.isChecked()
+
+        # 设置所有设备的自动重连状态
+        count = self._device_manager.set_all_devices_auto_reconnect(enabled)
+
+        # 更新按钮文本
+        self._auto_reconnect_btn.setText(f"{'启用重连' if enabled else '禁用重连'}")
+
+        # 动态更新按钮样式
+        from ui.widgets import Colors
+
+        if enabled:
+            # 启用状态 - 蓝色
+            self._auto_reconnect_btn.setStyleSheet(
+                f""
+                f"QPushButton {{ background: {Colors.PRIMARY}; color: #FFFFFF; "
+                f"border: none; border-radius: {Colors.RADIUS}; padding: 6px 16px; "
+                f"font-size: 13px; font-weight: 500; }}"
+                f"QPushButton:hover {{ background: {Colors.PRIMARY_HOVER}; }}"
+                f"QPushButton:pressed {{ background: {Colors.PRIMARY}; opacity: 0.8; }}"
+                f"QPushButton:disabled {{ color: #9CA3AF; background: #F3F4F6; }}"
+                f""
+            )
+        else:
+            # 禁用状态 - 红色
+            self._auto_reconnect_btn.setStyleSheet(
+                f""
+                f"QPushButton {{ background: {Colors.DANGER}; color: #FFFFFF; "
+                f"border: none; border-radius: {Colors.RADIUS}; padding: 6px 16px; "
+                f"font-size: 13px; font-weight: 500; }}"
+                f"QPushButton:hover {{ background: {Colors.DANGER_HOVER}; }}"
+                f"QPushButton:pressed {{ background: {Colors.DANGER}; opacity: 0.8; }}"
+                f"QPushButton:disabled {{ color: #9CA3AF; background: #F3F4F6; }}"
+                f""
+            )
+
+        # 更新状态栏
+        self._update_auto_reconnect_status()
+
+        # 显示操作结果
+        status_msg = f"已{'启用' if enabled else '禁用'}所有设备的自动重连功能，共影响{count}台设备"
+        self._status_msg_label.setText(status_msg)
+        logger.info(status_msg)
+
+    def _update_auto_reconnect_status(self) -> None:
+        """更新状态栏的自动重连状态显示"""
+        enabled_count, disabled_count = self._device_manager.get_auto_reconnect_status()
+
+        self._status_auto_reconnect_enabled.setText(f"● 自动重连启用 {enabled_count}")
+        self._status_auto_reconnect_disabled.setText(f"● 自动重连禁用 {disabled_count}")
 
     def _update_tree_adaptive_sizes(self) -> None:
         """根据面板当前宽度自适应调整设备树行高和操作列按钮.
@@ -993,12 +1088,26 @@ class MainWindowV2(QMainWindow):
             logger.info(LogMessages.DEVICE_REMOVED.format(device_id=device_id))
 
     def _connect_device_by_id(self, device_id: str) -> None:
-        if self._device_manager.connect_device(device_id):
+        success, error_type, error_msg = self._device_manager.connect_device(device_id)
+        if success:
             self._status_msg_label.setText("正在连接...")
             logger.info(LogMessages.DEVICE_CONNECTING.format(device_id=device_id))
         else:
-            QMessageBox.warning(self, UIMessages.CONNECT_FAILED_TITLE, UIMessages.CONNECT_FAILED_MSG)
+            # 根据错误类型生成更详细的错误消息
+            detailed_msg = f"{error_msg}\n\n错误类型: {error_type}\n\n是否需要重新配置设备?"
+            reply = QMessageBox.warning(
+                self,
+                UIMessages.CONNECT_FAILED_TITLE,
+                detailed_msg,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+
+            # 如果用户选择"是"，则打开设备编辑对话框
+            if reply == QMessageBox.StandardButton.Yes:
+                self._edit_device_by_id(device_id)
+
             logger.error(LogMessages.DEVICE_CONNECT_FAILED.format(device_id=device_id))
+            logger.error(f"连接失败详情: 类型={error_type}, 消息={error_msg}")
 
     def _disconnect_device_by_id(self, device_id: str) -> None:
         self._device_manager.disconnect_device(device_id)
@@ -1052,7 +1161,6 @@ class MainWindowV2(QMainWindow):
             self._device_name_label.setText(f"{TextConstants.DEVICE_NAME_LABEL} -")
             self._device_status_badge.set_status("offline")
             self._last_update_label.setText(f"{TextConstants.LAST_UPDATE_LABEL} -")
-            self._update_gauges_display()
             self._update_cards_display()
             self._update_register_table([])
             return
@@ -1076,7 +1184,6 @@ class MainWindowV2(QMainWindow):
         if not register_map and hasattr(device, "_register_map"):
             register_map = device._register_map
 
-        self._update_gauges_display()
         self._update_cards_display()
         self._update_register_table(register_map)
 
@@ -1141,11 +1248,8 @@ class MainWindowV2(QMainWindow):
 
     def _show_alarm_config_dialog(self) -> None:
         """打开报警规则配置对话框"""
-        from ui.alarm_config_dialog import AlarmConfigDialog
-
-        logger.debug("Opening alarm config dialog")
-        dialog = AlarmConfigDialog(self._alarm_manager, self._device_manager, self)
-        dialog.exec()
+        # TODO: 修复报警配置对话框，当前缺少alarm_config_dialog.py文件
+        QMessageBox.warning(self, "功能未实现", "报警规则配置功能当前不可用")
 
     def _show_export_dialog(self) -> None:
         file_path, _ = QFileDialog.getSaveFileName(
@@ -1228,6 +1332,32 @@ class MainWindowV2(QMainWindow):
     def _show_about(self) -> None:
         QMessageBox.about(self, UIMessages.ABOUT_TITLE, UIMessages.ABOUT_MSG)
 
+    def _toggle_modbus_generator(self, checked: bool) -> None:
+        """切换报文生成工具显示/隐藏"""
+        if hasattr(self, "_modbus_generator"):
+            if checked:
+                self._modbus_generator.setVisible(True)
+                # 设置合适的宽度
+                sizes = self._splitter.sizes()
+                if sizes[2] == 0:  # 如果当前宽度为0，设置为350
+                    total = sum(sizes)
+                    sizes[0] = int(total * 0.15)
+                    sizes[1] = int(total * 0.60)
+                    sizes[2] = int(total * 0.25)
+                    self._splitter.setSizes(sizes)
+                    # 调整splitter大小后重新定位按钮
+                    QTimer.singleShot(0, self._reposition_edge_buttons)
+                self._log_message("报文生成工具已打开", "INFO")
+            else:
+                self._modbus_generator.setVisible(False)
+                # 将宽度设为0
+                sizes = self._splitter.sizes()
+                sizes[2] = 0
+                self._splitter.setSizes(sizes)
+                # 调整splitter大小后重新定位按钮
+                QTimer.singleShot(0, self._reposition_edge_buttons)
+                self._log_message("报文生成工具已关闭", "INFO")
+
     def _on_device_selected(self, current: Optional[QTreeWidgetItem], previous: Optional[QTreeWidgetItem]) -> None:
         if not current:
             self._stack_widget.setCurrentIndex(0)
@@ -1277,8 +1407,23 @@ class MainWindowV2(QMainWindow):
 
         if self._current_device_id == device_id:
             self._update_card_values(data)
-            self._update_gauge_values(data)
+            self._update_chart_data(data)
             self._last_update_label.setText(f"{TextConstants.LAST_UPDATE_LABEL} {datetime.now().strftime('%H:%M:%S')}")
+
+    def _update_chart_data(self, data: dict) -> None:
+        """更新图表数据"""
+        if not hasattr(self, "_chart_widget") or not self._chart_widget:
+            return
+
+        # 遍历数据，添加到图表
+        for param_name, param_info in data.items():
+            if isinstance(param_info, dict) and "value" in param_info:
+                try:
+                    value = float(param_info["value"])
+                    self._chart_widget.add_value(param_name, value)
+                except (ValueError, TypeError):
+                    # 忽略无法转换为数值的数据
+                    pass
 
     @Slot(str, str)
     def _on_device_error(self, device_id: str, error: str) -> None:
@@ -1317,99 +1462,80 @@ class MainWindowV2(QMainWindow):
         self._status_offline_label.setText(f"● 离线 {offline_count}")
         self._status_error_label.setText(f"● 错误 {error_count}")
 
-    def _on_manage_gauges(self) -> None:
-        """打开仪表盘管理对话框"""
+    def _on_manage_charts(self) -> None:
+        """管理趋势图"""
         if not self._current_device_id:
             QMessageBox.information(self, "提示", "请先选择一个设备")
             return
 
-        device = self._device_manager.get_device(self._current_device_id)
-        if not device:
-            return
-
-        # 获取设备寄存器列表 (从 register_map 获取)
-        if isinstance(device, dict):
-            register_map = device.get("register_map", [])
-        else:
-            # Device 对象
-            config = device.get_device_config()
-            register_map = config.get("register_map", [])
-
-        # 转换为可用格式
-        available_registers = []
-        for reg in register_map:
-            if isinstance(reg, dict):
-                available_registers.append(
-                    {
-                        "name": reg.get("name", ""),
-                        "address": reg.get("address", ""),
-                    }
-                )
-
-        # 获取当前仪表盘配置
-        existing_gauges = self._device_gauges.get(self._current_device_id, [])
-
-        # 打开管理对话框
-        from ui.widgets.gauge_config_dialog import GaugeManagerDialog
-
-        dialog = GaugeManagerDialog(
-            device_id=self._current_device_id,
-            device_name=device.get("name", "") if isinstance(device, dict) else getattr(device, "name", ""),
-            available_registers=available_registers,
-            existing_gauges=existing_gauges,
-            parent=self,
-        )
-
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            self._device_gauges[self._current_device_id] = dialog.get_gauges()
-            self._update_gauges_display()
-
-    def _update_gauges_display(self) -> None:
-        """更新仪表盘显示"""
-        # 清除现有仪表盘
-        while self._gauges_layout.count():
-            item = self._gauges_layout.takeAt(0)
+        # 清除现有图表
+        while self._chart_layout.count():
+            item = self._chart_layout.takeAt(0)
             widget = item.widget()
             if widget:
                 widget.deleteLater()
 
+        from ui.widgets.visual import RealtimeChart
+
+        # 获取数据卡片配置
+        cards_config = self._device_cards.get(self._current_device_id, [])
+
+        if not cards_config:
+            # 如果没有数据卡片，添加默认趋势图
+            chart = RealtimeChart(title="设备数据趋势图")
+            chart.setMinimumHeight(300)
+            self._chart_layout.addWidget(chart)
+        else:
+            # 使用一个图表显示所有数据卡片变量
+            chart = RealtimeChart(title="设备数据趋势图")
+            chart.setMinimumHeight(300)
+            self._chart_layout.addWidget(chart)
+
+        # 保存图表配置
+        self._device_charts[self._current_device_id] = [{"title": "设备数据趋势图", "registers": []}]
+
+        # 初始化设备数据关联
+        self._init_chart_data()
+
+    def _init_chart_data(self) -> None:
+        """初始化图表数据关联"""
         if not self._current_device_id:
             return
 
-        gauges_config = self._device_gauges.get(self._current_device_id, [])
+        # 确保有图表实例
+        if not hasattr(self, "_chart_layout") or self._chart_layout.count() == 0:
+            return
 
-        # 添加仪表盘
-        for config in gauges_config:
-            gauge = ModernGauge(
-                title=config.get("title", ""),
-                value=0.0,
-                color=config.get("color", "#2196F3"),
-                min_value=config.get("min_value", 0),
-                max_value=config.get("max_value", 100),
-                unit=config.get("unit", ""),
-                register_name=config.get("register_name", ""),
-            )
-            gauge.setMinimumSize(140, 180)
-            self._gauges_layout.addWidget(gauge)
+        chart_item = self._chart_layout.itemAt(0)
+        if not chart_item or not chart_item.widget():
+            return
 
-        self._gauges_layout.addStretch()
+        self._chart_widget = chart_item.widget()
+        self._chart_widget.clear()
 
-    def _update_gauge_values(self, data: Dict[str, Any]) -> None:
-        """更新仪表盘数值"""
-        # 遍历所有仪表盘，根据关联的寄存器名更新数值
-        for i in range(self._gauges_layout.count()):
-            item = self._gauges_layout.itemAt(i)
-            if item and item.widget():
-                gauge = item.widget()
-                if isinstance(gauge, ModernGauge):
-                    register_name = gauge.register_name
-                    if register_name and register_name in data:
-                        value_info = data[register_name]
-                        if isinstance(value_info, dict):
-                            value = value_info.get("value", 0)
-                        else:
-                            value = float(value_info) if value_info else 0
-                        gauge.update_from_register(value)
+        # 从数据卡片配置中获取寄存器信息
+        cards_config = self._device_cards.get(self._current_device_id, [])
+
+        for card_config in cards_config:
+            register_name = card_config.get("register_name", "")
+            if register_name:
+                self._chart_widget.add_series(register_name)
+
+        # 如果没有数据卡片，则从设备寄存器中获取
+        if not cards_config:
+            device = self._device_manager.get_device(self._current_device_id)
+            if not device:
+                return
+
+            if isinstance(device, dict):
+                register_map = device.get("register_map", [])
+            else:
+                config = device.get_device_config()
+                register_map = config.get("register_map", [])
+
+            for reg in register_map:
+                if isinstance(reg, dict) and reg.get("name"):
+                    self._chart_widget.add_series(reg["name"])
 
     def _on_manage_cards(self) -> None:
         """打开数据卡片管理对话框"""
@@ -1443,19 +1569,19 @@ class MainWindowV2(QMainWindow):
         # 获取当前数据卡片配置
         existing_cards = self._device_cards.get(self._current_device_id, [])
 
-        # 打开管理对话框 (复用仪表盘管理对话框)
-        from ui.widgets.gauge_config_dialog import GaugeManagerDialog
+        # 打开数据卡片管理对话框
+        from ui.widgets.card_manager_dialog import CardManagerDialog
 
-        dialog = GaugeManagerDialog(
+        dialog = CardManagerDialog(
             device_id=self._current_device_id,
             device_name=device.get("name", "") if isinstance(device, dict) else getattr(device, "name", ""),
             available_registers=available_registers,
-            existing_gauges=existing_cards,
+            existing_cards=existing_cards,
             parent=self,
         )
 
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            self._device_cards[self._current_device_id] = dialog.get_gauges()
+            self._device_cards[self._current_device_id] = dialog.get_cards()
             self._update_cards_display()
 
     def _update_cards_display(self) -> None:

@@ -5,7 +5,6 @@ Device Service Layer
 """
 
 from .device_factory import DeviceFactory, ProtocolType
-from .device_manager import DeviceManager
 from .device_manager_v2 import DeviceManagerV2, PollPriority
 from .device_model import Device, DeviceStatus
 from .device_type_manager import DeviceTypeManager
@@ -14,7 +13,6 @@ from .simulator import Simulator
 __all__ = [
     "Device",
     "DeviceStatus",
-    "DeviceManager",
     "DeviceManagerV2",
     "PollPriority",
     "DeviceFactory",

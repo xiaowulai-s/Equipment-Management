@@ -4,8 +4,8 @@
 Version Information
 """
 
-__version__ = "1.5.5"
-__version_info__ = (1, 5, 5)
+__version__ = "1.6.0"
+__version_info__ = (1, 6, 0)
 __author__ = "开发团队"
 __email__ = "support@example.com"
 __description__ = "工业设备管理系统"

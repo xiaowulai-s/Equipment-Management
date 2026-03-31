@@ -13,7 +13,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from core.utils.logger import get_logger
+from core.utils.logger_v2 import get_logger
 
 from .models import DatabaseManager, DeviceStatusHistoryModel, utc_now
 from .repository.device_repository import DeviceRepository

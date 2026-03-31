@@ -562,4 +562,4 @@ class ActionCard(QFrame):
 # 可视化组件 (从 visual 模块导入)
 # ═══════════════════════════════════════════════════════════
 
-from .visual import AnimatedStatusBadge, ModernGauge, RealtimeChart
+from .visual import AnimatedStatusBadge, RealtimeChart

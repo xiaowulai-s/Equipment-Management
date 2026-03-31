@@ -17,9 +17,9 @@ from pathlib import Path
 def main() -> int:
     """应用程序主入口"""
     # ── Step 1: 初始化日志系统 ──
-    from src.utils.logger import get_logger, setup_logging
+    from core.utils.logger_v2 import get_logger, setup_logging
 
-    setup_logging(level="INFO", console_output=True)
+    setup_logging(log_level="INFO")
     logger = get_logger("system")
     logger.info("工业设备管理系统启动中...")
 

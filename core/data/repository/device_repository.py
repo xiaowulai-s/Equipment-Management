@@ -90,6 +90,9 @@ class DeviceRepository(BaseRepository[DeviceModel]):
         config["ip"] = config["host"]
         config["slave_id"] = config["unit_id"]
         config["register_map"] = [register_map.to_dict() for register_map in device.register_maps]
+        # 确保端口信息在配置中
+        if device.port is not None:
+            config["port"] = device.port
         return config
 
     def delete_with_relations(self, device_id: str) -> bool:

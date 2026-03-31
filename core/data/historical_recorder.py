@@ -6,7 +6,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from core.utils.logger import get_logger
+from core.utils.logger_v2 import get_logger
 
 from .models import DatabaseManager
 from .repository.historical_repository import HistoricalDataRepository
