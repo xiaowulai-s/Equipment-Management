@@ -137,18 +137,19 @@ class ModbusGeneratorWidget(QWidget):
         self.slave_input.setPlaceholderText("例如: 0x01 或 1")
 
         self.func_box = ComboBox()
-        self.func_box.addItems(
-            [
-                ("0x01 读线圈", 0x01),
-                ("0x02 读离散输入", 0x02),
-                ("0x03 读保持寄存器", 0x03),
-                ("0x04 读输入寄存器", 0x04),
-                ("0x05 写单个线圈", 0x05),
-                ("0x06 写单个寄存器", 0x06),
-                ("0x0F 写多个线圈", 0x0F),
-                ("0x10 写多个寄存器", 0x10),
-            ]
-        )
+        # 逐个添加功能码选项，分别指定显示文本和数据值
+        func_codes = [
+            ("0x01 读线圈", 0x01),
+            ("0x02 读离散输入", 0x02),
+            ("0x03 读保持寄存器", 0x03),
+            ("0x04 读输入寄存器", 0x04),
+            ("0x05 写单个线圈", 0x05),
+            ("0x06 写单个寄存器", 0x06),
+            ("0x0F 写多个线圈", 0x0F),
+            ("0x10 写多个寄存器", 0x10),
+        ]
+        for text, data in func_codes:
+            self.func_box.addItem(text, data)
 
         self.addr_input = QLineEdit("0x0000")
         self.addr_input.setPlaceholderText("例如: 0x0000 或 0")
