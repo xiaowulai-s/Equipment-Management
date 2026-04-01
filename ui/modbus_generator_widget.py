@@ -102,6 +102,7 @@ class ModbusGeneratorWidget(QWidget):
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.setMinimumWidth(350)
+        self._current_protocol = "RTU"  # 保存当前协议类型
         self._init_ui()
 
     def _init_ui(self) -> None:
@@ -196,8 +197,8 @@ class ModbusGeneratorWidget(QWidget):
 
         # 操作按钮
         btn_layout = QHBoxLayout()
-        self.copy_btn = SecondaryButton("复制")
-        self.copy_btn.setFixedSize(70, 32)
+        self.copy_btn = SecondaryButton(f"复制 [{self._current_protocol}]")
+        self.copy_btn.setFixedSize(85, 32)  # 增加宽度以适应更长的文本
         self.copy_btn.clicked.connect(self.copy_result)
 
         self.clear_btn = SecondaryButton("清除")
@@ -220,18 +221,24 @@ class ModbusGeneratorWidget(QWidget):
             count = int(self.count_input.text(), 0)
 
             if self.rtu_radio.isChecked():
+                self._current_protocol = "RTU"
                 frame = ModbusGenerator.rtu(slave, func, addr, count)
                 result = " ".join(f"{b:02X}" for b in frame)
-                self.output.setText(f"[RTU] {result}")
+                self.output.setText(result)
 
             elif self.ascii_radio.isChecked():
+                self._current_protocol = "ASCII"
                 result = ModbusGenerator.ascii(slave, func, addr, count)
-                self.output.setText(f"[ASCII] {result}")
+                self.output.setText(result)
 
             else:  # TCP
+                self._current_protocol = "TCP"
                 frame = ModbusGenerator.tcp(slave, func, addr, count)
                 result = " ".join(f"{b:02X}" for b in frame)
-                self.output.setText(f"[TCP] {result}")
+                self.output.setText(result)
+
+            # 更新复制按钮文本，显示当前协议类型
+            self.copy_btn.setText(f"复制 [{self._current_protocol}]")
 
         except ValueError as e:
             QMessageBox.warning(self, "输入错误", f"请输入有效的数值:\n{str(e)}")
