@@ -546,12 +546,16 @@ class MainWindowV2(QMainWindow):
         self._collapse_btn.move(x, y)
         self._expand_btn.move(0, y)  # 展开按钮固定在最左侧
 
-        # 右侧面板 (报文生成工具) 按钮：位于面板左边缘或central_widget右边缘, 垂直居中且与左侧按钮高度统一
+        # 右侧面板 (报文生成工具) 按钮：位于整个窗口右边边沿或面板左边缘, 垂直居中且与左侧按钮高度统一
         if hasattr(self, "_modbus_generator") and hasattr(self, "_modbus_expand_btn") and hasattr(self, "_modbus_collapse_btn"):
-            # 获取central_widget的几何信息
-            central_geo = self._central_widget.geometry()
+            # 获取整个窗口的几何信息
+            window_geo = self.geometry()
+            # 获取central_widget在窗口中的位置
+            central_pos = self._central_widget.pos()
+            
             # 计算垂直居中位置，与左侧面板按钮高度统一
-            modbus_y = central_geo.center().y() - 24  # 按钮高度一半，与左侧按钮保持一致
+            # 使用与左侧按钮相同的Y坐标，确保高度一致
+            modbus_y = self._collapse_btn.y()
             
             # 检查右侧面板是否可见或有宽度
             modbus_geo = self._modbus_generator.geometry()
@@ -559,12 +563,17 @@ class MainWindowV2(QMainWindow):
                 # 如果面板有宽度，按钮位于面板左边缘
                 modbus_x = modbus_geo.left() - 10  # 按钮宽度一半覆盖边缘
             else:
-                # 如果面板宽度为0（隐藏状态），按钮位于central_widget右边缘
-                modbus_x = central_geo.right() - 10  # 按钮宽度一半覆盖边缘，位于右侧
+                # 如果面板宽度为0（隐藏状态），按钮位于整个窗口右边边沿
+                modbus_x = window_geo.width() - 10  # 按钮宽度一半覆盖边缘，位于整个窗口右侧
+            
+            # 调整X坐标，考虑central_widget在窗口中的位置
+            modbus_x = modbus_x - central_pos.x()
 
             # 确保按钮在central_widget范围内
-            modbus_x = max(0, min(modbus_x, central_geo.width() - 10))
-            modbus_y = max(0, min(modbus_y, central_geo.height() - 24))
+            central_width = self._central_widget.width()
+            central_height = self._central_widget.height()
+            modbus_x = max(0, min(modbus_x, central_width - 10))
+            modbus_y = max(0, min(modbus_y, central_height - 24))
 
             # 移动按钮
             self._modbus_expand_btn.move(modbus_x, modbus_y)
