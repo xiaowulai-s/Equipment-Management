@@ -3,14 +3,13 @@
   "devices": [
     {
       "device_type": "气体传感器",
-      "name": "气体传感器1",
       "device_number": "0001",
       "protocol_type": "modbus_tcp",
-      "use_simulator": true,
+      "use_simulator": false,
       "auto_reconnect_enabled": false,
       "register_map": [
         {
-          "id": 21,
+          "id": 25,
           "device_id": "fae71ce1",
           "name": "温度",
           "address": 40001,

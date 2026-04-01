@@ -556,12 +556,14 @@ class MainWindowV2(QMainWindow):
         left_widget = QWidget()
         # 最小宽度计算:
         # - 边距左右各 12px = 24px
-        # - 设备名称列(Stretch) 最小 ~120px
+        # - 设备类型列(Stretch) 最小 ~120px
         # - 设备编号列(Stretch) 最小 ~80px
+        # - 协议类型列(Stretch) 最小 ~100px
+        # - 寄存器数量列(Stretch) 最小 ~80px
         # - 状态列(Stretch) 最小 ~60px
         # - 操作列(Fixed) 170px (两按钮各58px + 间距6px + 边距)
-        # 总计: 24 + 120 + 80 + 60 + 170 = 454px → 取整 460px
-        left_widget.setMinimumWidth(460)
+        # 总计: 24 + 120 + 80 + 100 + 80 + 60 + 170 = 634px → 取整 640px
+        left_widget.setMinimumWidth(640)
         left_layout = QVBoxLayout(left_widget)
         left_layout.setContentsMargins(12, 12, 12, 12)
         left_layout.setSpacing(8)
@@ -916,14 +918,18 @@ class MainWindowV2(QMainWindow):
             item = QTreeWidgetItem()
             item.setText(0, device_type)
             item.setText(1, device_info["config"].get("device_number", ""))
+            item.setText(2, device_info["config"].get("protocol_type", "未知协议"))
+            item.setText(3, str(len(device_info["config"].get("register_map", []))))
 
             status = device_info["status"]
             status_text = StatusText.get_text(status)
-            item.setText(2, status_text)
+            item.setText(4, status_text)
 
             item.setTextAlignment(0, Qt.AlignmentFlag.AlignCenter)
             item.setTextAlignment(1, Qt.AlignmentFlag.AlignCenter)
             item.setTextAlignment(2, Qt.AlignmentFlag.AlignCenter)
+            item.setTextAlignment(3, Qt.AlignmentFlag.AlignCenter)
+            item.setTextAlignment(4, Qt.AlignmentFlag.AlignCenter)
             item.setData(0, Qt.ItemDataRole.UserRole, device_id)
             item.setSizeHint(0, QSize(0, 48))
             self._device_tree.addTopLevelItem(item)
@@ -957,7 +963,7 @@ class MainWindowV2(QMainWindow):
             action_layout.addWidget(edit_btn)
             action_layout.addWidget(conn_btn)
 
-            self._device_tree.setItemWidget(item, 3, action_widget)
+            self._device_tree.setItemWidget(item, 5, action_widget)
 
         # 重新连接信号
         self._device_tree.currentItemChanged.connect(self._on_device_selected)
@@ -1049,9 +1055,9 @@ class MainWindowV2(QMainWindow):
 
         # 操作列宽度: 面板越宽, 操作按钮可分配越多空间
         # 基准 170px (两按钮各58px + 间距6px + 边距), 最大 260px
-        action_col_width = int(150 + max(0, panel_width - 440) * 0.20)
+        action_col_width = int(150 + max(0, panel_width - 640) * 0.20)
         action_col_width = max(170, min(action_col_width, 260))
-        self._device_tree.setColumnWidth(3, action_col_width)
+        self._device_tree.setColumnWidth(5, action_col_width)
 
         # 更新所有行的行高和操作列按钮
         from PySide6.QtWidgets import QPushButton

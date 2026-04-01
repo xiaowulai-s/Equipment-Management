@@ -307,7 +307,7 @@ class DeviceTree(QTreeWidget):
 
     def __init__(self, parent: QWidget = None):
         super().__init__(parent)
-        self.setHeaderLabels(["设备类型", "设备编号", "状态", "操作"])
+        self.setHeaderLabels(["设备类型", "设备编号", "协议类型", "寄存器数量", "状态", "操作"])
         self.setAlternatingRowColors(True)
         self.setIndentation(0)
         self.setAnimated(True)
@@ -321,8 +321,10 @@ class DeviceTree(QTreeWidget):
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
-        self.setColumnWidth(3, 170)  # 操作列宽度
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)
+        self.setColumnWidth(5, 170)  # 操作列宽度
 
         self.setStyleSheet(
             """
