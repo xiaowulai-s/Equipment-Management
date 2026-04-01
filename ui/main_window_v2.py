@@ -600,6 +600,7 @@ class MainWindowV2(QMainWindow):
         btn_layout.setContentsMargins(16, 16, 16, 16)  # 添加边距
 
         # 自动重连控制按钮 - 放置在添加设备按钮左侧
+        from ui.widgets import Colors
         self._auto_reconnect_btn = PrimaryButton("禁用重连")
         self._auto_reconnect_btn.setCheckable(True)
         self._auto_reconnect_btn.setChecked(False)
@@ -607,6 +608,17 @@ class MainWindowV2(QMainWindow):
         self._auto_reconnect_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._auto_reconnect_btn.clicked.connect(self._toggle_all_auto_reconnect)
         self._auto_reconnect_btn.setToolTip("切换所有设备的自动重连功能")
+        # 初始样式 - 禁用状态（红色）
+        self._auto_reconnect_btn.setStyleSheet(
+            f"""
+            QPushButton {{ background: {Colors.DANGER}; color: #FFFFFF; 
+            border: none; border-radius: {Colors.RADIUS}; padding: 6px 16px; 
+            font-size: 13px; font-weight: 500; }}
+            QPushButton:hover {{ background: {Colors.DANGER_HOVER}; }}
+            QPushButton:pressed {{ background: {Colors.DANGER}; opacity: 0.8; }}
+            QPushButton:disabled {{ color: #9CA3AF; background: #F3F4F6; }}
+            """
+        )
 
         self._add_device_btn = SuccessButton(TextConstants.ADD_DEVICE_BTN)
         self._add_device_btn.setMinimumHeight(36)
