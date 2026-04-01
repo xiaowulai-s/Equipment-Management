@@ -907,13 +907,14 @@ class MainWindowV2(QMainWindow):
         self._device_tree.clear()
 
         for device_info in self._device_manager.get_all_devices():
+            device_type = device_info["config"].get("device_type", "未定义")
             name = device_info["name"]
             if search_text and search_text.lower() not in name.lower():
                 continue
 
             device_id = device_info["device_id"]
             item = QTreeWidgetItem()
-            item.setText(0, name)
+            item.setText(0, device_type)
             item.setText(1, device_info["config"].get("device_number", ""))
 
             status = device_info["status"]

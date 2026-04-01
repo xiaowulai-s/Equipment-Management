@@ -50,7 +50,7 @@ class Device(QObject):
     @staticmethod
     def validate_config(config: Dict[str, Any]) -> Tuple[bool, str]:
         """Validate minimal runtime config requirements."""
-        required_fields = ("device_id", "name", "device_type", "protocol_type")
+        required_fields = ("device_id", "device_type", "protocol_type")
         for field in required_fields:
             if not config.get(field):
                 return False, f"缺少必需字段: {field}"

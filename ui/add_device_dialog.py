@@ -85,9 +85,6 @@ class AddDeviceDialog(QDialog):
             self.type_combo.addItem(device_type["name"], device_type)
         layout.addRow(self._label("设备类型:"), self.type_combo)
 
-        self.name_edit = LineEdit("请输入设备名称")
-        layout.addRow(self._label("设备名称:"), self.name_edit)
-
         self.number_edit = LineEdit("请输入设备编号")
         layout.addRow(self._label("设备编号:"), self.number_edit)
 
@@ -160,7 +157,6 @@ class AddDeviceDialog(QDialog):
                 self.type_combo.setCurrentIndex(index)
                 break
 
-        self.name_edit.setText(str(config.get("name", "")))
         self.number_edit.setText(str(config.get("device_number", "")))
 
         protocol_type = config.get("protocol_type")
@@ -439,7 +435,6 @@ class AddDeviceDialog(QDialog):
         # 构建新架构兼容的配置
         config: Dict[str, Any] = {
             "device_type": selected_type["name"] if selected_type else "",
-            "name": self.name_edit.text().strip() or "未命名设备",
             "device_number": self.number_edit.text().strip(),
             "protocol_type": protocol_type_str,
             "use_simulator": self.simulator_check.isChecked(),

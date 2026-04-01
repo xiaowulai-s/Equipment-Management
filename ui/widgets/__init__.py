@@ -307,7 +307,7 @@ class DeviceTree(QTreeWidget):
 
     def __init__(self, parent: QWidget = None):
         super().__init__(parent)
-        self.setHeaderLabels(["设备名称", "设备编号", "状态", "操作"])
+        self.setHeaderLabels(["设备类型", "设备编号", "状态", "操作"])
         self.setAlternatingRowColors(True)
         self.setIndentation(0)
         self.setAnimated(True)

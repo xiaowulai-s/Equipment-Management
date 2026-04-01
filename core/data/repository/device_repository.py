@@ -49,7 +49,7 @@ class DeviceRepository(BaseRepository[DeviceModel]):
         """Create one device and register maps from runtime config."""
         device = DeviceModel(
             id=config.get("device_id"),
-            name=config.get("name", "未命名设备"),
+            name=config.get("device_type", "未知类型") + "_" + config.get("device_id", ""),
             device_type=config.get("device_type", "未知类型"),
             device_number=config.get("device_number"),
             protocol_type=config.get("protocol_type") or config.get("protocol", "modbus_tcp"),
@@ -67,7 +67,7 @@ class DeviceRepository(BaseRepository[DeviceModel]):
         if device is None:
             return None
 
-        device.name = config.get("name", device.name)
+        device.name = config.get("device_type", device.device_type) + "_" + device_id
         device.device_type = config.get("device_type", device.device_type)
         device.device_number = config.get("device_number", device.device_number)
         device.protocol_type = config.get("protocol_type", config.get("protocol", device.protocol_type))
