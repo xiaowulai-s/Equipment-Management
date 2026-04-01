@@ -343,6 +343,8 @@ class MainWindowV2(QMainWindow):
 
         # ── 折叠/展开浮动按钮 ──
         self._create_collapse_buttons()
+        # ── 报文生成工具展开/折叠按钮 ──
+        self._create_modbus_generator_buttons()
 
         self._create_status_bar()
 
@@ -473,6 +475,35 @@ class MainWindowV2(QMainWindow):
         # 初始定位 (延迟到布局完成后)
         QTimer.singleShot(0, self._reposition_edge_buttons)
 
+    def _create_modbus_generator_buttons(self) -> None:
+        """创建报文生成工具的展开和折叠按钮.
+
+        按钮是 central_widget 的子控件, 通过绝对定位放置在
+        splitter 右侧面板左边缘, 始终跟随面板拉伸移动。
+        """
+        # 展开按钮 (工具隐藏时显示)
+        self._modbus_expand_btn = QPushButton("▶", self._central_widget)
+        self._modbus_expand_btn.setFixedSize(20, 48)
+        self._modbus_expand_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._modbus_expand_btn.setToolTip("展开报文生成工具")
+        self._apply_edge_btn_style(self._modbus_expand_btn)
+        self._modbus_expand_btn.clicked.connect(self._expand_modbus_generator)
+
+        # 折叠按钮 (工具显示时显示)
+        self._modbus_collapse_btn = QPushButton("◀", self._central_widget)
+        self._modbus_collapse_btn.setFixedSize(20, 48)
+        self._modbus_collapse_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._modbus_collapse_btn.setToolTip("折叠报文生成工具")
+        self._apply_edge_btn_style(self._modbus_collapse_btn)
+        self._modbus_collapse_btn.clicked.connect(self._collapse_modbus_generator)
+
+        # 初始状态：工具默认隐藏，显示展开按钮
+        self._modbus_collapse_btn.hide()
+        self._modbus_expand_btn.show()
+
+        # 初始定位 (延迟到布局完成后)
+        QTimer.singleShot(0, self._reposition_edge_buttons)
+
     def _apply_edge_btn_style(self, btn: QPushButton) -> None:
         """为边缘按钮设置主题感知的右侧圆角样式."""
         colors = self._theme_manager.colors
@@ -503,16 +534,26 @@ class MainWindowV2(QMainWindow):
         )
 
     def _reposition_edge_buttons(self) -> None:
-        """重新定位折叠/展开按钮到左侧面板右边缘."""
+        """重新定位折叠/展开按钮到左侧面板右边缘和右侧面板左边缘."""
         # 左面板在 central_widget 中的位置
         panel_geo = self._left_panel.geometry()
 
-        # 按钮位于面板右边缘, 垂直居中
+        # 左侧面板按钮：位于面板右边缘, 垂直居中
         x = panel_geo.right() - 10  # 按钮宽度一半覆盖边缘
         y = panel_geo.center().y() - 24  # 按钮高度一半
 
         self._collapse_btn.move(x, y)
         self._expand_btn.move(0, y)  # 展开按钮固定在最左侧
+
+        # 右侧面板 (报文生成工具) 按钮：位于面板左边缘, 垂直居中
+        if hasattr(self, "_modbus_generator") and hasattr(self, "_modbus_expand_btn") and hasattr(self, "_modbus_collapse_btn"):
+            modbus_geo = self._modbus_generator.geometry()
+            # 计算按钮位置：位于右侧面板左边缘, 垂直居中
+            modbus_x = modbus_geo.left() - 10  # 按钮宽度一半覆盖边缘
+            modbus_y = modbus_geo.center().y() - 24  # 按钮高度一半
+
+            self._modbus_expand_btn.move(modbus_x, modbus_y)
+            self._modbus_collapse_btn.move(modbus_x, modbus_y)
 
     def _collapse_left_panel(self) -> None:
         """折叠左侧面板."""
@@ -535,6 +576,30 @@ class MainWindowV2(QMainWindow):
         self._splitter.setSizes([left_size, total - left_size])
         QTimer.singleShot(50, self._reposition_edge_buttons)
         QTimer.singleShot(50, self._update_tree_adaptive_sizes)
+
+    def _expand_modbus_generator(self) -> None:
+        """展开报文生成工具."""
+        if hasattr(self, "_modbus_generator"):
+            # 设置菜单标记为已打开
+            self._modbus_gen_action.setChecked(True)
+            # 调用现有的切换方法
+            self._toggle_modbus_generator(True)
+            # 更新按钮显示状态
+            self._modbus_expand_btn.hide()
+            self._modbus_collapse_btn.show()
+            QTimer.singleShot(50, self._reposition_edge_buttons)
+
+    def _collapse_modbus_generator(self) -> None:
+        """折叠报文生成工具."""
+        if hasattr(self, "_modbus_generator"):
+            # 设置菜单标记为已关闭
+            self._modbus_gen_action.setChecked(False)
+            # 调用现有的切换方法
+            self._toggle_modbus_generator(False)
+            # 更新按钮显示状态
+            self._modbus_collapse_btn.hide()
+            self._modbus_expand_btn.show()
+            QTimer.singleShot(50, self._reposition_edge_buttons)
 
     def _on_splitter_moved(self, pos: int, index: int) -> None:
         """Splitter 拉动时重新定位按钮并自适应调整."""
@@ -1364,8 +1429,12 @@ class MainWindowV2(QMainWindow):
                     sizes[1] = int(total * 0.60)
                     sizes[2] = int(total * 0.25)
                     self._splitter.setSizes(sizes)
-                    # 调整splitter大小后重新定位按钮
-                    QTimer.singleShot(0, self._reposition_edge_buttons)
+                # 调整按钮显示状态
+                if hasattr(self, "_modbus_expand_btn") and hasattr(self, "_modbus_collapse_btn"):
+                    self._modbus_expand_btn.hide()
+                    self._modbus_collapse_btn.show()
+                # 调整splitter大小后重新定位按钮
+                QTimer.singleShot(0, self._reposition_edge_buttons)
                 self._log_message("报文生成工具已打开", "INFO")
             else:
                 self._modbus_generator.setVisible(False)
@@ -1373,6 +1442,10 @@ class MainWindowV2(QMainWindow):
                 sizes = self._splitter.sizes()
                 sizes[2] = 0
                 self._splitter.setSizes(sizes)
+                # 调整按钮显示状态
+                if hasattr(self, "_modbus_expand_btn") and hasattr(self, "_modbus_collapse_btn"):
+                    self._modbus_collapse_btn.hide()
+                    self._modbus_expand_btn.show()
                 # 调整splitter大小后重新定位按钮
                 QTimer.singleShot(0, self._reposition_edge_buttons)
                 self._log_message("报文生成工具已关闭", "INFO")
