@@ -198,7 +198,8 @@ class ModbusGeneratorWidget(QWidget):
         # 操作按钮
         btn_layout = QHBoxLayout()
         self.copy_btn = SecondaryButton(f"复制 [{self._current_protocol}]")
-        self.copy_btn.setFixedSize(85, 32)  # 增加宽度以适应更长的文本
+        self.copy_btn.setMinimumWidth(100)  # 改用最小宽度，让按钮自适应文字长度
+        self.copy_btn.setFixedHeight(32)
         self.copy_btn.clicked.connect(self.copy_result)
 
         self.clear_btn = SecondaryButton("清除")
