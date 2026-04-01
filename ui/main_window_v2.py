@@ -600,9 +600,9 @@ class MainWindowV2(QMainWindow):
         btn_layout.setContentsMargins(16, 16, 16, 16)  # 添加边距
 
         # 自动重连控制按钮 - 放置在添加设备按钮左侧
-        self._auto_reconnect_btn = PrimaryButton("启用重连")
+        self._auto_reconnect_btn = PrimaryButton("禁用重连")
         self._auto_reconnect_btn.setCheckable(True)
-        self._auto_reconnect_btn.setChecked(True)
+        self._auto_reconnect_btn.setChecked(False)
         self._auto_reconnect_btn.setMinimumHeight(36)
         self._auto_reconnect_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._auto_reconnect_btn.clicked.connect(self._toggle_all_auto_reconnect)

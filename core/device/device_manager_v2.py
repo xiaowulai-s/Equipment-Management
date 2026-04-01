@@ -70,7 +70,7 @@ class DevicePollInfo:
         self.recovery_enabled = True  # 是否启用自动恢复
 
         # 自动重连开关
-        self.auto_reconnect_enabled = True  # 是否启用自动重连
+        self.auto_reconnect_enabled = False  # 是否启用自动重连
 
         # 常见故障类型
         self.FAULT_TYPES = {
@@ -506,7 +506,7 @@ class DeviceManagerV2(QObject):
         poll_info = DevicePollInfo(device, priority)
         poll_info.poll_interval = config.get("poll_interval", 1000)
         # 设置自动重连开关状态
-        poll_info.auto_reconnect_enabled = config.get("auto_reconnect_enabled", True)
+        poll_info.auto_reconnect_enabled = config.get("auto_reconnect_enabled", False)
 
         self._devices[device_id] = poll_info
         return device

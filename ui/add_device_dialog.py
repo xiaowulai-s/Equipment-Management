@@ -105,7 +105,7 @@ class AddDeviceDialog(QDialog):
 
         # 自动重连开关
         self.auto_reconnect_check = QCheckBox("启用自动重连")
-        self.auto_reconnect_check.setChecked(True)  # 默认启用
+        self.auto_reconnect_check.setChecked(False)  # 默认禁用
         auto_reconnect_layout = QHBoxLayout()
         auto_reconnect_layout.addWidget(self.auto_reconnect_check)
         layout.addRow(auto_reconnect_layout)
@@ -171,7 +171,7 @@ class AddDeviceDialog(QDialog):
 
         self.simulator_check.setChecked(bool(config.get("use_simulator", False)))
         # 设置自动重连开关状态
-        self.auto_reconnect_check.setChecked(bool(config.get("auto_reconnect_enabled", True)))
+        self.auto_reconnect_check.setChecked(bool(config.get("auto_reconnect_enabled", False)))
         self._populate_protocol_fields(config)
 
     def _populate_protocol_fields(self, config: Dict[str, Any]) -> None:
