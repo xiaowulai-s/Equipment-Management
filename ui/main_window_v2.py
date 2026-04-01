@@ -262,6 +262,7 @@ class MainWindowV2(QMainWindow):
         self._current_device_id: Optional[str] = None
         self._left_panel_collapsed = False
         self._left_panel_saved_size = 480
+        self._right_panel_saved_size = 350  # 保存右侧面板宽度
 
         # 数据卡片配置存储: {device_id: [card_configs]}
         self._device_cards: Dict[str, List[Dict[str, Any]]] = {}
@@ -566,12 +567,20 @@ class MainWindowV2(QMainWindow):
 
     def _collapse_left_panel(self) -> None:
         """折叠左侧面板."""
-        self._left_panel_saved_size = self._splitter.sizes()[0]
+        # 保存当前左侧面板宽度
+        current_sizes = self._splitter.sizes()
+        self._left_panel_saved_size = current_sizes[0]
+        # 保存当前右侧面板宽度（如果已展开）
+        if current_sizes[2] > 0:
+            self._right_panel_saved_size = current_sizes[2]
+        # 折叠左侧面板，保持中间和右侧面板宽度比例
+        total = sum(current_sizes)
+        self._splitter.setSizes([0, total - current_sizes[2], current_sizes[2]])
         self._left_panel.setVisible(False)
         self._collapse_btn.hide()
         self._expand_btn.show()
         self._left_panel_collapsed = True
-        self._reposition_edge_buttons()
+        QTimer.singleShot(50, self._reposition_edge_buttons)
 
     def _expand_left_panel(self) -> None:
         """展开左侧面板."""
@@ -579,10 +588,19 @@ class MainWindowV2(QMainWindow):
         self._expand_btn.hide()
         self._collapse_btn.show()
         self._left_panel_collapsed = False
-        # 恢复之前的大小
+        # 恢复之前的大小，保持右侧面板宽度
         total = self._splitter.width()
-        left_size = min(self._left_panel_saved_size, total - 300)
-        self._splitter.setSizes([left_size, total - left_size])
+        # 确保左侧面板和右侧面板宽度之和不超过总宽度
+        left_size = self._left_panel_saved_size
+        right_size = self._right_panel_saved_size
+        available_width = total - left_size - right_size
+        if available_width < 0:
+            # 如果总宽度不够，按比例调整
+            ratio = left_size / (left_size + right_size)
+            left_size = int(total * 0.25)
+            right_size = int(total * 0.25)
+            available_width = total - left_size - right_size
+        self._splitter.setSizes([left_size, available_width, right_size])
         QTimer.singleShot(50, self._reposition_edge_buttons)
         QTimer.singleShot(50, self._update_tree_adaptive_sizes)
 
@@ -1430,14 +1448,24 @@ class MainWindowV2(QMainWindow):
         if hasattr(self, "_modbus_generator"):
             if checked:
                 self._modbus_generator.setVisible(True)
-                # 设置合适的宽度
+                # 设置合适的宽度，保持左侧面板宽度
                 sizes = self._splitter.sizes()
-                if sizes[2] == 0:  # 如果当前宽度为0，设置为350
+                if sizes[2] == 0:  # 如果当前宽度为0，恢复保存的宽度
                     total = sum(sizes)
-                    sizes[0] = int(total * 0.15)
-                    sizes[1] = int(total * 0.60)
-                    sizes[2] = int(total * 0.25)
+                    # 保持左侧面板当前宽度，恢复右侧面板保存的宽度
+                    left_size = sizes[0]
+                    right_size = self._right_panel_saved_size
+                    # 确保中间面板有足够的宽度
+                    available_width = total - left_size - right_size
+                    if available_width < 0:
+                        # 如果总宽度不够，按比例调整
+                        right_size = max(100, int(total * 0.2))
+                        available_width = total - left_size - right_size
+                    sizes = [left_size, available_width, right_size]
                     self._splitter.setSizes(sizes)
+                else:
+                    # 保存当前右侧面板宽度
+                    self._right_panel_saved_size = sizes[2]
                 # 调整按钮显示状态
                 if hasattr(self, "_modbus_expand_btn") and hasattr(self, "_modbus_collapse_btn"):
                     self._modbus_expand_btn.hide()
@@ -1446,11 +1474,13 @@ class MainWindowV2(QMainWindow):
                 QTimer.singleShot(0, self._reposition_edge_buttons)
                 self._log_message("报文生成工具已打开", "INFO")
             else:
-                self._modbus_generator.setVisible(False)
-                # 将宽度设为0
+                # 保存当前右侧面板宽度
                 sizes = self._splitter.sizes()
-                sizes[2] = 0
-                self._splitter.setSizes(sizes)
+                self._right_panel_saved_size = sizes[2]
+                self._modbus_generator.setVisible(False)
+                # 将右侧面板宽度设为0，保持左侧面板宽度
+                total = sum(sizes)
+                self._splitter.setSizes([sizes[0], total, 0])
                 # 调整按钮显示状态
                 if hasattr(self, "_modbus_expand_btn") and hasattr(self, "_modbus_collapse_btn"):
                     self._modbus_collapse_btn.hide()
