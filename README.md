@@ -18,8 +18,9 @@
 
 - 多设备并发管理（支持 100+ 设备、20000+ 寄存器）
 - 设备增删改查 + 搜索 + 批量操作
-- JSON 配置持久化
-- 自动重连和失败重试
+- JSON 配置持久化，端口信息完整保存
+- 可配置自动重连（全局/设备级控制）
+- 连接失败详细错误提示和配置引导
 
 ### 数据可视化
 
@@ -83,7 +84,7 @@
 
 ```
 equipment-management/
-├── core/                       # 核心源码（旧架构兼容）
+├── core/                       # 核心源码
 │   ├── protocols/              # 协议层
 │   ├── communication/          # 通信驱动层
 │   ├── device/                 # 设备管理层
@@ -91,15 +92,7 @@ equipment-management/
 │   │   └── repository/         # Repository 模式
 │   ├── utils/                  # 工具模块
 │   └── config/                # 配置管理
-├── src/                        # 新架构源码（v2.0）
-│   ├── protocols/              # 第一层: 协议层
-│   ├── communication/          # 第二层: 通信驱动层
-│   ├── device/                 # 第三层: 设备管理层
-│   ├── data/                   # 数据持久化层 (SQLite)
-│   │   └── repository/         # Repository 模式
-│   ├── alarm/                  # 报警系统
-│   └── utils/                  # 工具模块
-├── ui/                         # 第四层: UI 层
+├── ui/                         # UI 层
 │   ├── styles/                 # Fluent Design 样式系统
 │   │   ├── qss/                # QSS 样式表 (base/light/dark)
 │   │   └── theme.py            # 色彩常量
@@ -121,14 +114,8 @@ equipment-management/
 │   │   ├── log_viewer_dialog.py
 │   │   ├── register_config_dialog.py
 │   │   └── settings_dialog.py
-│   ├── main_window_v2.py      # 主窗口（已重构）
+│   ├── main_window_v2.py      # 主窗口
 │   └── app_styles.py          # 应用样式
-├── tests/                      # 测试套件 (pytest)
-│   ├── test_core/             # 核心模块测试
-│   ├── test_ui/               # UI 组件测试
-│   ├── integration/           # 集成测试
-│   ├── performance/           # 性能测试
-│   └── unit/                # 单元测试
 ├── docs/                       # 文档
 │   ├── architecture/          # 架构文档
 │   ├── project/              # 项目文档
@@ -136,9 +123,7 @@ equipment-management/
 │   ├── reports/              # 报告文档
 │   └── meta/                # 元数据
 ├── scripts/                    # 构建和工具脚本
-│   ├── build.py              # PyInstaller 打包
-│   ├── refactor_dialogs.py    # 批量重构脚本
-│   └── migrate_database.py   # 数据库迁移
+│   └── build.py              # PyInstaller 打包
 ├── assets/                     # 资源文件（截图、图标等）
 ├── config/                     # 配置文件
 ├── data/                       # 数据库文件
@@ -262,6 +247,22 @@ autopep8 src/ ui/ --in-place
 | QThread + Signal/Slot | 线程间通信               |
 
 ## 📋 版本历史
+
+### v1.6.0 (2026-03-31)
+
+**设备连接与配置优化**
+
+- 修复设备端口信息不保存问题，确保设备配置完整持久化
+- 增强连接失败处理，显示详细错误信息弹窗
+- 连接失败弹窗添加"重新配置"按钮，引导用户修改设备参数
+- 移除默认自动重连，改为可配置选项
+- 设备编辑对话框添加"自动重连"开关
+- 主窗口添加全局自动重连控制按钮
+- 状态栏显示自动重连启用/禁用设备数量
+- 支持按设备单独控制自动重连状态
+- 支持一键启用/禁用所有设备自动重连
+- 左侧面板按钮布局优化，四个图标等距美观显示
+- 自动重连按钮文字根据状态动态变化："启用重连"/"禁用重连"
 
 ### v1.5.5 (2026-03-31)
 
@@ -392,4 +393,4 @@ MIT License
 
 ***
 
-**版本**: v1.5.5 | **更新**: 2026-03-31
+**版本**: v1.6.0 | **更新**: 2026-03-31
