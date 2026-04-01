@@ -547,10 +547,19 @@ class MainWindowV2(QMainWindow):
 
         # 右侧面板 (报文生成工具) 按钮：位于面板左边缘, 垂直居中
         if hasattr(self, "_modbus_generator") and hasattr(self, "_modbus_expand_btn") and hasattr(self, "_modbus_collapse_btn"):
+            # 获取central_widget的几何信息
+            central_geo = self._central_widget.geometry()
+            # 计算垂直居中位置
+            modbus_y = central_geo.center().y() - 24  # 按钮高度一半
+            
+            # 检查右侧面板是否可见或有宽度
             modbus_geo = self._modbus_generator.geometry()
-            # 计算按钮位置：位于右侧面板左边缘, 垂直居中
-            modbus_x = modbus_geo.left() - 10  # 按钮宽度一半覆盖边缘
-            modbus_y = modbus_geo.center().y() - 24  # 按钮高度一半
+            if modbus_geo.width() > 0:
+                # 如果面板有宽度，按钮位于面板左边缘
+                modbus_x = modbus_geo.left() - 10  # 按钮宽度一半覆盖边缘
+            else:
+                # 如果面板宽度为0（隐藏状态），按钮位于central_widget右边缘
+                modbus_x = central_geo.right() - 10  # 按钮宽度一半覆盖边缘
 
             self._modbus_expand_btn.move(modbus_x, modbus_y)
             self._modbus_collapse_btn.move(modbus_x, modbus_y)
