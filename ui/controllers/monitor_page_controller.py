@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Optional
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QDateTime
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QFrame,
@@ -45,7 +45,6 @@ class MonitorPageController:
         self._on_manage_cards_cb: Optional[Callable] = None
         self._on_manage_charts_cb: Optional[Callable] = None
         self._on_expand_panel_cb: Optional[Callable] = None
-        self._on_command_send_cb: Optional[Callable] = None
 
     def build(
         self,
@@ -55,13 +54,11 @@ class MonitorPageController:
         on_manage_cards: Callable,
         on_manage_charts: Callable,
         on_expand_panel: Callable,
-        on_command_send: Callable,
-        command_terminal_cls: type,
     ) -> QWidget:
         self._on_manage_cards_cb = on_manage_cards
         self._on_manage_charts_cb = on_manage_charts
         self._on_expand_panel_cb = on_expand_panel
-        self._on_command_send_cb = on_command_send
+        self._constants = constants
 
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -212,26 +209,95 @@ class MonitorPageController:
 
         self._right_splitter.addWidget(self._monitor_tabs)
 
-        command_terminal = command_terminal_cls(compact=True)
-        command_terminal.command_sent.connect(on_command_send)
-        self._right_splitter.addWidget(command_terminal)
+        log_panel = self._build_unified_log_panel()
+        self._right_splitter.addWidget(log_panel)
 
-        # 垂直分割器配置（支持自适应调整）
-        self._right_splitter.setStretchFactor(0, 7)   # 监控区域占70%
-        self._right_splitter.setStretchFactor(1, 3)   # 命令终端占30%
-        
-        # 初始尺寸基于可用高度动态计算（将在 showEvent 中更新）
+        self._right_splitter.setStretchFactor(0, 7)
+        self._right_splitter.setStretchFactor(1, 3)
+
         initial_height = max(self.height() if hasattr(self, 'height') else 600, 400)
-        monitor_h = int(initial_height * 0.70)  # 监控区70%
-        terminal_h = int(initial_height * 0.30)  # 终端区30%
-        self._right_splitter.setSizes([monitor_h, terminal_h])
+        monitor_h = int(initial_height * 0.70)
+        log_h = int(initial_height * 0.30)
+        self._right_splitter.setSizes([monitor_h, log_h])
 
         layout.addWidget(self._right_splitter)
 
-        self._command_terminal = command_terminal
         self._device_status_badge = device_status_badge
 
         return page
+
+    def _build_unified_log_panel(self) -> QWidget:
+        from PySide6.QtWidgets import QTextBrowser
+
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(12, 8, 12, 8)
+        layout.setSpacing(4)
+
+        header_layout = QHBoxLayout()
+        log_title = QLabel("系统日志")
+        if DESIGN_TOKENS_AVAILABLE:
+            title_font = DT.T.get_font(*DT.T.LABEL)
+            log_title.setFont(title_font)
+            log_title.setStyleSheet(f"color: {DT.C.TEXT_SECONDARY}; background: transparent; font-weight: {DT.T.LABEL[2]};")
+        else:
+            log_title.setStyleSheet("font-size: 13px; font-weight: 600; color: #57606A; background: transparent;")
+        header_layout.addWidget(log_title)
+
+        clear_btn_text = self._constants.get("BTN_CLEAR_LOG", "清空日志")
+        from ui.widgets import SecondaryButton
+        self._log_clear_btn = SecondaryButton(clear_btn_text)
+        self._log_clear_btn.setFixedSize(80, 26)
+        self._log_clear_btn.clicked.connect(self._clear_log)
+        header_layout.addStretch()
+        header_layout.addWidget(self._log_clear_btn)
+        layout.addLayout(header_layout)
+
+        self._unified_log_view = QTextBrowser()
+        self._unified_log_view.setReadOnly(True)
+        self._unified_log_view.setOpenLinks(False)
+
+        if DESIGN_TOKENS_AVAILABLE:
+            bg_color = DT.C.BG_PRIMARY
+            border_color = DT.C.BORDER_SUBTLE
+            text_color = DT.C.TEXT_PRIMARY
+            radius = f"{DT.R.SM}px"
+            self._unified_log_view.setStyleSheet(f"""
+                QTextBrowser {{
+                    background-color: {bg_color};
+                    border: 1px solid {border_color};
+                    border-radius: {radius};
+                    color: {text_color};
+                    font-family: '{DT.T.CODE[0]}';
+                    font-size: {DT.T.CODE[1]}px;
+                    padding: {DT.S.SM}px;
+                }}
+            """)
+        else:
+            self._unified_log_view.setStyleSheet("""
+                QTextBrowser {
+                    background-color: #1E1E1E;
+                    border: 1px solid #333;
+                    border-radius: 6px;
+                    color: #D4D4D4;
+                    font-family: 'Consolas', 'Monaco', monospace;
+                    font-size: 11px;
+                    padding: 8px;
+                }
+            """)
+
+        layout.addWidget(self._unified_log_view)
+        return container
+
+    def append_log(self, message: str, level: str = "INFO") -> None:
+        ts = QDateTime.currentDateTime().toString("HH:mm:ss.zzz")
+        color_map = {"INFO": "#4CAF50", "SUCCESS": "#2196F3", "WARNING": "#FF9800", "ERROR": "#F44336", "CRITICAL": "#E91E63"}
+        color = color_map.get(level, "#D4D4D4")
+        html = f'<span style="color:#888;">[{ts}]</span> <span style="color:{color};">[{level}]</span> <span style="color:#D4D4D4;">{message}</span>'
+        self._unified_log_view.append(html)
+
+    def _clear_log(self) -> None:
+        self._unified_log_view.clear()
 
     def _build_data_tab(self, styles: dict) -> QWidget:
         from ui.widgets import SecondaryButton
@@ -448,9 +514,6 @@ class MonitorPageController:
                 col = 0
                 row += 1
 
-    def get_command_terminal(self):
-        return getattr(self, "_command_terminal", None)
-
     def get_register_table(self):
         return self._register_table
 
@@ -539,6 +602,5 @@ class MonitorPageController:
             'chart_layout_widget': self._chart_layout,
             'manage_cards_btn': self._manage_cards_btn,
             'manage_charts_btn': self._manage_charts_btn,
-            'command_terminal': self.get_command_terminal(),
             'register_table': self.get_register_table(),
         }

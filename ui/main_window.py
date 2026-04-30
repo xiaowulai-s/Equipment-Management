@@ -443,9 +443,6 @@ class MainWindow(QMainWindow):
         self._splitter.setStyleSheet(AppStyles.SPLITTER)
         self._splitter.splitterMoved.connect(self._on_splitter_moved)
 
-        # 初始化命令终端设备列表（命令终端在监控页中已创建）
-        QTimer.singleShot(200, self._setup_command_terminal_device_links)
-
         # ── 折叠/展开浮动按钮 ──
         self._create_collapse_buttons()
 
@@ -759,48 +756,6 @@ class MainWindow(QMainWindow):
 
         self._right_splitter.setSizes([monitor_height, log_height])
 
-    @Slot(str, bytes)
-    def _on_command_terminal_send(self, device_id: str, data: bytes) -> None:
-        if not hasattr(self, "_device_controller") or self._device_controller is None:
-            self._command_terminal.add_received_data("[Error] Controller not initialized".encode("utf-8"))
-            return
-        if not self._device_controller.is_device_connected(device_id):
-            self._command_terminal.add_received_data("[Error] Device not connected".encode("utf-8"))
-            return
-        self._device_controller.send_raw_command(device_id, data)
-
-    def _setup_command_terminal_device_links(self) -> None:
-        if not hasattr(self, "_command_terminal") or not hasattr(self, "_device_controller"):
-            return
-        if self._device_controller is None:
-            return
-        from core.foundation.data_bus import DataBus
-
-        devices = self._device_controller.get_device_list()
-        self._command_terminal.update_device_list(devices)
-        bus = DataBus.instance()
-        bus.subscribe("device_raw_bytes_received", self._on_command_terminal_data_received)
-        bus.subscribe("device_data_updated", self._on_command_terminal_protocol_data)
-
-    @Slot(str, bytes)
-    def _on_command_terminal_data_received(self, device_id: str, data: bytes) -> None:
-        if hasattr(self, "_command_terminal"):
-            selected_id = self._command_terminal.device_combo.currentData(Qt.ItemDataRole.UserRole)
-            if selected_id == device_id or not selected_id:
-                self._command_terminal.add_received_data(data)
-
-    @Slot(str, object)
-    def _on_command_terminal_protocol_data(self, device_id: str, data: dict) -> None:
-        if hasattr(self, "_command_terminal"):
-            selected_id = self._command_terminal.device_combo.currentData(Qt.ItemDataRole.UserRole)
-            if selected_id == device_id or not selected_id:
-                self._command_terminal.add_protocol_data(data)
-
-    @Slot(str, bool, str)
-    def _on_raw_send_result(self, device_id: str, success: bool, msg: str) -> None:
-        if not success and hasattr(self, "_command_terminal") and msg:
-            self._command_terminal.add_received_data(f"[Error] {msg}".encode("utf-8"))
-
     def _on_splitter_moved(self, pos: int, index: int) -> None:
         """Splitter 拉动时重新定位按钮并自适应调整（含最小尺寸保护）."""
         if not self._left_panel_collapsed:
@@ -1003,20 +958,8 @@ class MainWindow(QMainWindow):
         self._add_device_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._add_device_btn.clicked.connect(self._add_device)
 
-        self._batch_ops_btn = PrimaryButton(TextConstants.ACTION_BATCH_OPS)
-        self._batch_ops_btn.setMinimumHeight(36)
-        self._batch_ops_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self._batch_ops_btn.clicked.connect(self._show_batch_operations)
-
-        self._remove_btn = DangerButton(TextConstants.REMOVE_DEVICE_BTN)
-        self._remove_btn.setMinimumHeight(36)
-        self._remove_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self._remove_btn.clicked.connect(self._remove_device)
-
         btn_layout.addWidget(self._auto_reconnect_btn)
         btn_layout.addWidget(self._add_device_btn)
-        btn_layout.addWidget(self._batch_ops_btn)
-        btn_layout.addWidget(self._remove_btn)
         left_layout.addLayout(btn_layout)
 
         return left_widget
@@ -1045,8 +988,6 @@ class MainWindow(QMainWindow):
         return welcome_page
 
     def _create_monitor_page(self) -> QWidget:
-        from ui.command_terminal import CommandTerminalWidget
-
         page = self._monitor_controller.build(
             parent=self,
             styles=AppStyles.__dict__,
@@ -1054,8 +995,6 @@ class MainWindow(QMainWindow):
             on_manage_cards=self._on_manage_cards,
             on_manage_charts=self._on_manage_charts,
             on_expand_panel=self._expand_left_panel,
-            on_command_send=self._on_command_terminal_send,
-            command_terminal_cls=CommandTerminalWidget,
         )
 
         self._expand_btn = self._monitor_controller.expand_btn
@@ -1065,7 +1004,6 @@ class MainWindow(QMainWindow):
         self._device_status_badge = self._monitor_controller.device_status_badge
         self._right_splitter = self._monitor_controller.right_splitter
         self._monitor_tabs = self._monitor_controller.monitor_tabs
-        self._command_terminal = self._monitor_controller.get_command_terminal()
         self._data_cards_layout = self._monitor_controller.data_cards_layout
         self._chart_layout = self._monitor_controller.chart_layout
         self._register_table = self._monitor_controller.get_register_table()
@@ -1084,8 +1022,8 @@ class MainWindow(QMainWindow):
         )
 
     def _log_message(self, message: str, level: str = "INFO", device_id: str = None, operation: str = None) -> None:
-        if hasattr(self, "_command_terminal"):
-            self._command_terminal.add_system_log(message, level)
+        if hasattr(self, "_monitor_controller") and self._monitor_controller:
+            self._monitor_controller.append_log(message, level)
 
     def _connect_signals(self) -> None:
         """连接设备管理器信号到UI处理槽函数（v4.0 DataBus订阅版）"""
@@ -1102,8 +1040,6 @@ class MainWindow(QMainWindow):
 
         self._write_manager.confirm_required.connect(self._show_write_confirmation)
         self._write_manager.operation_result.connect(self._on_write_operation_result)
-
-        self._device_controller.raw_send_result.connect(self._on_raw_send_result)
 
         self._connect_data_bus()
 
@@ -1218,14 +1154,12 @@ class MainWindow(QMainWindow):
     def _on_bus_device_connected(self, device_id: str):
         """DataBus 设备连接回调"""
         self._refresh_device_list(self._search_edit.text())
-        self._setup_command_terminal_device_links()
         self._log_message("设备已连接", "SUCCESS", device_id, "CONNECT")
 
     @Slot(str)
     def _on_bus_device_disconnected(self, device_id: str):
         """DataBus 设备断开回调"""
         self._refresh_device_list(self._search_edit.text())
-        self._setup_command_terminal_device_links()
         self._log_message("设备已断开", "INFO", device_id, "DISCONNECT")
 
     @Slot(str, str, str, float)
@@ -1244,7 +1178,6 @@ class MainWindow(QMainWindow):
             self._get_or_create_mcgsm_reader()
 
         self._refresh_device_list()
-        self._setup_command_terminal_device_links()
         self._log_message("设备列表已刷新", "INFO")
 
     def _refresh_device_list(self, search_text: str = "") -> None:
@@ -1966,7 +1899,6 @@ class MainWindow(QMainWindow):
     def _on_device_added(self, device_id: str) -> None:
         self._refresh_device_list(self._search_edit.text())
         self._update_status_bar()
-        self._setup_command_terminal_device_links()
         message = f"设备已添加"
         self._status_msg_label.setText(f"设备已添加: {device_id}")
         self._log_message(message, "SUCCESS", device_id, "ADD")
@@ -1975,7 +1907,6 @@ class MainWindow(QMainWindow):
     def _on_device_removed(self, device_id: str) -> None:
         self._refresh_device_list(self._search_edit.text())
         self._update_status_bar()
-        self._setup_command_terminal_device_links()
         self._stack_widget.setCurrentIndex(0)
         message = f"设备已移除"
         self._status_msg_label.setText(f"设备已移除: {device_id}")
@@ -1985,7 +1916,6 @@ class MainWindow(QMainWindow):
     def _on_device_connected(self, device_id: str) -> None:
         self._refresh_device_list(self._search_edit.text())
         self._update_status_bar()
-        self._setup_command_terminal_device_links()
         message = f"设备已连接"
         self._status_msg_label.setText(f"设备已连接: {device_id}")
         logger.info(LogMessages.DEVICE_CONNECTED.format(device_id=device_id))
@@ -1995,7 +1925,6 @@ class MainWindow(QMainWindow):
     def _on_device_disconnected(self, device_id: str) -> None:
         self._refresh_device_list(self._search_edit.text())
         self._update_status_bar()
-        self._setup_command_terminal_device_links()
         message = f"设备已断开"
         self._status_msg_label.setText(f"设备已断开: {device_id}")
         logger.info(LogMessages.DEVICE_DISCONNECTED.format(device_id=device_id))
@@ -2139,18 +2068,8 @@ class MainWindow(QMainWindow):
         # 更新自动重连状态
         self._update_auto_reconnect_status()
 
-        # 添加时间戳，显示最后更新时间
         current_time = datetime.now().strftime("%H:%M:%S")
         self._status_time_label.setText(f"更新时间: {current_time}")
-
-        # 更新命令统计
-        if hasattr(self, "_command_terminal"):
-            tx_count = self._command_terminal.get_tx_count()
-            rx_count = self._command_terminal.get_rx_count()
-            if hasattr(self, "_status_tx_label"):
-                self._status_tx_label.setText(f"TX: {tx_count}")
-            if hasattr(self, "_status_rx_label"):
-                self._status_rx_label.setText(f"RX: {rx_count}")
 
     def _on_manage_charts(self) -> None:
         """管理趋势图"""
