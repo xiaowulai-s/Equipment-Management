@@ -1,22 +1,7 @@
 [
   {
     "name": "气体传感器",
-    "code": "O2",
+    "code": "Q2",
     "description": "通用气体传感器设备"
-  },
-  {
-    "name": "液体传感器",
-    "code": "L2",
-    "description": "通用液体传感器设备"
-  },
-  {
-    "name": "固体传感器",
-    "code": "G2",
-    "description": "通用固体传感器设备"
-  },
-  {
-    "name": "流量传感器",
-    "code": "F2",
-    "description": "通用流量传感器设备"
   }
 ]

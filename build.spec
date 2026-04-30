@@ -16,12 +16,12 @@ a = Analysis(
     binaries=[],
     datas=[
         # 包含配置文件
-        ('config/config.json', 'config'),
+        ('config.json', '.'),
         ('config/default_config.json', 'config'),
+        ('device_types.json', '.'),
 
         # 包含UI样式文件
         ('ui/styles', 'ui/styles'),
-        ('ui/*.qss', 'ui'),
 
         # 包含资源文件（如果有）
         # ('assets/*', 'assets'),
@@ -47,16 +47,14 @@ a = Analysis(
         'numpy',
 
         # 项目模块
-        'src',
-        'src.protocols',
-        'src.communication',
-        'src.device',
-        'src.data',
-        'src.alarm',
-        'src.utils',
+        'core',
+        'core.protocols',
+        'core.communication',
+        'core.device',
+        'core.data',
+        'core.utils',
         'ui',
         'ui.widgets',
-        'ui.dialogs',
         'ui.styles',
     ],
     hookspath=[],

@@ -1,12 +1,17 @@
-# -*- coding: utf-8 -*-
-"""
-版本信息
-Version Information
-"""
+__version__ = "2.0.0"
 
-__version__ = "1.6.0"
-__version_info__ = (1, 6, 0)
-__author__ = "开发团队"
-__email__ = "support@example.com"
-__description__ = "工业设备管理系统"
-__url__ = "https://github.com/xiaowulai-s/Equipment-Management"
+VERSION_INFO = {
+    "major": 2,
+    "minor": 0,
+    "patch": 0,
+    "releaselevel": "final",
+    "serial": 0,
+}
+
+
+def get_version() -> str:
+    return __version__
+
+
+def get_version_info() -> dict:
+    return dict(VERSION_INFO)

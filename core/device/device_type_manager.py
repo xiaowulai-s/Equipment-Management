@@ -6,6 +6,7 @@ Device Type Manager
 
 import json
 import os
+import sys
 from typing import Any, Dict, List
 
 from PySide6.QtCore import QObject, Signal
@@ -24,9 +25,25 @@ class DeviceTypeManager(QObject):
 
     def __init__(self, config_file: str = "device_types.json", parent=None):
         super().__init__(parent)
-        self._config_file = config_file
+        # 获取正确的配置文件路径，支持PyInstaller打包
+        self._config_file = self._get_config_path(config_file)
         self._device_types: List[Dict[str, Any]] = []
         self._load_device_types()
+
+    def _get_config_path(self, config_file: str) -> str:
+        """
+        获取配置文件的正确路径，支持PyInstaller打包
+        Get the correct path for the config file, supporting PyInstaller packaging
+        """
+        # PyInstaller打包后，文件会被放到sys._MEIPASS目录
+        if getattr(sys, "frozen", False):
+            # 获取临时目录路径
+            base_path = sys._MEIPASS
+            # 构建完整路径
+            return os.path.join(base_path, config_file)
+        else:
+            # 开发环境，直接使用相对路径
+            return config_file
 
     def _load_device_types(self):
         """

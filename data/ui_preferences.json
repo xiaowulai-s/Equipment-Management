@@ -1,0 +1,45 @@
+{
+  "panel_state": {
+    "left_collapsed": false,
+    "left_width": 480,
+    "right_width": 0
+  },
+  "device_cards": {
+    "fae71ce1": [
+      {
+        "title": "温度",
+        "register_name": "温度",
+        "register_address": 40001,
+        "min_value": 0.0,
+        "max_value": 100.0,
+        "color": ""
+      }
+    ],
+    "Device0": [
+      {
+        "title": "Data0\n[40001]",
+        "register_name": "Data0"
+      },
+      {
+        "title": "Data1\n[40002]",
+        "register_name": "Data1"
+      },
+      {
+        "title": "Data2\n[40003]",
+        "register_name": "Data2"
+      },
+      {
+        "title": "Data3\n[40004]",
+        "register_name": "Data3"
+      }
+    ]
+  },
+  "device_charts": {
+    "fae71ce1": [
+      {
+        "title": "设备数据趋势图",
+        "registers": []
+      }
+    ]
+  }
+}
