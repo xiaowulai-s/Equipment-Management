@@ -22,6 +22,7 @@ Historical Data Storage Service (SQLite)
 
 import sqlite3
 import logging
+import threading
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -72,6 +73,7 @@ class HistoryStorage:
         self._db_path = Path(db_path)
         self._max_age_days = max_age_days
         self._conn: Optional[sqlite3.Connection] = None
+        self._lock = threading.Lock()  # 保护 SQLite 连接的多线程访问
 
         # 确保数据库目录存在
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -92,6 +94,11 @@ class HistoryStorage:
             str(self._db_path), detect_types=sqlite3.PARSE_DECLTYPES, check_same_thread=False  # 允许多线程访问
         )
         self._conn.row_factory = sqlite3.Row
+        # 启用 WAL 模式以支持并发读写（与应用中 SQLAlchemy 的 WAL 一致）
+        try:
+            self._conn.execute("PRAGMA journal_mode=WAL")
+        except Exception:
+            pass
 
     def _create_tables(self):
         """创建数据表"""
@@ -206,7 +213,7 @@ class HistoryStorage:
             成功保存的记录数
         """
         if timestamp is None:
-            timestamp = datetime.now()
+            timestamp = datetime.utcnow()
 
         records = []
         for param_name, formatted in parsed_data.items():
@@ -242,30 +249,34 @@ class HistoryStorage:
         if not records:
             return 0
 
-        cursor = self._conn.cursor()
+        with self._lock:
+            cursor = self._conn.cursor()
 
-        try:
-            cursor.executemany(
-                """
-                INSERT OR REPLACE INTO mcgs_history
-                (device_id, timestamp, param_name, raw_value, formatted_value, quality)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """,
-                [(r.device_id, r.timestamp, r.param_name, r.raw_value, r.formatted_value, r.quality) for r in records],
-            )
+            try:
+                cursor.executemany(
+                    """
+                    INSERT OR REPLACE INTO mcgs_history
+                    (device_id, timestamp, param_name, raw_value, formatted_value, quality)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                    [
+                        (r.device_id, r.timestamp, r.param_name, r.raw_value, r.formatted_value, r.quality)
+                        for r in records
+                    ],
+                )
 
-            self._conn.commit()
-            count = cursor.rowcount
+                self._conn.commit()
+                count = cursor.rowcount
 
-            if count > 0:
-                logger.debug(f"Saved {count} history records")
+                if count > 0:
+                    logger.debug(f"Saved {count} history records")
 
-            return count
+                return count
 
-        except sqlite3.Error as e:
-            logger.error(f"Save failed: {e}")
-            self._conn.rollback()
-            return 0
+            except sqlite3.Error as e:
+                logger.error(f"Save failed: {e}")
+                self._conn.rollback()
+                return 0
 
     def query_range(
         self,
@@ -292,32 +303,33 @@ class HistoryStorage:
         Returns:
             [(timestamp, value), ...] 时间序列数据
         """
-        cursor = self._conn.cursor()
+        with self._lock:
+            cursor = self._conn.cursor()
 
-        # 确定时间范围
-        if start_time and end_time:
-            pass  # 使用指定范围
-        elif hours:
-            end_time = datetime.now()
-            start_time = end_time - timedelta(hours=hours)
-        else:
-            start_time = datetime.now() - timedelta(hours=1)
-            end_time = datetime.now()
+            # 确定时间范围
+            if start_time and end_time:
+                pass  # 使用指定范围
+            elif hours:
+                end_time = datetime.utcnow()
+                start_time = end_time - timedelta(hours=hours)
+            else:
+                start_time = datetime.utcnow() - timedelta(hours=1)
+                end_time = datetime.utcnow()
 
-        order = "ASC" if order_asc else "DESC"
-        query = f"""
-            SELECT timestamp, raw_value
-            FROM mcgs_history
-            WHERE device_id = ? AND param_name = ?
-              AND timestamp BETWEEN ? AND ?
-            ORDER BY timestamp {order}
-            LIMIT ?
-        """
+            order = "ASC" if order_asc else "DESC"
+            query = f"""
+                SELECT timestamp, raw_value
+                FROM mcgs_history
+                WHERE device_id = ? AND param_name = ?
+                  AND timestamp BETWEEN ? AND ?
+                ORDER BY timestamp {order}
+                LIMIT ?
+            """
 
-        cursor.execute(query, (device_id, param_name, start_time, end_time, limit))
+            cursor.execute(query, (device_id, param_name, start_time, end_time, limit))
 
-        rows = cursor.fetchall()
-        result = [(row["timestamp"], row["raw_value"]) for row in rows]
+            rows = cursor.fetchall()
+            result = [(row["timestamp"], row["raw_value"]) for row in rows]
 
         logger.debug(
             f"Query range: [{device_id}].[{param_name}] " f"({start_time} ~ {end_time}) = {len(result)} records"
@@ -337,46 +349,47 @@ class HistoryStorage:
         Returns:
             最新数据字典或列表
         """
-        cursor = self._conn.cursor()
+        with self._lock:
+            cursor = self._conn.cursor()
 
-        if param_name:
-            cursor.execute(
-                """
-                SELECT param_name, raw_value, formatted_value, timestamp
-                FROM mcgs_history
-                WHERE device_id = ? AND param_name = ?
-                ORDER BY timestamp DESC
-                LIMIT ?
-            """,
-                (device_id, param_name, count),
-            )
+            if param_name:
+                cursor.execute(
+                    """
+                    SELECT param_name, raw_value, formatted_value, timestamp
+                    FROM mcgs_history
+                    WHERE device_id = ? AND param_name = ?
+                    ORDER BY timestamp DESC
+                    LIMIT ?
+                """,
+                    (device_id, param_name, count),
+                )
 
-            row = cursor.fetchone()
-            return dict(row) if row else {}
+                row = cursor.fetchone()
+                return dict(row) if row else {}
 
-        else:
-            # 返回所有参数的最新值
-            cursor.execute(
-                """
-                SELECT param_name, raw_value, formatted_value, timestamp
-                FROM mcgs_history
-                WHERE device_id = ?
-                  AND timestamp = (
-                      SELECT MAX(timestamp) FROM mcgs_history WHERE device_id = ?
-                  )
-            """,
-                (device_id, device_id),
-            )
+            else:
+                # 返回所有参数的最新值
+                cursor.execute(
+                    """
+                    SELECT param_name, raw_value, formatted_value, timestamp
+                    FROM mcgs_history
+                    WHERE device_id = ?
+                      AND timestamp = (
+                          SELECT MAX(timestamp) FROM mcgs_history WHERE device_id = ?
+                      )
+                """,
+                    (device_id, device_id),
+                )
 
-            rows = cursor.fetchall()
-            return {
-                row["param_name"]: {
-                    "raw": row["raw_value"],
-                    "formatted": row["formatted_value"],
-                    "time": row["timestamp"],
+                rows = cursor.fetchall()
+                return {
+                    row["param_name"]: {
+                        "raw": row["raw_value"],
+                        "formatted": row["formatted_value"],
+                        "time": row["timestamp"],
+                    }
+                    for row in rows
                 }
-                for row in rows
-            }
 
     def get_statistics(self, device_id: str, param_name: str, hours: float = 24.0) -> Dict[str, float]:
         """
@@ -390,26 +403,27 @@ class HistoryStorage:
         Returns:
             统计结果字典
         """
-        cursor = self._conn.cursor()
-        start_time = datetime.now() - timedelta(hours=hours)
+        with self._lock:
+            cursor = self._conn.cursor()
+            start_time = datetime.utcnow() - timedelta(hours=hours)
 
-        cursor.execute(
-            """
-            SELECT
-                COUNT(*) as sample_count,
-                AVG(raw_value) as avg_value,
-                MIN(raw_value) as min_value,
-                MAX(raw_value) as max_value,
-                SUM(raw_value * raw_value) / COUNT(*) -
-                    AVG(raw_value) * AVG(raw_value) as variance
-            FROM mcgs_history
-            WHERE device_id = ? AND param_name = ?
-              AND timestamp >= ?
-        """,
-            (device_id, param_name, start_time),
-        )
+            cursor.execute(
+                """
+                SELECT
+                    COUNT(*) as sample_count,
+                    AVG(raw_value) as avg_value,
+                    MIN(raw_value) as min_value,
+                    MAX(raw_value) as max_value,
+                    SUM(raw_value * raw_value) / COUNT(*) -
+                        AVG(raw_value) * AVG(raw_value) as variance
+                FROM mcgs_history
+                WHERE device_id = ? AND param_name = ?
+                  AND timestamp >= ?
+            """,
+                (device_id, param_name, start_time),
+            )
 
-        row = cursor.fetchone()
+            row = cursor.fetchone()
 
         if row and row["sample_count"] > 0:
             import math
@@ -433,20 +447,21 @@ class HistoryStorage:
             max_age_days: 保留天数（默认使用初始化设置）
         """
         days = max_age_days or self._max_age_days
-        cutoff = datetime.now() - timedelta(days=days)
+        cutoff = datetime.utcnow() - timedelta(days=days)
 
-        cursor = self._conn.cursor()
-        cursor.execute("DELETE FROM mcgs_history WHERE timestamp < ?", (cutoff,))
-        deleted = cursor.rowcount
-        self._conn.commit()
+        with self._lock:
+            cursor = self._conn.cursor()
+            cursor.execute("DELETE FROM mcgs_history WHERE timestamp < ?", (cutoff,))
+            deleted = cursor.rowcount
+            self._conn.commit()
 
-        if deleted > 0:
-            logger.info(f"Cleaned up {deleted} old records (> {days} days)")
+            if deleted > 0:
+                logger.info(f"Cleaned up {deleted} old records (> {days} days)")
 
-        # 同时更新统计表
-        cursor.execute("DELETE FROM mcgs_hourly_stats WHERE hour_start < ?", (cutoff,))
-        cursor.execute("DELETE FROM mcgs_daily_stats WHERE date < ?", (cutoff.date(),))
-        self._conn.commit()
+            # 同时更新统计表
+            cursor.execute("DELETE FROM mcgs_hourly_stats WHERE hour_start < ?", (cutoff,))
+            cursor.execute("DELETE FROM mcgs_daily_stats WHERE date < ?", (cutoff.date(),))
+            self._conn.commit()
 
         return deleted
 
@@ -473,7 +488,7 @@ class HistoryStorage:
 
         try:
             cursor = self._conn.cursor()
-            start_time = datetime.now() - timedelta(hours=hours)
+            start_time = datetime.utcnow() - timedelta(hours=hours)
 
             # 获取所有相关参数名（如果未指定）
             if param_names is None:
@@ -524,10 +539,11 @@ class HistoryStorage:
 
     def close(self):
         """关闭数据库连接"""
-        if self._conn:
-            self._conn.close()
-            self._conn = None
-            logger.info("HistoryStorage connection closed")
+        with self._lock:
+            if self._conn:
+                self._conn.close()
+                self._conn = None
+                logger.info("HistoryStorage connection closed")
 
     def __del__(self):
         self.close()

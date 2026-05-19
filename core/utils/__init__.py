@@ -8,7 +8,7 @@ from .alarm_enums import Alarm, AlarmLevel, AlarmRule, AlarmType
 from .alarm_manager import AlarmManager
 from .alarm_notification import AlarmNotificationService, NotificationChannel, NotificationConfig
 from .data_exporter import DataExporter
-from .logger_v2 import get_logger
+from .logger import get_logger
 from .serial_utils import test_serial_port
 
 __all__ = [

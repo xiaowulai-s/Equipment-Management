@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Optional
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -68,15 +68,45 @@ class RegisterWriteDialog(QDialog):
         info_label.setStyleSheet("color: #e74c3c; font-weight: bold;")
         layout.addWidget(info_label)
 
+        self._result_label = QLabel("")
+        self._result_label.setStyleSheet("font-size: 12px; padding: 4px;")
+        layout.addWidget(self._result_label)
+
         btn_layout = QHBoxLayout()
-        write_btn = QPushButton("写入")
-        write_btn.clicked.connect(self._do_write)
+        self._write_btn = QPushButton("写入")
+        self._write_btn.clicked.connect(self._do_write)
         cancel_btn = QPushButton("取消")
         cancel_btn.clicked.connect(self.reject)
         btn_layout.addStretch()
-        btn_layout.addWidget(write_btn)
+        btn_layout.addWidget(self._write_btn)
         btn_layout.addWidget(cancel_btn)
         layout.addLayout(btn_layout)
+
+    class _WriteTaskSignals(QObject):
+        finished = Signal(bool, str)
+
+    class _WriteTask(QRunnable):
+        def __init__(self, protocol, reg_type, address, value, unit_id):
+            super().__init__()
+            self._protocol = protocol
+            self._reg_type = reg_type
+            self._address = address
+            self._value = value
+            self._unit_id = unit_id
+            self.signals = RegisterWriteDialog._WriteTaskSignals()
+
+        def run(self):
+            try:
+                if self._reg_type == "coil":
+                    success = self._protocol.write_single_coil(self._address, bool(self._value), self._unit_id)
+                else:
+                    success = self._protocol.write_single_register(self._address, self._value, self._unit_id)
+                if success:
+                    self.signals.finished.emit(True, "")
+                else:
+                    self.signals.finished.emit(False, "设备未确认写入操作")
+            except Exception as e:
+                self.signals.finished.emit(False, str(e))
 
     def _do_write(self) -> None:
         reg_type = self._type_combo.currentData()
@@ -93,22 +123,26 @@ class RegisterWriteDialog(QDialog):
         ):
             return
 
-        try:
-            protocol = self._device.get_protocol()
-            if protocol is None:
-                QMessageBox.critical(self, "写入失败", "设备协议未初始化")
-                return
+        protocol = self._device.get_protocol()
+        if protocol is None:
+            QMessageBox.critical(self, "写入失败", "设备协议未初始化")
+            return
 
-            if reg_type == "coil":
-                success = protocol.write_single_coil(address, bool(value), self._unit_spin.value())
-            else:
-                success = protocol.write_single_register(address, value, self._unit_spin.value())
+        self._write_btn.setEnabled(False)
+        self._result_label.setText(f"⏳ 正在写入寄存器 {address} ...")
+        self._result_label.setStyleSheet("font-size: 12px; color: #2196F3; padding: 4px;")
 
-            if success:
-                QMessageBox.information(self, "写入成功", f"寄存器 {address} 已写入值 {value}")
-                self.write_completed.emit(address, value)
-                self.accept()
-            else:
-                QMessageBox.warning(self, "写入失败", "设备未确认写入操作")
-        except Exception as e:
-            QMessageBox.critical(self, "写入异常", str(e))
+        task = RegisterWriteDialog._WriteTask(protocol, reg_type, address, value, self._unit_spin.value())
+        task.signals.finished.connect(self._on_write_result)
+        QThreadPool.globalInstance().start(task)
+
+    def _on_write_result(self, success: bool, error_msg: str) -> None:
+        self._write_btn.setEnabled(True)
+        if success:
+            self._result_label.setText(f"✅ 寄存器 {self._address_spin.value()} 已写入值 {self._value_spin.value()}")
+            self._result_label.setStyleSheet("font-size: 12px; color: #4CAF50; font-weight: 600; padding: 4px;")
+            self.write_completed.emit(self._address_spin.value(), self._value_spin.value())
+            self.accept()
+        else:
+            self._result_label.setText(f"❌ 写入失败: {error_msg}")
+            self._result_label.setStyleSheet("font-size: 12px; color: #F44336; padding: 4px;")

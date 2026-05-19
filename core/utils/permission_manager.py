@@ -10,7 +10,7 @@
 ✅ 权限检查（写操作前验证）
 ✅ 会话管理（超时自动登出）
 ✅ 操作审计（记录谁在什么时候做了什么）
-✅ 密码哈希存储（SHA256）
+✅ 密码哈希存储（PBKDF2-HMAC-SHA256 + 随机盐值）
 
 权限等级:
 - ADMIN (管理员): 完全权限，可执行所有操作
@@ -24,7 +24,7 @@
     >>> pm.logout()
 
 设计原则:
-✅ 安全性: 密码使用SHA256哈希存储
+✅ 安全性: 密码使用PBKDF2-HMAC-SHA256（10万次迭代）加随机盐值存储
 ✅ 可扩展: 支持自定义用户数据源（数据库/LDAP）
 ✅ 信号驱动: 使用Qt Signal通知权限状态变化
 ✅ 审计追踪: 所有登录/登出/权限检查都有日志记录
@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -113,7 +114,7 @@ class User:
         Returns:
             是否匹配
         """
-        return self.password_hash == PermissionManager._hash_password(plain_password)
+        return PermissionManager._verify_password(plain_password, self.password_hash)
 
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典（用于序列化）"""
@@ -238,17 +239,45 @@ class PermissionManager(QObject):
             self.session_timeout.emit(username)
 
     @staticmethod
-    def _hash_password(plain_password: str) -> str:
+    def _hash_password(plain_password: str, salt: str = None) -> str:
         """
-        计算密码的SHA256哈希值
+        使用PBKDF2-HMAC-SHA256计算密码哈希值（带盐值）
 
         Args:
             plain_password: 明文密码
+            salt: 盐值（16字节十六进制字符串）。如果为None，自动生成随机盐值。
 
         Returns:
-            SHA256哈希字符串（64字符十六进制）
+            格式为 "salt$pbkdf2_hex" 的哈希字符串
         """
-        return hashlib.sha256(plain_password.encode("utf-8")).hexdigest()
+        if salt is None:
+            salt = os.urandom(16).hex()
+        salt_bytes = salt.encode("utf-8") if isinstance(salt, str) else salt
+        key = hashlib.pbkdf2_hmac(
+            "sha256",
+            plain_password.encode("utf-8"),
+            salt_bytes,
+            100000,
+        )
+        return f"{salt}${key.hex()}"
+
+    @staticmethod
+    def _verify_password(plain_password: str, hashed: str) -> bool:
+        """
+        验证密码是否匹配存储的哈希值
+
+        Args:
+            plain_password: 明文密码
+            hashed: 存储的哈希字符串（格式: "salt$pbkdf2_hex"）
+
+        Returns:
+            是否匹配
+        """
+        try:
+            salt, key = hashed.split("$", 1)
+            return PermissionManager._hash_password(plain_password, salt) == hashed
+        except (ValueError, AttributeError):
+            return False
 
     def _load_default_users(self) -> None:
         """

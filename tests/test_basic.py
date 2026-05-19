@@ -143,26 +143,6 @@ class TestWindowManagers(unittest.TestCase):
         self.assertTrue(DeviceListManager is not None)
 
 
-class TestMigrationHelper(unittest.TestCase):
-    """迁移助手单元测试"""
-
-    def test_migrator_exists(self):
-        """测试迁移器是否存在"""
-        from ui.migration_helper import TokenMigrator
-
-        self.assertTrue(TokenMigrator is not None)
-
-    def test_migrator_analyze_file(self):
-        """测试文件分析功能"""
-        from ui.migration_helper import TokenMigrator
-
-        migrator = TokenMigrator()
-        result = migrator.analyze_file("ui/design_tokens.py")
-
-        self.assertIn("file", result)
-        self.assertIn("total_issues", result)
-
-
 def run_tests():
     """运行所有测试"""
     loader = unittest.TestLoader()

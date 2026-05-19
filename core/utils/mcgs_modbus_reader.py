@@ -24,6 +24,7 @@ import json
 import logging
 import math
 import struct
+import threading
 import time
 import traceback
 from dataclasses import dataclass, field
@@ -79,10 +80,13 @@ class DevicePointConfig:
                 "uint16": RegisterDataType.HOLDING_INT16,
                 "coil": RegisterDataType.COIL,
                 "di": RegisterDataType.DISCRETE_INPUT,
+                "string": None,  # 字符串类型，不使用 RegisterDataType
             }
             dtype = dtype_map.get(self.type.lower())
-            if dtype:
+            if dtype is not None:
                 return dtype.get_register_count()
+            if self.type.lower() == "string":
+                return 4  # 默认4个寄存器(8字符)
         except Exception:
             pass
         return 2
@@ -115,6 +119,8 @@ class DeviceConfig:
     byte_order: str = "CDAB"
     polling_interval_ms: int = 1000
     address_base: int = 1
+    description: str = ""
+    device_type: str = ""
     points: List[DevicePointConfig] = field(default_factory=list)
 
 
@@ -192,6 +198,7 @@ class MCGSModbusReader:
         self._mode = mode
         self._devices: Dict[str, DeviceConfig] = {}
         self._clients: Dict[str, Any] = {}  # {device_id: client/connection}
+        self._stop_event = threading.Event()
 
         # 性能统计
         self._stats = {
@@ -251,15 +258,47 @@ class MCGSModbusReader:
         else:
             raise ValueError("配置文件中无任何设备定义")
 
+    @staticmethod
+    def _parse_mcgs_address(addr_str: str) -> int:
+        """解析MCGS地址格式为标准Modbus地址
+
+        MCGS地址格式: {功能码}{区域标识}{编号}
+          4DF0001 → 40001 (保持寄存器, 浮点)
+          4WB0013 → 40013 (保持寄存器, uint16)
+          0S00001 → 00001 (线圈)
+          1S00001 → 10001 (离散输入)
+          3DF0001 → 30001 (输入寄存器, 浮点)
+        """
+        import re
+
+        match = re.match(r"^(\d)([A-Za-z]+)(\d+)$", addr_str.strip())
+        if match:
+            func_code = int(match.group(1))
+            register_num = int(match.group(3))
+            if func_code == 4:
+                return 40000 + register_num
+            elif func_code == 3:
+                return 30000 + register_num
+            elif func_code == 0:
+                return register_num
+            elif func_code == 1:
+                return 10000 + register_num
+        return int(addr_str)
+
     def _parse_device_config(self, raw: Dict[str, Any]) -> DeviceConfig:
         """解析单个设备配置"""
         # 解析数据点列表
         points_raw = raw.get("points", [])
         points = []
         for p_raw in points_raw:
+            addr = p_raw["addr"]
+            if isinstance(addr, str):
+                addr = self._parse_mcgs_address(addr)
+            else:
+                addr = int(addr)
             point = DevicePointConfig(
                 name=p_raw["name"],
-                addr=int(p_raw["addr"]),
+                addr=addr,
                 type=p_raw.get("type", "float"),
                 unit=p_raw.get("unit", ""),
                 decimal_places=int(p_raw.get("decimal_places", 2)),
@@ -273,6 +312,7 @@ class MCGSModbusReader:
         return DeviceConfig(
             id=raw["id"],
             name=raw.get("name", raw["id"]),
+            description=raw.get("description", ""),
             ip=raw["ip"],
             port=int(raw.get("port", 502)),
             unit_id=int(raw.get("unit_id", 1)),
@@ -280,6 +320,7 @@ class MCGSModbusReader:
             byte_order=raw.get("byte_order", "CDAB").upper(),
             polling_interval_ms=int(raw.get("polling_interval_ms", 1000)),
             address_base=int(raw.get("address_base", 1)),
+            device_type=raw.get("device_type", ""),
             points=points,
         )
 
@@ -288,9 +329,14 @@ class MCGSModbusReader:
         variables_raw = gw_raw.get("variables", [])
         points = []
         for v_raw in variables_raw:
+            addr = v_raw["addr"]
+            if isinstance(addr, str):
+                addr = self._parse_mcgs_address(addr)
+            else:
+                addr = int(addr)
             point = DevicePointConfig(
                 name=v_raw["name"],
-                addr=int(v_raw["addr"]),
+                addr=addr,
                 type=v_raw.get("type", "uint16"),
                 unit=v_raw.get("unit", ""),
                 decimal_places=int(v_raw.get("decimal_places", 2)),
@@ -304,6 +350,7 @@ class MCGSModbusReader:
         device = DeviceConfig(
             id=gw_raw["id"],
             name=gw_raw.get("name", gw_raw["id"]),
+            description=gw_raw.get("description", ""),
             ip=gw_raw.get("ip", "127.0.0.1"),
             port=int(gw_raw.get("port", 502)),
             unit_id=int(gw_raw.get("unit_id", 1)),
@@ -410,7 +457,21 @@ class MCGSModbusReader:
             return False
 
         if device_id in self._clients:
-            return True  # 已连接
+            try:
+                client_info = self._clients[device_id]
+                if client_info["type"] == "pymodbus":
+                    if hasattr(client_info["client"], "connected") and not client_info["client"].connected:
+                        self.disconnect_device(device_id)
+                    else:
+                        return True
+                else:
+                    driver = client_info.get("connection", {}).get("driver")
+                    if driver and hasattr(driver, "is_connected") and not driver.is_connected:
+                        self.disconnect_device(device_id)
+                    else:
+                        return True
+            except Exception:
+                self.disconnect_device(device_id)
 
         device = self._devices[device_id]
 
@@ -630,9 +691,17 @@ class MCGSModbusReader:
                 return result
 
             # ===== 任务3: 地址转换 + 批量读取 =====
-            # ⚠️ 关键：pymodbus 使用 0-based 地址
-            # Modbus标准地址 30002 → pymodbus 实际读取 30001
-            actual_start = start_addr - device.address_base
+            # pymodbus 使用 0-based 相对地址
+            # Modbus绝对地址转换:
+            #   4xxxx 保持寄存器(FC03) → 减 40001 → 相对地址 0,1,2...
+            #   3xxxx 输入寄存器(FC04) → 减 30001 → 相对地址 0,1,2...
+            #   其他(已相对/线圈)       → 减 address_base
+            if start_addr >= 40000:
+                actual_start = start_addr - 40001
+            elif start_addr >= 30000:
+                actual_start = start_addr - 30001
+            else:
+                actual_start = start_addr - device.address_base
 
             logger.info(
                 "[%s] 批量读取 [地址=%d(实际%d), 数量=%d, 字节序=%s]",
@@ -715,7 +784,7 @@ class MCGSModbusReader:
         """使用内置协议栈执行 FC03 读取"""
         try:
             protocol = conn_info["protocol"]
-            result = protocol.read_holding_registers(start, count)
+            result = protocol.read_registers(start, count)
 
             if result is None:
                 logger.warning("内置协议栈读取返回None")
@@ -824,6 +893,23 @@ class MCGSModbusReader:
 
                 # 提取该点的寄存器
 
+                # 字符串类型特殊处理
+                if point.type.lower() == "string":
+                    sub_regs = registers[offset : offset + needed]
+                    chars = []
+                    # MCGS 4STR: 每个寄存器低字节=首个字符，高字节=次个字符
+                    # "abcd" → reg[0]=0x6261('a','b'), reg[1]=0x6463('c','d')
+                    for reg in sub_regs:
+                        low = reg & 0xFF
+                        high = (reg >> 8) & 0xFF
+                        if low != 0 and chr(low).isprintable():
+                            chars.append(chr(low))
+                        if high != 0 and chr(high).isprintable():
+                            chars.append(chr(high))
+                    formatted = "".join(chars).strip()
+                    parsed[point.name] = formatted
+                    continue
+
                 # 第三层：根据类型解析 — 委托给 ModbusValueParser
                 raw_value = self._parse_with_value_parser(registers, offset, point.type, byte_order)
 
@@ -847,11 +933,12 @@ class MCGSModbusReader:
                         parsed[point.name] = "INVALID"
                         continue
 
-                    # 格式化显示值
+                    # 格式化显示值（四舍五入，固定显示位数）
                     if point.type.lower() in ("coil", "di"):
                         formatted = "ON" if scaled_value else "OFF"
                     else:
-                        formatted = f"{scaled_value:.{point.decimal_places}f}"
+                        rounded = round(scaled_value, point.decimal_places)
+                        formatted = f"{rounded:.{point.decimal_places}f}"
 
                         # 添加单位
                         if point.unit:
@@ -875,10 +962,10 @@ class MCGSModbusReader:
     def _check_alarm(self, point: DevicePointConfig, value: float, device_id: str):
         """检查报警阈值"""
         if point.alarm_high is not None and value > point.alarm_high:
-            logger.warning("⚠️ [%s] 报警-高限 [%s]: %.2f > %.2f", device_id, point.name, value, point.alarm_high)
+            logger.warning("[ALARM-HIGH] [%s] [%s]: %.2f > %.2f", device_id, point.name, value, point.alarm_high)
 
         if point.alarm_low is not None and value < point.alarm_low:
-            logger.warning("⚠️ [%s] 报警-低限 [%s]: %.2f < %.2f", device_id, point.name, value, point.alarm_low)
+            logger.warning("[ALARM-LOW] [%s] [%s]: %.2f < %.2f", device_id, point.name, value, point.alarm_low)
 
     def _log_parsed_data(self, device_id: str, data: dict, registers: List[int]):
         """打印解析结果（调试用）"""
@@ -932,7 +1019,7 @@ class MCGSModbusReader:
         """
         logger.info("开始循环读取 [间隔=%.1fs, 设备=%d]", interval, len(self._devices))
 
-        while True:
+        while not self._stop_event.is_set():
             try:
                 data = self.read_all()
 
@@ -954,6 +1041,11 @@ class MCGSModbusReader:
             except Exception as e:
                 logger.error("循环读取异常: %s", str(e))
                 time.sleep(interval)
+
+    def stop_loop(self):
+        """停止循环读取（发送停止信号）"""
+        self._stop_event.set()
+        logger.info("已发送循环读取停止信号")
 
     # ==================== 辅助方法 ====================
 
@@ -993,6 +1085,7 @@ class MCGSModbusReader:
 
     def disconnect_all(self):
         """断开所有设备连接"""
+        self._stop_event.set()
         device_ids = list(self._clients.keys())
         for device_id in device_ids:
             self.disconnect_device(device_id)
@@ -1034,34 +1127,34 @@ if __name__ == "__main__":
 
     try:
         reader = create_mcgsm_reader()
-        print(f"\n✅ 配置加载成功")
+        print(f"\n[OK] 配置加载成功")
         print(f"   设备列表: {reader.list_devices()}")
 
         # 读取一次测试
-        print("\n📡 开始读取...")
+        print("\n[READ] 开始读取...")
         data = reader.read_all()
 
-        print("\n📊 读取结果:")
+        print("\n[DATA] 读取结果:")
         for dev_id, values in data.items():
             print(f"\n  [{dev_id}]")
             if values:
                 for name, val in values.items():
                     print(f"    {name}: {val}")
             else:
-                print("    ❌ 读取失败")
+                print("    [FAIL] 读取失败")
 
         # 性能统计
         stats = reader.get_statistics()
-        print(f"\n📈 性能统计:")
+        print(f"\n[STATS] 性能统计:")
         print(f"   总读取次数: {stats['total_reads']}")
         print(f"   成功率: {stats['success_rate_percent']}%")
         print(f"   平均耗时: {stats['avg_duration_ms']:.2f}ms")
 
         reader.disconnect_all()
-        print("\n✅ 测试完成")
+        print("\n[OK] 测试完成")
 
     except Exception as e:
-        print(f"\n❌ 错误: {str(e)}")
+        print(f"\n[FAIL] 错误: {str(e)}")
         import traceback
 
         traceback.print_exc()

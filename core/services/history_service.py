@@ -127,6 +127,8 @@ class HistoryService:
         param_name: str,
         hours: float = 1.0,
         limit: int = 10000,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
     ) -> List[Tuple[datetime, float]]:
         """
         查询趋势数据（用于图表显示）
@@ -134,8 +136,10 @@ class HistoryService:
         Args:
             device_id: 设备ID
             param_name: 参数名
-            hours: 时间范围（小时）
+            hours: 时间范围（小时），与 start_time/end_time 互斥
             limit: 最大返回条数
+            start_time: 起始时间（可选）
+            end_time: 结束时间（可选）
 
         Returns:
             [(timestamp, value), ...] 时间序列
@@ -145,7 +149,9 @@ class HistoryService:
                 return []
 
         try:
-            return self._storage.query_range(device_id, param_name, hours=hours, limit=limit)
+            return self._storage.query_range(
+                device_id, param_name, hours=hours, limit=limit, start_time=start_time, end_time=end_time
+            )
         except Exception as e:
             logger.error("查询趋势数据失败: %s", e)
             return []

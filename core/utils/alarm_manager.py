@@ -34,9 +34,6 @@ class AlarmManager(QObject):
         self._active_alarms: Dict[str, Alarm] = {}
         self._alarm_history: List[Alarm] = []
         self._alarm_counter = 0
-        self._check_timer = QTimer(self)
-        self._check_timer.timeout.connect(self._check_all_rules)
-        self._check_timer.start(1000)
 
     def add_rule(self, rule: AlarmRule) -> bool:
         """Add one runtime alarm rule."""
@@ -234,7 +231,3 @@ class AlarmManager(QObject):
         self._active_alarms[alarm.alarm_id] = alarm
         self._alarm_history.append(alarm)
         self.alarm_triggered.emit(alarm)
-
-    def _check_all_rules(self) -> None:
-        """Timer hook kept for future polling integrations."""
-        return None

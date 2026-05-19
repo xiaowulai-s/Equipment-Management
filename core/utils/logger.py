@@ -5,6 +5,7 @@ Structured Logging System with Async Batch DB Writer
 """
 
 import logging
+import io
 import queue
 import sys
 import threading
@@ -17,6 +18,21 @@ import structlog
 from sqlalchemy.exc import SQLAlchemyError
 
 from core.data.models import DatabaseManager, SystemLogModel
+
+
+def _create_console_handler(log_level: str) -> logging.Handler:
+    """编码安全的控制台处理器，兼容 Windows GBK 终端"""
+    encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
+    try:
+        "\u4e2d".encode(encoding)
+    except (UnicodeEncodeError, LookupError):
+        encoding = "utf-8"
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setLevel(getattr(logging, log_level.upper()))
+    handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+    )
+    return handler
 
 
 class AsyncDatabaseLogHandler(logging.Handler):
@@ -173,6 +189,18 @@ class DatabaseLogHandler(AsyncDatabaseLogHandler):
     """向后兼容的别名"""
 
 
+def _render_event_dict(_, __, event_dict):
+    """渲染事件字典为可读字符串，避免 JSON repr 编码问题"""
+    event = event_dict.pop("event", "")
+    extras = []
+    for k, v in sorted(event_dict.items()):
+        if k not in ("logger", "level", "timestamp") and v:
+            extras.append(f"{k}={v}")
+    if extras:
+        return f"{event} | {' '.join(extras)}"
+    return event
+
+
 def setup_logging(
     log_level: str = "INFO",
     log_file: Optional[str] = None,
@@ -192,13 +220,7 @@ def setup_logging(
     handlers: list = []
 
     if console_output:
-        console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setLevel(getattr(logging, log_level.upper()))
-        console_formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
-        )
-        console_handler.setFormatter(console_formatter)
-        handlers.append(console_handler)
+        handlers.append(_create_console_handler(log_level))
 
     if log_file:
         log_path = Path(log_file)
@@ -232,11 +254,10 @@ def setup_logging(
             structlog.stdlib.add_logger_name,
             structlog.stdlib.add_log_level,
             structlog.stdlib.PositionalArgumentsFormatter(),
-            structlog.processors.TimeStamper(fmt="iso"),
             structlog.processors.StackInfoRenderer(),
             structlog.processors.format_exc_info,
             structlog.processors.UnicodeDecoder(),
-            structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
+            _render_event_dict,
         ],
         context_class=dict,
         logger_factory=structlog.stdlib.LoggerFactory(),

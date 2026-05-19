@@ -27,7 +27,7 @@ import logging
 import math
 import threading
 import warnings
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from PySide6.QtCore import QObject, Signal
 
@@ -70,6 +70,38 @@ class DeadbandFilter:
             if device_id not in self._deadband_config:
                 self._deadband_config[device_id] = {}
             self._deadband_config[device_id].update(config)
+
+    def filter_and_get_keys(self, device_id: str, data: Dict[str, Any]) -> Tuple[bool, set]:
+        """Atomically check if data should be published and get changed keys."""
+        if not data:
+            return False, set()
+
+        with self._lock:
+            last = self._last_values.get(device_id)
+
+            if last is None:
+                self._last_values[device_id] = dict(data)
+                return True, set(data.keys())
+
+            changed_keys = set()
+            filtered_data = {}
+
+            for key, new_value in data.items():
+                old_value = last.get(key)
+                if old_value is None:
+                    changed_keys.add(key)
+                    filtered_data[key] = new_value
+                elif self._value_changed(device_id, key, old_value, new_value):
+                    changed_keys.add(key)
+                    filtered_data[key] = new_value
+                else:
+                    filtered_data[key] = old_value
+
+            if changed_keys:
+                self._last_values[device_id] = filtered_data
+                return True, changed_keys
+
+            return False, set()
 
     def should_publish(self, device_id: str, data: Dict[str, Any]) -> bool:
         if not data:
@@ -192,10 +224,12 @@ class SubscriptionManager:
         with self._lock:
             try:
                 signal.connect(slot)
-                self._subscriptions.append({
-                    "signal": signal,
-                    "slot": slot,
-                })
+                self._subscriptions.append(
+                    {
+                        "signal": signal,
+                        "slot": slot,
+                    }
+                )
             except (RuntimeError, TypeError) as e:
                 logger.warning("订阅注册失败: %s", e)
 
@@ -204,8 +238,7 @@ class SubscriptionManager:
             try:
                 signal.disconnect(slot)
                 self._subscriptions = [
-                    s for s in self._subscriptions
-                    if not (s["signal"] is signal and s["slot"] is slot)
+                    s for s in self._subscriptions if not (s["signal"] is signal and s["slot"] is slot)
                 ]
             except (RuntimeError, TypeError) as e:
                 logger.debug("取消订阅失败: %s", e)
@@ -285,7 +318,7 @@ class DataBus(QObject):
         self._filter_count = 0
 
     @classmethod
-    def instance(cls) -> 'DataBus':
+    def instance(cls) -> "DataBus":
         if cls._instance is None:
             with cls._lock:
                 if cls._instance is None:
@@ -327,22 +360,16 @@ class DataBus(QObject):
 
         self._publish_count += 1
 
-        self.device_data_updated.emit(device_id, data)
+        should_publish, changed_keys = self._deadband_filter.filter_and_get_keys(device_id, data)
 
-        changed_keys = self._deadband_filter.get_changed_keys(device_id, data)
-
-        passed = self._deadband_filter.should_publish(device_id, data)
-
-        if passed and changed_keys:
+        if should_publish:
+            self.device_data_updated.emit(device_id, data)
             self.device_data_changed.emit(device_id, data, changed_keys)
             return True
         else:
             self._filter_count += 1
             if logger.isEnabledFor(logging.DEBUG):
-                logger.debug(
-                    "数据被死区过滤拦截 [%s], 变更键=%s",
-                    device_id, changed_keys
-                )
+                logger.debug("数据被死区过滤拦截 [%s], 变更键=%s", device_id, changed_keys)
             return False
 
     def publish_device_raw(self, device_id: str, raw_data: Dict[str, Any]) -> None:
@@ -398,7 +425,7 @@ class DataBus(QObject):
             return False
 
         self._subscription_mgr.register(signal, slot)
-        logger.debug("DataBus订阅: %s → %s", topic, slot.__name__ if hasattr(slot, '__name__') else str(slot))
+        logger.debug("DataBus订阅: %s → %s", topic, slot.__name__ if hasattr(slot, "__name__") else str(slot))
         return True
 
     def unsubscribe(self, topic: str, slot: Callable) -> None:
@@ -471,10 +498,7 @@ class DataBus(QObject):
         return {
             "publish_count": self._publish_count,
             "filter_count": self._filter_count,
-            "filter_rate": (
-                self._filter_count / self._publish_count * 100
-                if self._publish_count > 0 else 0.0
-            ),
+            "filter_rate": (self._filter_count / self._publish_count * 100 if self._publish_count > 0 else 0.0),
             "active_subscriptions": self._subscription_mgr.subscription_count,
             "is_shutdown": self._is_shutdown,
             "global_deadband": self._deadband_filter._global_deadband,

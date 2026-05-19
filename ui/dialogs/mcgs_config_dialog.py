@@ -58,13 +58,16 @@ from PySide6.QtWidgets import (
 logger = logging.getLogger(__name__)
 
 
-class DevicePointEditor(QWidget):
+class DevicePointEditor(QDialog):
     """单个数据点配置编辑器"""
 
     data_changed = Signal()
 
     def __init__(self, point_data: Optional[Dict] = None, parent=None):
         super().__init__(parent)
+        self.setWindowTitle("编辑数据点")
+        self.setModal(True)
+        self.setMinimumWidth(400)
 
         self._point_data = point_data or {
             "name": "",
@@ -81,9 +84,12 @@ class DevicePointEditor(QWidget):
         self._init_ui()
 
     def _init_ui(self):
-        layout = QFormLayout(self)
-        layout.setContentsMargins(10, 5, 10, 5)
-        layout.setSpacing(8)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(10, 5, 10, 5)
+        main_layout.setSpacing(8)
+
+        layout = QFormLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
 
         # 参数名称
         self.name_edit = QLineEdit(self._point_data.get("name", ""))
@@ -94,7 +100,11 @@ class DevicePointEditor(QWidget):
         # Modbus地址
         self.addr_spin = QSpinBox()
         self.addr_spin.setRange(0, 65535)
-        self.addr_spin.setValue(self._point_data.get("addr", 0))
+        raw_addr = self._point_data.get("addr", 0)
+        try:
+            self.addr_spin.setValue(int(raw_addr))
+        except (ValueError, TypeError):
+            self.addr_spin.setValue(0)
         self.addr_spin.setPrefix("0x")
         self.addr_spin.setDisplayIntegerBase(16)  # 十六进制显示
         self.addr_spin.valueChanged.connect(self._on_changed)
@@ -102,22 +112,33 @@ class DevicePointEditor(QWidget):
 
         # 数据类型
         self.type_combo = QComboBox()
-        self.type_combo.addItems(
-            [
-                ("float / float32", "float"),
-                ("int16 / uint16", "int16"),
-                ("int32 / uint32", "int32"),
-                ("coil (线圈)", "coil"),
-                ("discrete_input (DI)", "di"),
-            ]
-        )
+        type_options = [
+            ("float / float32", "float"),
+            ("int16 / uint16", "int16"),
+            ("int32 / uint32", "int32"),
+            ("coil (线圈)", "coil"),
+            ("discrete_input (DI)", "di"),
+            ("string (字符串)", "string"),
+        ]
+        for text, data in type_options:
+            self.type_combo.addItem(text, data)
 
-        # 设置当前值
+        # 设置当前值（支持别名：uint16→int16, uint32→int32, float32→float）
         current_type = self._point_data.get("type", "float")
+        type_alias = {
+            "uint16": "int16",
+            "uint32": "int32",
+            "float32": "float",
+        }
+        match_type = type_alias.get(current_type, current_type)
+        found = False
         for i in range(self.type_combo.count()):
-            if self.type_combo.itemData(i) == current_type or self.type_combo.itemText(i).startswith(current_type):
+            if self.type_combo.itemData(i) == match_type or self.type_combo.itemText(i).startswith(match_type):
                 self.type_combo.setCurrentIndex(i)
+                found = True
                 break
+        if not found:
+            logger.warning("MCGS配置: 未知数据类型 '%s', 使用默认float", current_type)
 
         self.type_combo.currentIndexChanged.connect(self._on_changed)
         layout.addRow("数据类型 *:", self.type_combo)
@@ -131,14 +152,22 @@ class DevicePointEditor(QWidget):
         # 小数位数
         self.decimal_spin = QSpinBox()
         self.decimal_spin.setRange(0, 6)
-        self.decimal_spin.setValue(self._point_data.get("decimal_places", 2))
+        raw_dp = self._point_data.get("decimal_places", 2)
+        try:
+            self.decimal_spin.setValue(int(raw_dp))
+        except (ValueError, TypeError):
+            self.decimal_spin.setValue(2)
         self.decimal_spin.valueChanged.connect(self._on_changed)
         layout.addRow("小数位数:", self.decimal_spin)
 
         # 缩放因子
         self.scale_spin = QDoubleSpinBox()
         self.scale_spin.setRange(0.0001, 10000.0)
-        self.scale_spin.setValue(self._point_data.get("scale", 1.0))
+        raw_scale = self._point_data.get("scale", 1.0)
+        try:
+            self.scale_spin.setValue(float(raw_scale))
+        except (ValueError, TypeError):
+            self.scale_spin.setValue(1.0)
         self.scale_spin.setDecimals(4)
         self.scale_spin.setSingleStep(0.1)
         self.scale_spin.valueChanged.connect(self._on_changed)
@@ -150,8 +179,11 @@ class DevicePointEditor(QWidget):
         self.alarm_high_spin.setDecimals(2)
         self.alarm_high_spin.setSpecialValueText("∞")  # 无限
         high_val = self._point_data.get("alarm_high")
-        if high_val is not None:
-            self.alarm_high_spin.setValue(high_val)
+        if high_val is not None and high_val != "":
+            try:
+                self.alarm_high_spin.setValue(float(high_val))
+            except (ValueError, TypeError):
+                self.alarm_high_spin.setValue(0.0)
         else:
             self.alarm_high_spin.setValue(0.0)
             self.alarm_high_spin.setSpecialValueText("无")
@@ -164,8 +196,11 @@ class DevicePointEditor(QWidget):
         self.alarm_low_spin.setDecimals(2)
         self.alarm_low_spin.setSpecialValueText("-∞")
         low_val = self._point_data.get("alarm_low")
-        if low_val is not None:
-            self.alarm_low_spin.setValue(low_val)
+        if low_val is not None and low_val != "":
+            try:
+                self.alarm_low_spin.setValue(float(low_val))
+            except (ValueError, TypeError):
+                self.alarm_low_spin.setValue(0.0)
         else:
             self.alarm_low_spin.setValue(0.0)
             self.alarm_low_spin.setSpecialValueText("无")
@@ -177,6 +212,23 @@ class DevicePointEditor(QWidget):
         self.desc_edit.setPlaceholderText("参数用途说明...")
         self.desc_edit.textChanged.connect(self._on_changed)
         layout.addRow("描述:", self.desc_edit)
+
+        main_layout.addLayout(layout)
+
+        # 底部按钮
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        self.ok_btn = QPushButton("确定")
+        self.ok_btn.setStyleSheet(
+            "background-color: #10B981; color: white; font-weight: bold; padding: 8px 24px; border-radius: 6px;"
+        )
+        self.ok_btn.clicked.connect(self.accept)
+        btn_layout.addWidget(self.ok_btn)
+        self.cancel_btn = QPushButton("取消")
+        self.cancel_btn.setStyleSheet("padding: 8px 24px; border-radius: 6px;")
+        self.cancel_btn.clicked.connect(self.reject)
+        btn_layout.addWidget(self.cancel_btn)
+        main_layout.addLayout(btn_layout)
 
     def _on_changed(self):
         """字段变更时发射信号"""
@@ -238,7 +290,7 @@ class MCGSConfigDialog(QDialog):
 
     config_saved = Signal(dict)  # (config_dict) 配置已保存
 
-    def __init__(self, config_path: Optional[str] = None, parent=None):
+    def __init__(self, config_path: Optional[str] = None, parent=None, target_device_id: str = None):
         super().__init__(parent)
 
         self.setWindowTitle("⚙️ MCGS 设备配置管理器")
@@ -250,9 +302,11 @@ class MCGSConfigDialog(QDialog):
 
         self._config_data = {}
         self._points_data: List[Dict] = []
+        self._original_device_id: str = ""
+        self._target_device_id: str = target_device_id or ""
 
         self._init_ui()
-        self._load_existing_config()
+        self._load_existing_config(target_device_id=target_device_id)
 
     def _init_ui(self):
         main_layout = QVBoxLayout(self)
@@ -264,7 +318,8 @@ class MCGSConfigDialog(QDialog):
         self.load_btn.clicked.connect(self._load_config_file)
         toolbar.addWidget(self.load_btn)
 
-        self.save_btn = QPushButton("💾 保存配置")
+        self.save_btn = QPushButton("💾 保存")
+        self.save_btn.setToolTip("保存配置（不关闭对话框）")
         self.save_btn.setStyleSheet("background-color: #10B981; color: white; font-weight: bold; padding: 6px 16px;")
         self.save_btn.clicked.connect(self._save_config)
         toolbar.addWidget(self.save_btn)
@@ -283,7 +338,7 @@ class MCGSConfigDialog(QDialog):
 
         # Tab Widget
         self.tabs = QTabWidget()
-        main_layout.addWidget(self.tabs)
+        main_layout.addWidget(self.tabs, 1)
 
         # Tab 1: 基本参数
         self.tabs.addTab(self._create_basic_tab(), "📡 基本参数")
@@ -297,10 +352,29 @@ class MCGSConfigDialog(QDialog):
         # Tab 4: 预设模板
         self.tabs.addTab(self._create_templates_tab(), "🎨 快速模板")
 
+        # 底部操作按钮
+        bottom_layout = QHBoxLayout()
+        bottom_layout.setContentsMargins(0, 4, 0, 0)
+        bottom_layout.addStretch()
+        self.save_close_btn = QPushButton("💾 保存并关闭")
+        self.save_close_btn.setStyleSheet(
+            "background-color: #10B981; color: white; font-weight: bold; padding: 8px 20px; border-radius: 6px;"
+        )
+        self.save_close_btn.clicked.connect(self.accept)
+        bottom_layout.addWidget(self.save_close_btn)
+        self.cancel_btn = QPushButton("取消")
+        self.cancel_btn.setStyleSheet("padding: 8px 20px; border-radius: 6px;")
+        self.cancel_btn.clicked.connect(self.reject)
+        bottom_layout.addWidget(self.cancel_btn)
+        main_layout.addLayout(bottom_layout)
+
         # 状态栏
         self.status_bar = QStatusBar()
         self.status_bar.showMessage("就绪")
         main_layout.addWidget(self.status_bar)
+
+        # Tab切换监听 - 自动刷新JSON编辑器
+        self.tabs.currentChanged.connect(self._on_tab_changed)
 
     def _create_basic_tab(self) -> QWidget:
         """创建基本参数配置页"""
@@ -315,11 +389,15 @@ class MCGSConfigDialog(QDialog):
 
         self.device_id_edit = QLineEdit("mcgs_1")
         self.device_id_edit.setPlaceholderText("设备唯一标识符")
-        basic_layout.addRow("设备ID *:", self.device_id_edit)
+        basic_layout.addRow("设备编号 *:", self.device_id_edit)
 
         self.device_name_edit = QLineEdit("MCGS触摸屏#1")
         self.device_name_edit.setPlaceholderText("显示名称")
         basic_layout.addRow("设备名称:", self.device_name_edit)
+
+        self.description_edit = QLineEdit()
+        self.description_edit.setPlaceholderText("设备描述（可选，如：车间A-温度采集）")
+        basic_layout.addRow("设备描述:", self.description_edit)
 
         layout.addRow(basic_group)
 
@@ -327,8 +405,8 @@ class MCGSConfigDialog(QDialog):
         conn_group = QGroupBox("通信参数 (Modbus TCP)")
         conn_layout = QFormLayout(conn_group)
 
-        self.ip_edit = QLineEdit("192.168.1.100")
-        self.ip_edit.setPlaceholderText("IP地址 (例如: 192.168.1.100)")
+        self.ip_edit = QLineEdit("192.168.31.239")
+        self.ip_edit.setPlaceholderText("IP地址 (例如: 192.168.31.239)")
         self.ip_edit.setInputMask("000.000.000.000;_")
         conn_layout.addRow("IP地址 *:", self.ip_edit)
 
@@ -357,15 +435,15 @@ class MCGSConfigDialog(QDialog):
         adv_layout = QFormLayout(adv_group)
 
         self.byte_order_combo = QComboBox()
-        self.byte_order_combo.addItems(
-            [
-                ("ABCD - 大端序 (标准)", "ABCD"),
-                ("BADC - 半字交换", "BADC"),
-                ("CDAB - 字交换/MCGS ⭐", "CDAB"),
-                ("DCBA - 完全反转", "DCBA"),
-            ]
-        )
-        self.byte_order_combo.setCurrentIndex(2)  # 默认CDAB
+        byte_order_items = [
+            ("ABCD - 大端序 (标准)", "ABCD"),
+            ("BADC - 半字交换", "BADC"),
+            ("CDAB - 字交换/MCGS", "CDAB"),
+            ("DCBA - 完全反转", "DCBA"),
+        ]
+        for text, data in byte_order_items:
+            self.byte_order_combo.addItem(text, data)
+        self.byte_order_combo.setCurrentIndex(0)  # 默认ABCD
         adv_layout.addRow("字节序 *:", self.byte_order_combo)
 
         self.polling_spin = QSpinBox()
@@ -376,13 +454,14 @@ class MCGSConfigDialog(QDialog):
         adv_layout.addRow("轮询周期:", self.polling_spin)
 
         self.address_base_combo = QComboBox()
-        self.address_base_combo.addItems(
-            [
-                ("1-based (标准Modbus地址)", 1),
-                ("0-based (pymodbus内部)", 0),
-            ]
-        )
-        self.address_base_combo.setCurrentIndex(0)
+        address_base_items = [
+            ("40001-based (4xxxx保持寄存器)", 40001),
+            ("1-based (标准Modbus地址)", 1),
+            ("0-based (pymodbus内部)", 0),
+        ]
+        for text, data in address_base_items:
+            self.address_base_combo.addItem(text, data)
+        self.address_base_combo.setCurrentIndex(0)  # 默认40001
         adv_layout.addRow("地址基数:", self.address_base_combo)
 
         layout.addRow(adv_group)
@@ -415,15 +494,11 @@ class MCGSConfigDialog(QDialog):
 
         points_toolbar.addStretch()
 
-        # 预设按钮
-        preset_btn = QPushButton("📋 预设: 7点MCGS")
-        preset_btn.setToolTip("一键填充示例MCGS配置（7个传感器点位）")
-        preset_btn.clicked.connect(self._preset_mcgsm_7points)
-        points_toolbar.addWidget(preset_btn)
-
-        preset_coil_btn = QPushButton("🔌 预设: 8路继电器")
-        preset_coil_btn.clicked.connect(self._preset_8coils)
-        points_toolbar.addWidget(preset_coil_btn)
+        # 使用模板按钮
+        use_template_btn = QPushButton("🎨 使用模板")
+        use_template_btn.setToolTip("从预设模板快速加载数据点配置")
+        use_template_btn.clicked.connect(self._show_template_selector)
+        points_toolbar.addWidget(use_template_btn)
 
         layout.addLayout(points_toolbar)
 
@@ -482,162 +557,289 @@ class MCGSConfigDialog(QDialog):
 
         return widget
 
+    def _on_tab_changed(self, index: int):
+        """Tab页切换时的处理"""
+        if index == 2:  # JSON编辑Tab
+            self._refresh_json_editor()
+
+    def _refresh_json_editor(self):
+        """刷新JSON编辑器内容为当前设备的配置"""
+        import json
+
+        config = self._get_current_device_config()
+        json_str = json.dumps(config, ensure_ascii=False, indent=2)
+        self.json_editor.setPlainText(json_str)
+        self.status_bar.showMessage(f"JSON已刷新 ({len(json_str)} 字符)")
+
+    def _get_current_device_config(self) -> Dict:
+        """获取当前正在编辑的设备完整配置"""
+        config = {
+            "id": self.device_id_edit.text(),
+            "name": self.device_name_edit.text(),
+            "description": self.description_edit.text(),
+            "ip": self.ip_edit.text(),
+            "port": self.port_spin.value(),
+            "unit_id": self.unit_id_spin.value(),
+            "timeout_ms": self.timeout_spin.value(),
+            "byte_order": self.byte_order_combo.currentData(),
+            "polling_interval_ms": self.polling_spin.value(),
+            "address_base": self.address_base_combo.currentData(),
+            "points": self._get_points_from_table(),
+        }
+        return config
+
     def _create_templates_tab(self) -> QWidget:
-        """创建预设模板页"""
+        """创建预设模板页 - 显示模板列表和详情"""
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(15, 10, 15, 10)
 
-        info = QLabel("选择预设模板可快速填充常用配置，\n" "然后切换到[数据点配置]页进行微调。")
+        # 说明信息
+        info = QLabel("💡 模板可用于快速配置常用设备类型。\n" "选择模板后可在[数据点配置]页面微调。")
         info.setStyleSheet("padding: 10px; background-color: #E0F2FE; border-radius: 4px;")
         info.setWordWrap(True)
         layout.addWidget(info)
 
-        # 模板列表
-        templates_list = QListWidget()
+        # 分割布局：左侧模板列表，右侧模板详情
+        from PySide6.QtWidgets import QSplitter
 
-        templates = [
-            {
-                "name": "🏭 MCGS 标准配置 (7个传感器)",
-                "desc": "适用于MCGS触摸屏 + DL8017模拟量采集模块",
-                "data": {
-                    "id": "mcgs_standard",
-                    "name": "MCGS标准配置",
-                    "ip": "192.168.1.100",
-                    "port": 502,
-                    "byte_order": "CDAB",
-                    "points": [
-                        {
-                            "name": "Hum_in",
-                            "addr": 30002,
-                            "type": "float",
-                            "unit": "%RH",
-                            "decimal_places": 1,
-                            "scale": 1.0,
-                            "alarm_high": 95.0,
-                        },
-                        {
-                            "name": "RH_in",
-                            "addr": 30004,
-                            "type": "float",
-                            "unit": "%",
-                            "decimal_places": 1,
-                            "scale": 1.0,
-                            "alarm_high": 100.0,
-                        },
-                        {
-                            "name": "AT_in",
-                            "addr": 30006,
-                            "type": "float",
-                            "unit": "℃",
-                            "decimal_places": 1,
-                            "scale": 1.0,
-                            "alarm_high": 80.0,
-                            "alarm_low": -10.0,
-                        },
-                        {
-                            "name": "Flow_in",
-                            "addr": 30008,
-                            "type": "float",
-                            "unit": "m³/h",
-                            "decimal_places": 2,
-                            "scale": 1.0,
-                            "alarm_high": 10.0,
-                        },
-                        {
-                            "name": "VPa",
-                            "addr": 30012,
-                            "type": "float",
-                            "unit": "kPa",
-                            "decimal_places": 1,
-                            "scale": 1.0,
-                            "alarm_high": 110.0,
-                            "alarm_low": 90.0,
-                        },
-                        {
-                            "name": "VPaIn",
-                            "addr": 30014,
-                            "type": "float",
-                            "unit": "kPa",
-                            "decimal_places": 1,
-                            "scale": 1.0,
-                            "alarm_high": 105.0,
-                            "alarm_low": 95.0,
-                        },
-                    ],
-                },
-            },
-            {
-                "name": "🔌 8路继电器控制板",
-                "desc": "适用于继电器输出模块或PLC DO点",
-                "data": {
-                    "id": "relay_board_8",
-                    "name": "8路继电器板",
-                    "ip": "192.168.1.101",
-                    "port": 502,
-                    "byte_order": "CDAB",
-                    "points": [
-                        {"name": "Relay_1_进水阀", "addr": 0, "type": "coil", "unit": "", "writable": True},
-                        {"name": "Relay_2_出水阀", "addr": 1, "type": "coil", "unit": "", "writable": True},
-                        {"name": "Relay_3_搅拌电机", "addr": 2, "type": "coil", "unit": "", "writable": True},
-                        {"name": "Relay_4_加热器", "addr": 3, "type": "coil", "unit": "", "writable": True},
-                        {"name": "Relay_5_冷却泵", "addr": 4, "type": "coil", "unit": "", "writable": True},
-                        {"name": "Relay_6_报警灯", "addr": 5, "type": "coil", "unit": "", "writable": True},
-                        {"name": "Relay_7_备用1", "addr": 6, "type": "coil", "unit": "", "writable": True},
-                        {"name": "Relay_8_备用2", "addr": 7, "type": "coil", "unit": "", "writable": True},
-                    ],
-                },
-            },
-            {
-                "name": "🌡 温湿度采集模块",
-                "desc": "SHT30/DHT22等温湿度传感器",
-                "data": {
-                    "id": "temp_hum_module",
-                    "name": "温湿度模块",
-                    "ip": "192.168.1.102",
-                    "port": 502,
-                    "byte_order": "CDAB",
-                    "points": [
-                        {
-                            "name": "Temperature",
-                            "addr": 100,
-                            "type": "float",
-                            "unit": "℃",
-                            "decimal_places": 2,
-                            "scale": 0.1,
-                            "alarm_high": 60.0,
-                            "alarm_low": -10.0,
-                        },
-                        {
-                            "name": "Humidity",
-                            "addr": 102,
-                            "type": "float",
-                            "unit": "%RH",
-                            "decimal_places": 1,
-                            "scale": 1.0,
-                            "alarm_high": 90.0,
-                            "alarm_low": 10.0,
-                        },
-                    ],
-                },
-            },
-        ]
+        splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        for tmpl in templates:
-            item = QListWidgetItem(tmpl["name"])
-            item.setData(Qt.UserRole, tmpl)
-            item.setToolTip(tmpl["desc"])
-            templates_list.addItem(item)
+        # 左侧：模板列表
+        list_widget = QWidget()
+        list_layout = QVBoxLayout(list_widget)
+        list_layout.setContentsMargins(0, 0, 0, 0)
 
-        templates_list.itemDoubleClicked.connect(self._apply_template)
-        layout.addWidget(templates_list)
+        list_header = QLabel("可用模板")
+        list_header.setStyleSheet("font-weight: bold; font-size: 13px;")
+        list_layout.addWidget(list_header)
 
-        # 应用按钮
-        apply_btn = QPushButton("✅ 应用选中的模板")
-        apply_btn.clicked.connect(lambda: self._apply_template(templates_list.currentItem()))
-        layout.addWidget(apply_btn)
+        self.templates_list = QListWidget()
+        self.templates_list.currentItemChanged.connect(self._on_template_selected)
+        list_layout.addWidget(self.templates_list)
+
+        # 添加/删除模板按钮
+        template_btn_layout = QHBoxLayout()
+        add_template_btn = QPushButton("+ 添加模板")
+        add_template_btn.clicked.connect(self._add_custom_template)
+        template_btn_layout.addWidget(add_template_btn)
+        list_layout.addLayout(template_btn_layout)
+
+        splitter.addWidget(list_widget)
+
+        # 右侧：模板详情
+        detail_widget = QWidget()
+        detail_layout = QVBoxLayout(detail_widget)
+        detail_layout.setContentsMargins(10, 0, 0, 0)
+
+        detail_header = QLabel("模板详情")
+        detail_header.setStyleSheet("font-weight: bold; font-size: 13px;")
+        detail_layout.addWidget(detail_header)
+
+        self.template_title = QLabel("")
+        self.template_title.setStyleSheet("font-size: 14px; font-weight: bold; color: #1F2937;")
+        detail_layout.addWidget(self.template_title)
+
+        self.template_desc = QLabel("")
+        self.template_desc.setWordWrap(True)
+        self.template_desc.setStyleSheet("color: #6B7280; padding: 5px 0;")
+        detail_layout.addWidget(self.template_desc)
+
+        # JSON预览
+        json_label = QLabel("JSON格式:")
+        json_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
+        detail_layout.addWidget(json_label)
+
+        self.template_json_preview = QTextEdit()
+        self.template_json_preview.setReadOnly(True)
+        self.template_json_preview.setFontFamily("Consolas, monospace")
+        self.template_json_preview.setMaximumHeight(300)
+        detail_layout.addWidget(self.template_json_preview)
+
+        # 应用模板按钮
+        apply_btn = QPushButton("📥 应用此模板")
+        apply_btn.setStyleSheet("background-color: #10B981; color: white; padding: 8px 16px; border-radius: 6px;")
+        apply_btn.clicked.connect(self._apply_selected_template)
+        detail_layout.addWidget(apply_btn)
+
+        detail_layout.addStretch()
+        splitter.addWidget(detail_widget)
+
+        splitter.setSizes([200, 600])
+        layout.addWidget(splitter)
+
+        # 加载内置模板
+        self._load_builtin_templates()
 
         return widget
+
+    def _load_builtin_templates(self):
+        """加载内置和自定义模板"""
+        self._templates = []
+
+        # 内置模板1: 六路通用数据（对应设备1配置）
+        self._templates.append(
+            {
+                "id": "template_6points",
+                "title": "六路通用数据",
+                "description": "适用于MCGS触摸屏设备0 - 7通道数据转发\n地址范围: 40001-40006\n包含: 通讯状态/DevPoint/H2O/Data0-2",
+                "config": {
+                    "byte_order": "ABCD",
+                    "address_base": 40001,
+                    "points": [
+                        {"name": "通讯状态", "addr": "40001", "type": "int16"},
+                        {"name": "DevPoint_读写4W0001", "addr": "40002", "type": "int16"},
+                        {"name": "DevPointAtm_读写4W0002", "addr": "40003", "type": "int16"},
+                        {"name": "H2Oppm_读写4W0003", "addr": "40004", "type": "int16"},
+                        {"name": "Data0_读写4W0004", "addr": "40005", "type": "int16"},
+                        {"name": "Data1_读写4W0005", "addr": "40006", "type": "int16"},
+                    ],
+                },
+            }
+        )
+
+        # 内置模板2: 四路传感器
+        self._templates.append(
+            {
+                "id": "template_4points",
+                "title": "四路传感器",
+                "description": "通用四路模拟量采集模块\n地址范围: 40001-40004\n适用于DL8017等模块",
+                "config": {
+                    "byte_order": "CDAB",
+                    "address_base": 40001,
+                    "points": [
+                        {"name": "Data0", "addr": "40001", "type": "uint16"},
+                        {"name": "Data1", "addr": "40002", "type": "uint16"},
+                        {"name": "Data2", "addr": "40003", "type": "uint16"},
+                        {"name": "Data3", "addr": "40004", "type": "uint16"},
+                    ],
+                },
+            }
+        )
+
+        # 显示到列表
+        for tmpl in self._templates:
+            item = QListWidgetItem(tmpl["title"])
+            item.setData(Qt.ItemDataRole.UserRole, tmpl["id"])
+            self.templates_list.addItem(item)
+
+    def _on_template_selected(self, current, previous):
+        """模板选择变化时更新详情"""
+        if not current:
+            return
+
+        template_id = current.data(Qt.ItemDataRole.UserRole)
+        tmpl = next((t for t in self._templates if t["id"] == template_id), None)
+
+        if tmpl:
+            self.template_title.setText(tmpl["title"])
+            self.template_desc.setText(tmpl["description"])
+            import json
+
+            json_str = json.dumps(tmpl["config"], ensure_ascii=False, indent=2)
+            self.template_json_preview.setPlainText(json_str)
+
+    def _apply_selected_template(self):
+        """应用选中的模板到数据点配置"""
+        current_item = self.templates_list.currentItem()
+        if not current_item:
+            QMessageBox.warning(self, "提示", "请先选择一个模板")
+            return
+
+        template_id = current_item.data(Qt.ItemDataRole.UserRole)
+        tmpl = next((t for t in self._templates if t["id"] == template_id), None)
+
+        if tmpl and "config" in tmpl:
+            config = tmpl["config"]
+
+            # 应用字节序和地址基数
+            if "byte_order" in config:
+                idx = self.byte_order_combo.findData(config["byte_order"])
+                if idx >= 0:
+                    self.byte_order_combo.setCurrentIndex(idx)
+
+            if "address_base" in config:
+                idx = self.address_base_combo.findData(config["address_base"])
+                if idx >= 0:
+                    self.address_base_combo.setCurrentIndex(idx)
+
+            # 应用数据点
+            if "points" in config:
+                self._fill_points_to_table(config["points"])
+
+            # 切换到数据点配置Tab
+            self.tabs.setCurrentIndex(1)  # 数据点配置Tab
+
+            self.status_bar.showMessage(f"已应用模板: {tmpl['title']}")
+            QMessageBox.information(self, "成功", f"模板 [{tmpl['title']}] 已应用！\n请切换到[数据点配置]页查看。")
+
+    def _add_custom_template(self):
+        """添加自定义模板"""
+        QMessageBox.information(self, "开发中", "自定义模板功能即将推出！\n当前可使用内置模板。")
+
+    def _show_template_selector(self):
+        """显示模板选择对话框"""
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QListWidget, QDialogButtonBox
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("选择数据点模板")
+        dialog.setMinimumWidth(400)
+
+        layout = QVBoxLayout(dialog)
+
+        hint = QLabel("选择一个预设模板来填充数据点配置：")
+        layout.addWidget(hint)
+
+        template_list = QListWidget()
+
+        # 添加可用模板
+        templates = [
+            ("六路通用数据", "设备1的40001-40006六个数据点"),
+            ("四路传感器", "通用四路采集模块40001-40004"),
+        ]
+
+        for title, desc in templates:
+            item = QListWidgetItem(f"{title}\n   {desc}")
+            item.setData(Qt.ItemDataRole.UserRole, title)
+            template_list.addItem(item)
+
+        layout.addWidget(template_list)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            selected = template_list.currentItem()
+            if selected:
+                template_name = selected.data(Qt.ItemDataRole.UserRole)
+                if template_name == "六路通用数据":
+                    self._apply_preset_6points()
+                elif template_name == "四路传感器":
+                    self._apply_preset_4points()
+
+    def _apply_preset_6points(self):
+        """应用六路数据点预设"""
+        preset_points = [
+            {"name": "通讯状态", "addr": "40001", "type": "int16"},
+            {"name": "DevPoint_读写4W0001", "addr": "40002", "type": "int16"},
+            {"name": "DevPointAtm_读写4W0002", "addr": "40003", "type": "int16"},
+            {"name": "H2Oppm_读写4W0003", "addr": "40004", "type": "int16"},
+            {"name": "Data0_读写4W0004", "addr": "40005", "type": "int16"},
+            {"name": "Data1_读写4W0005", "addr": "40006", "type": "int16"},
+        ]
+        self._fill_points_to_table(preset_points)
+
+    def _apply_preset_4points(self):
+        """应用四路数据点预设"""
+        preset_points = [
+            {"name": "Data0", "addr": "40001", "type": "uint16"},
+            {"name": "Data1", "addr": "40002", "type": "uint16"},
+            {"name": "Data2", "addr": "40003", "type": "uint16"},
+            {"name": "Data3", "addr": "40004", "type": "uint16"},
+        ]
+        self._fill_points_to_table(preset_points)
 
     # ==================== 点位表格操作 ====================
 
@@ -701,15 +903,41 @@ class MCGSConfigDialog(QDialog):
 
     def _populate_table_row(self, row: int, data: Dict):
         """填充表格行"""
+        # 类型安全转换：addr 可能为 int 或 str
+        raw_addr = data.get("addr", 0)
+        try:
+            addr_str = f"{int(raw_addr):05d}"
+        except (ValueError, TypeError):
+            addr_str = str(raw_addr)
+
+        raw_dp = data.get("decimal_places", 2)
+        try:
+            dp_str = str(int(raw_dp))
+        except (ValueError, TypeError):
+            dp_str = str(raw_dp)
+
+        raw_scale = data.get("scale", 1.0)
+        try:
+            scale_str = f"{float(raw_scale):.2f}"
+        except (ValueError, TypeError):
+            scale_str = str(raw_scale)
+
+        raw_high = data.get("alarm_high")
+        alarm_high_str = (
+            f"{float(raw_high):.1f}" if raw_high is not None and raw_high != "-" and raw_high != "" else "-"
+        )
+        raw_low = data.get("alarm_low")
+        alarm_low_str = f"{float(raw_low):.1f}" if raw_low is not None and raw_low != "-" and raw_low != "" else "-"
+
         items = [
             data.get("name", ""),
             data.get("type", ""),
-            f"{data.get('addr', 0):05d}",
+            addr_str,
             data.get("unit", ""),
-            str(data.get("decimal_places", 2)),
-            f"{data.get('scale', 1.0):.2f}",
-            f"{data.get('alarm_high', '-'):.1f}" if data.get("alarm_high") else "-",
-            f"{data.get('alarm_low', '-'):.1f}" if data.get("alarm_low") else "-",
+            dp_str,
+            scale_str,
+            alarm_high_str,
+            alarm_low_str,
             data.get("description", "")[:20],
         ]
 
@@ -718,23 +946,64 @@ class MCGSConfigDialog(QDialog):
             item.setTextAlignment(Qt.AlignCenter)
             self.points_table.setItem(row, col, item)
 
+    def _get_points_from_table(self) -> List[Dict]:
+        """从表格读取当前设备的所有数据点配置"""
+        points = []
+        for p in self._points_data:
+            point_copy = {k: v for k, v in p.items()}
+            points.append(point_copy)
+        return points
+
     def _update_points_stats(self):
         """更新点位统计信息"""
         count = len(self._points_data)
 
         if count > 0:
-            addrs = [p["addr"] for p in self._points_data]
+            addrs = []
+            addr_names = {}  # addr → [names...]
+            for p in self._points_data:
+                try:
+                    a = int(p["addr"])
+                    addrs.append(a)
+                    n = p.get("name", "")
+                    if a not in addr_names:
+                        addr_names[a] = []
+                    addr_names[a].append(n)
+                except (ValueError, TypeError, KeyError):
+                    addrs.append(0)
             min_addr = min(addrs)
             max_addr = max(addrs)
 
             reg_counts = {"float": 2, "int32": 2, "int16": 1, "uint16": 1, "coil": 1, "di": 1}
             total_regs = sum(reg_counts.get(p.get("type", "float"), 1) for p in self._points_data)
 
-            self.points_stats_label.setText(
-                f"共 {count} 个数据点 | " f"地址范围: {min_addr:05d}-{max_addr:05d} | " f"寄存器数: ~{total_regs}"
-            )
+            # 检测重复地址
+            dup_warnings = []
+            for addr, names in addr_names.items():
+                if len(names) > 1:
+                    types_at_addr = {}
+                    for p in self._points_data:
+                        try:
+                            if int(p["addr"]) == addr:
+                                types_at_addr.setdefault(p.get("type", "?"), []).append(p.get("name", ""))
+                        except (ValueError, TypeError, KeyError):
+                            pass
+                    type_strs = [f"{t}({','.join(ns)})" for t, ns in types_at_addr.items()]
+                    dup_warnings.append(f" 地址 {addr:05d}: {' vs '.join(type_strs)}")
+
+            stats_text = f"共 {count} 个数据点 | 地址范围: {min_addr:05d}-{max_addr:05d} | 寄存器数: ~{total_regs}"
+            if dup_warnings:
+                stats_text += " | ⚠️ 地址重复: " + "; ".join(dup_warnings)
+                self.points_stats_label.setStyleSheet(
+                    "color: #D97706; font-size: 12px; font-weight: bold; padding: 4px;"
+                )
+            else:
+                self.points_stats_label.setStyleSheet("color: #333; font-size: 12px;")
+
+            self.points_stats_label.setText(stats_text)
         else:
             self.points_stats_label.setText("暂无数据点")
+            self.points_stats_label.setStyleSheet("color: #999; font-size: 12px;")
 
     # ==================== 预设模板 ====================
 
@@ -919,14 +1188,56 @@ class MCGSConfigDialog(QDialog):
         self.status_bar.showMessage("已从表单刷新JSON ✓")
 
     def _collect_config_from_forms(self) -> Dict:
-        """从所有表单收集配置数据"""
+        """从所有表单收集配置数据，保留所有已有设备，支持重命名"""
         points_for_json = []
         for p in self._points_data:
             point_copy = {k: v for k, v in p.items()}
-            # 移除None值的报警字段（使用pop避免KeyError）
             point_copy.pop("alarm_high", None)
             point_copy.pop("alarm_low", None)
             points_for_json.append(point_copy)
+
+        current_device_id = self.device_id_edit.text().strip() or "mcgs_1"
+        edited_device = {
+            "id": current_device_id,
+            "name": self.device_name_edit.text().strip() or "MCGS设备",
+            "description": self.description_edit.text().strip(),
+            "ip": self.ip_edit.text().strip(),
+            "port": self.port_spin.value(),
+            "unit_id": self.unit_id_spin.value(),
+            "timeout_ms": self.timeout_spin.value(),
+            "byte_order": self.byte_order_combo.currentData() or "CDAB",
+            "polling_interval_ms": self.polling_spin.value(),
+            "address_base": self.address_base_combo.currentData() or 1,
+            "points": points_for_json,
+        }
+
+        original_devices = self._config_data.get("devices", [])
+        target_id = self._original_device_id or current_device_id
+        is_rename = target_id != "" and target_id != current_device_id
+
+        if isinstance(original_devices, list):
+            devices_list = []
+            updated = False
+            for dev in original_devices:
+                dev_id = dev.get("id") if isinstance(dev, dict) else None
+                if dev_id == target_id:
+                    devices_list.append(edited_device)
+                    updated = True
+                    if is_rename:
+                        logger.info("设备重命名: %s → %s", target_id, current_device_id)
+                else:
+                    devices_list.append(dev)
+            if not updated:
+                devices_list.append(edited_device)
+                logger.info("新增设备: %s (原始目标 %s 不在列表中)", current_device_id, target_id)
+        elif isinstance(original_devices, dict):
+            devices_list = [edited_device]
+            for did, dev in original_devices.items():
+                if did != target_id and did != current_device_id:
+                    dev["id"] = did
+                    devices_list.append(dev)
+        else:
+            devices_list = [edited_device]
 
         config = {
             "_meta": {
@@ -934,20 +1245,7 @@ class MCGSConfigDialog(QDialog):
                 "last_modified": __import__("datetime").datetime.now().isoformat(),
                 "source": "MCGSConfigDialog",
             },
-            "devices": [
-                {
-                    "id": self.device_id_edit.text().strip() or "mcgs_1",
-                    "name": self.device_name_edit.text().strip() or "MCGS设备",
-                    "ip": self.ip_edit.text().strip(),
-                    "port": self.port_spin.value(),
-                    "unit_id": self.unit_id_spin.value(),
-                    "timeout_ms": self.timeout_spin.value(),
-                    "byte_order": self.byte_order_combo.currentData() or "CDAB",
-                    "polling_interval_ms": self.polling_spin.value(),
-                    "address_base": self.address_base_combo.currentData() or 1,
-                    "points": points_for_json,
-                }
-            ],
+            "devices": devices_list,
         }
 
         return config
@@ -965,29 +1263,10 @@ class MCGSConfigDialog(QDialog):
 
                 self._config_data = config_data
 
-                # 填充基本参数
                 devices = config_data.get("devices", [])
                 if devices:
-                    dev = devices[0]
-                    self.device_id_edit.setText(dev.get("id", ""))
-                    self.device_name_edit.setText(dev.get("name", ""))
-                    self.ip_edit.setText(dev.get("ip", ""))
-                    self.port_spin.setValue(dev.get("port", 502))
-                    self.unit_id_spin.setValue(dev.get("unit_id", 1))
-                    self.timeout_spin.setValue(dev.get("timeout_ms", 3000))
+                    self._load_device_to_form(devices[0])
 
-                    bo = dev.get("byte_order", "CDAB")
-                    for i in range(self.byte_order_combo.count()):
-                        if self.byte_order_combo.itemData(i) == bo:
-                            self.byte_order_combo.setCurrentIndex(i)
-                            break
-
-                    self.polling_spin.setValue(dev.get("polling_interval_ms", 1000))
-
-                    self._points_data = dev.get("points", [])
-                    self._refresh_points_table()
-
-                # 更新JSON编辑器
                 self.json_editor.setPlainText(json.dumps(config_data, indent=2, ensure_ascii=False))
 
                 self._config_path = Path(file_path)
@@ -996,23 +1275,80 @@ class MCGSConfigDialog(QDialog):
             except Exception as e:
                 QMessageBox.critical(self, "加载失败", f"无法读取配置文件:\n{e}")
 
-    def _load_existing_config(self):
-        """初始化时加载现有配置"""
+    def _load_existing_config(self, target_device_id: str = None):
+        """初始化时加载现有配置，支持指定目标设备"""
         if self._config_path.exists():
             try:
                 with open(self._config_path, "r", encoding="utf-8") as f:
                     self._config_data = json.load(f)
 
                 devices = self._config_data.get("devices", [])
-                if devices:
-                    dev = devices[0]
-                    self._points_data = dev.get("points", [])
-                    self._refresh_points_table()
+                if not devices:
+                    return
 
-                logger.info(f"已加载配置: {self._config_path}")
+                target_id = target_device_id or self._target_device_id
+                dev = None
+                if target_id:
+                    for d in devices:
+                        if isinstance(d, dict) and d.get("id") == target_id:
+                            dev = d
+                            break
+                if dev is None and devices:
+                    dev = devices[0]
+                elif dev is None:
+                    return
+
+                self._load_device_to_form(dev)
+                logger.info(f"已加载配置: {self._config_path} (编辑设备: {dev.get('id', '?')})")
 
             except Exception as e:
                 logger.warning(f"加载配置失败（将使用默认值）: {e}")
+
+    def _load_device_to_form(self, dev: Dict) -> None:
+        """将单个设备配置字典填充到表单控件"""
+        self._original_device_id = dev.get("id", "")
+        self.device_id_edit.setText(self._original_device_id)
+        self.device_name_edit.setText(dev.get("name", "MCGS触摸屏#1"))
+        self.description_edit.setText(dev.get("description", ""))
+        self.ip_edit.setText(dev.get("ip", ""))
+        self.port_spin.setValue(dev.get("port", 502))
+        self.unit_id_spin.setValue(dev.get("unit_id", 1))
+        self.timeout_spin.setValue(dev.get("timeout_ms", 3000))
+
+        bo = dev.get("byte_order", "ABCD")
+        for i in range(self.byte_order_combo.count()):
+            if self.byte_order_combo.itemData(i) == bo:
+                self.byte_order_combo.setCurrentIndex(i)
+                break
+
+        self.polling_spin.setValue(dev.get("polling_interval_ms", 1000))
+
+        ab = dev.get("address_base", 40001)
+        for i in range(self.address_base_combo.count()):
+            if self.address_base_combo.itemData(i) == ab:
+                self.address_base_combo.setCurrentIndex(i)
+                break
+
+        # 加载设备类型（如果有）
+        device_type = dev.get("device_type", "MCGS触摸屏")
+
+        # 加载数据点（保留所有字段包括description, unit, alarm_high等）
+        raw_points = dev.get("points", [])
+        self._points_data = []
+        for pt in raw_points:
+            point_copy = dict(pt)
+            # 确保关键字段存在
+            if "description" not in point_copy:
+                point_copy["description"] = ""
+            if "unit" not in point_copy:
+                point_copy["unit"] = ""
+            if "alarm_high" not in point_copy:
+                point_copy["alarm_high"] = None
+            if "alarm_low" not in point_copy:
+                point_copy["alarm_low"] = None
+            self._points_data.append(point_copy)
+
+        self._refresh_points_table()
 
     def _save_config(self):
         """
@@ -1107,6 +1443,7 @@ class MCGSConfigDialog(QDialog):
             )
 
             logger.info(f"配置保存成功: {self._config_path} (数据点={len(self._points_data)}, 备份=OK)")
+            self._original_device_id = self.device_id_edit.text().strip() or ""
 
         except PermissionError as perm_err:
             error_detail = (
@@ -1137,8 +1474,9 @@ class MCGSConfigDialog(QDialog):
             logger.exception(f"配置保存失败(未知错误): {e}")
 
     def _validate_config(self) -> Tuple[bool, str]:
-        """验证配置完整性"""
+        """验证配置完整性（增强版：支持新字段验证）"""
         errors = []
+        warnings = []
 
         # 验证基本参数
         device_id = self.device_id_edit.text().strip()
@@ -1149,7 +1487,6 @@ class MCGSConfigDialog(QDialog):
         if not ip:
             errors.append("• IP地址不能为空")
         elif not ip.replace(".", "").isdigit():
-            # 简单IP格式检查
             parts = ip.split(".")
             if len(parts) != 4 or any(not 0 <= int(p) <= 255 for p in parts):
                 errors.append(f"• IP地址格式无效: {ip}")
@@ -1157,6 +1494,10 @@ class MCGSConfigDialog(QDialog):
         port = self.port_spin.value()
         if port < 1 or port > 65535:
             errors.append(f"• 端口超出范围: {port} (应为 1-65535)")
+
+        unit_id = self.unit_id_spin.value()
+        if unit_id < 0 or unit_id > 255:
+            warnings.append(f"• Unit ID超出推荐范围: {unit_id} (建议0-255)")
 
         # 验证数据点
         if len(self._points_data) == 0:
@@ -1176,21 +1517,53 @@ class MCGSConfigDialog(QDialog):
 
             names_seen.add(name)
 
-            if addr < 0 or addr > 65535:
-                errors.append(f"• [{name}] 地址超出范围: {addr}")
-            elif addr in addrs_seen:
-                errors.append(f"• [{name}] 地址重复: {addr}")
+            # 地址验证（支持字符串和数字）
+            try:
+                addr_num = int(addr)
+                if addr_num < 0 or addr_num > 65535:
+                    errors.append(f"• [{name}] 地址超出范围: {addr}")
+                elif addr_num in addrs_seen:
+                    warnings.append(f"• [{name}] 地址可能重复: {addr}")
+                addrs_seen.add(addr_num)
+            except (ValueError, TypeError):
+                errors.append(f"• [{name}] 地址格式无效: {addr}")
 
-            addrs_seen.add(addr)
+            # 类型验证
+            ptype = point.get("type", "")
+            valid_types = ["int16", "uint16", "int32", "uint32", "float", "coil", "di"]
+            if ptype and ptype not in valid_types:
+                warnings.append(f"• [{name}] 数据类型异常: {ptype}")
+
+            # 报警值验证
+            alarm_high = point.get("alarm_high")
+            alarm_low = point.get("alarm_low")
+            if alarm_high is not None and alarm_low is not None:
+                try:
+                    if float(alarm_high) <= float(alarm_low):
+                        warnings.append(f"• [{name}] 报警上限({alarm_high}) ≤ 下限({alarm_low})")
+                except (ValueError, TypeError):
+                    warnings.append(f"• [{name}] 报警值格式异常")
+
+        # 构建结果消息
+        result_parts = []
 
         if errors:
-            error_text = "\n".join(errors[:10])  # 最多显示10条
-            if len(errors) > 10:
-                error_text += f"\n... 还有 {len(errors)-10} 个问题"
+            error_section = "\n".join(errors)
+            result_parts.append(f"❌ 错误 ({len(errors)}个):\n{error_section}")
 
-            return False, error_text
+        if warnings:
+            warning_section = "\n".join(warnings)
+            result_parts.append(f"\n⚠️ 警告 ({len(warnings)}个):\n{warning_section}")
 
-        return True, "配置验证通过 ✓"
+        if not errors and not warnings:
+            return True, "✅ 配置验证通过！所有项目均符合要求。"
+
+        final_msg = "\n".join(result_parts)
+
+        if errors:
+            return False, final_msg
+        else:
+            return True, final_msg
 
     def get_config(self) -> Dict:
         """获取当前完整配置字典"""
@@ -1202,12 +1575,7 @@ class MCGSConfigDialog(QDialog):
 
     def setFocusDevice(self, device_id: str) -> None:
         """
-        设置要聚焦的设备ID（用于连接失败时的引导）
-
-        当连接失败时，调用此方法可以：
-        1. 自动填充设备ID字段
-        2. 切换到基本参数Tab
-        3. 高亮显示IP和端口字段，引导用户检查
+        切换到指定设备的配置编辑
 
         Args:
             device_id: 设备标识符（例如 "mcgs_1"）
@@ -1215,28 +1583,21 @@ class MCGSConfigDialog(QDialog):
         if not device_id:
             return
 
-        # 设置设备ID
-        self.device_id_edit.setText(device_id)
+        devices = self._config_data.get("devices", [])
+        target_dev = None
+        for d in devices:
+            if isinstance(d, dict) and d.get("id") == device_id:
+                target_dev = d
+                break
 
-        # 尝试从已加载的配置中查找该设备的其他信息并填充
-        if "devices" in self._config_data and device_id in self._config_data["devices"]:
-            dev_config = self._config_data["devices"][device_id]
+        if target_dev:
+            self._load_device_to_form(target_dev)
+            logger.info(f"已切换到设备: {device_id}")
+        else:
+            self._original_device_id = device_id
+            self.device_id_edit.setText(device_id)
+            logger.warning(f"未找到设备 {device_id} 的配置，仅设置设备编号")
 
-            # 填充已有配置值
-            if "name" in dev_config:
-                self.device_name_edit.setText(dev_config["name"])
-            if "ip" in dev_config:
-                self.ip_edit.setText(dev_config["ip"])
-            if "port" in dev_config:
-                self.port_spin.setValue(dev_config["port"])
-            if "unit_id" in dev_config:
-                self.unit_id_spin.setValue(dev_config["unit_id"])
-            if "byte_order" in dev_config:
-                index = self.byte_order_combo.findText(dev_config["byte_order"])
-                if index >= 0:
-                    self.byte_order_combo.setCurrentIndex(index)
-
-        # 切换到基本参数Tab（索引0）
         self.tabs.setCurrentIndex(0)
 
         # 高亮IP地址字段（最可能出错的地方）
@@ -1255,6 +1616,37 @@ class MCGSConfigDialog(QDialog):
         self.status_bar.showMessage(f"⚠️ 设备 [{device_id}] 连接失败 - 请检查上方高亮的通信参数", 10000)  # 显示10秒
 
         logger.info(f"配置对话框已聚焦到设备: {device_id}")
+
+    def accept(self) -> None:
+        """覆盖 QDialog.accept: 关闭前自动保存配置"""
+        self._save_config()
+        super().accept()
+
+    def reject(self) -> None:
+        """覆盖 QDialog.reject: 取消时提示未保存的更改"""
+        current_config = self._collect_config_from_forms()
+        saved_config = self._config_data
+        current_devices = current_config.get("devices", []) if current_config else []
+        saved_devices = saved_config.get("devices", []) if saved_config else []
+        if current_devices != saved_devices:
+            reply = QMessageBox.question(
+                self,
+                "确认关闭",
+                "配置有未保存的更改，是否保存？",
+                QMessageBox.StandardButton.Save
+                | QMessageBox.StandardButton.Discard
+                | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Save,
+            )
+            if reply == QMessageBox.StandardButton.Save:
+                self._save_config()
+                super().accept()
+            elif reply == QMessageBox.StandardButton.Cancel:
+                return
+            else:
+                super().reject()
+        else:
+            super().reject()
 
 
 if __name__ == "__main__":

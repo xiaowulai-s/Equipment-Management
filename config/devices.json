@@ -1,1 +1,75 @@
-{"_meta": {"version": "3.0.2", "last_modified": "2026-04-29T16:46:00.000000", "source": "MCGS_ScanResult_Fixed_AddressBase"}, "devices": [{"id": "Device0", "name": "MCGS触摸屏#Device0", "ip": "192.168.31.239", "port": 502, "unit_id": 1, "timeout_ms": 3000, "byte_order": "ABCD", "polling_interval_ms": 1000, "address_base": 40001, "points": [{"name": "Data0", "addr": 40001, "type": "uint16", "unit": "", "decimal_places": 0, "scale": 1.0, "description": "Data0"}, {"name": "Data1", "addr": 40002, "type": "uint16", "unit": "", "decimal_places": 0, "scale": 1.0, "description": "Data1"}, {"name": "Data2", "addr": 40003, "type": "uint16", "unit": "", "decimal_places": 0, "scale": 1.0, "description": "Data2"}, {"name": "Data3", "addr": 40004, "type": "uint16", "unit": "", "decimal_places": 0, "scale": 1.0, "description": "Data3"}]}]}
+{
+  "_meta": {
+    "version": "2.0.0",
+    "last_modified": "2026-05-19T10:59:46.564276",
+    "source": "MCGSConfigDialog"
+  },
+  "devices": [
+    {
+      "id": "0001",
+      "name": "测试设备1",
+      "description": "测试设备0001",
+      "ip": "192.168.31.70",
+      "port": 502,
+      "unit_id": 1,
+      "timeout_ms": 3000,
+      "byte_order": "ABCD",
+      "polling_interval_ms": 1000,
+      "address_base": 1,
+      "points": [
+        {
+          "name": "date0",
+          "addr": "40001",
+          "type": "float",
+          "unit": "℃",
+          "description": "温度"
+        },
+        {
+          "name": "date1",
+          "addr": "40003",
+          "type": "float",
+          "unit": "MPa",
+          "description": "压强"
+        },
+        {
+          "name": "date2",
+          "addr": "40005",
+          "type": "float",
+          "unit": "℃",
+          "description": "温度2"
+        },
+        {
+          "name": "date3",
+          "addr": "40007",
+          "type": "float"
+        },
+        {
+          "name": "date4",
+          "addr": "40009",
+          "type": "float"
+        },
+        {
+          "name": "date5",
+          "addr": "40011",
+          "type": "float"
+        },
+        {
+          "name": "date6",
+          "addr": "40013",
+          "type": "coil"
+        },
+        {
+          "name": "date7",
+          "addr": "40014",
+          "type": "coil"
+        },
+        {
+          "name": "date8",
+          "addr": "40015",
+          "type": "string"
+        }
+      ],
+      "device_type": "测试设备类型1"
+    }
+  ]
+}

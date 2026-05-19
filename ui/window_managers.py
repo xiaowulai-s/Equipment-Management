@@ -304,8 +304,8 @@ class EventHandler(BaseWindowManager):
 
 
 if __name__ == "__main__":
-    print("✅ Window Manager System loaded")
-    print("\n📦 Available managers:")
+    print("[OK] Window Manager System loaded")
+    print("\n[PACKAGE] Available managers:")
     print("  - UIManager: UI creation manager")
     print("  - DeviceListManager: Device list management")
     print("  - MonitorManager: Monitor page management")

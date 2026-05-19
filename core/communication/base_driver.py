@@ -56,13 +56,13 @@ class BaseDriver(QObject):
         """
         return self._is_connected
 
+    MAX_BUFFER_SIZE = 1024 * 1024  # 1MB
+
     def _append_to_buffer(self, data: bytes):
-        """
-        追加数据到缓冲区
-        Append data to buffer
-        """
         locker = QMutexLocker(self._buffer_mutex)
         self._buffer.extend(data)
+        if len(self._buffer) > self.MAX_BUFFER_SIZE:
+            self._buffer = self._buffer[-self.MAX_BUFFER_SIZE :]
 
     def _clear_buffer(self):
         """

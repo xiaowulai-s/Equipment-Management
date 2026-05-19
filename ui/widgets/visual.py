@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from PySide6.QtCore import Property, QEasingCurve, QPropertyAnimation, Qt, Signal
+from PySide6.QtCore import Property, QEasingCurve, QPropertyAnimation, Qt, QTimer, Signal
 from PySide6.QtGui import QBrush, QColor, QConicalGradient, QFont, QPainter, QPaintEvent, QPen, QRadialGradient
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 
@@ -92,7 +92,8 @@ class AnimatedStatusBadge(QWidget):
 
             self._timer = QTimer(self)
             self._timer.timeout.connect(self._update_pulse)
-            self._timer.start(50)  # 50ms更新一次
+            # 优化：从50ms改为100ms，减少CPU占用同时保持流畅的呼吸效果
+            self._timer.start(100)  # 100ms更新一次（约10fps）
 
     def _update_pulse(self) -> None:
         """更新脉冲效果"""
@@ -166,7 +167,7 @@ class AnimatedStatusBadge(QWidget):
     def start_animation(self) -> None:
         """启动动画"""
         if hasattr(self, "_timer") and not self._timer.isActive():
-            self._timer.start(50)
+            self._timer.start(100)  # 与 _setup_animation 保持一致
         self._animated = True
 
     def stop_animation(self) -> None:
@@ -213,10 +214,14 @@ class RealtimeChart(QWidget):
         self._auto_scale = auto_scale
         self._show_grid = show_grid
         self._paused = False
-        self._series: dict[str, list[tuple[float, float]]] = {}  # name -> [(timestamp, value)]
+        self._series: dict[str, list[tuple[float, float]]] = {}
         self._colors: dict[str, str] = {}
         self._default_colors = ["#2196F3", "#4CAF50", "#FF9800", "#F44336", "#9C27B0"]
         self._color_index = 0
+
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.timeout.connect(self._on_refresh_tick)
+        self._refresh_timer.start(1000)
 
         self._setup_ui()
 
@@ -269,12 +274,31 @@ class RealtimeChart(QWidget):
         if y_min is None or y_max is None or y_min == y_max:
             return
 
+        import time as _time
+
+        now = _time.time()
+        window_secs = max(self._max_points, 10)
+
+        all_timestamps_list = []
+        for data_points in self._series.values():
+            all_timestamps_list.extend([ts for ts, _ in data_points])
+
+        if all_timestamps_list:
+            global_min_ts = max(min(all_timestamps_list), now - window_secs)
+        else:
+            global_min_ts = now - window_secs
+        global_max_ts = now
+
+        if global_max_ts <= global_min_ts:
+            global_max_ts = global_min_ts + 1.0
+        ts_range = global_max_ts - global_min_ts
+
         # 绘制坐标轴
-        self._draw_axes(painter, x_offset, y_offset, width, height, y_min, y_max)
+        self._draw_axes(painter, x_offset, y_offset, width, height, y_min, y_max, global_min_ts, global_max_ts)
 
         # 绘制数据曲线
         for series_name, data_points in self._series.items():
-            if len(data_points) < 2:
+            if not data_points:
                 continue
 
             color = self._colors.get(series_name, self._default_colors[0])
@@ -282,15 +306,28 @@ class RealtimeChart(QWidget):
             pen.setWidth(2)
             painter.setPen(pen)
 
+            if len(data_points) == 1:
+                ts, value = data_points[0]
+                if ts >= global_min_ts:
+                    x_ratio = (ts - global_min_ts) / ts_range
+                    x = x_offset + x_ratio * width
+                else:
+                    x = x_offset + width / 2
+                y = y_offset + height - ((value - y_min) / (y_max - y_min)) * height
+                painter.setBrush(QBrush(QColor(color)))
+                painter.drawEllipse(x - 3, y - 3, 6, 6)
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                continue
+
+            painter.setBrush(Qt.BrushStyle.NoBrush)
             path = QPainterPath()
             first = True
 
-            for i, (timestamp, value) in enumerate(data_points):
-                x = (
-                    x_offset + (i / (self._max_points - 1)) * width
-                    if len(data_points) >= self._max_points
-                    else x_offset + (i / max(1, len(data_points) - 1)) * width
-                )
+            for timestamp, value in data_points:
+                if timestamp < global_min_ts:
+                    continue
+                x_ratio = (timestamp - global_min_ts) / ts_range
+                x = x_offset + x_ratio * width
                 y = y_offset + height - ((value - y_min) / (y_max - y_min)) * height
 
                 if first:
@@ -299,14 +336,24 @@ class RealtimeChart(QWidget):
                 else:
                     path.lineTo(x, y)
 
-            painter.drawPath(path)
+            if not first:
+                painter.drawPath(path)
 
         # 绘制边框
         painter.setPen(QPen(QColor("#E0E0E0")))
         painter.drawRect(x_offset, y_offset, width, height)
 
     def _draw_axes(
-        self, painter: QPainter, x: int, y: int, width: int, height: int, y_min: float, y_max: float
+        self,
+        painter: QPainter,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+        y_min: float,
+        y_max: float,
+        start_time: float,
+        end_time: float,
     ) -> None:
         """绘制坐标轴和标签"""
         # 绘制坐标轴
@@ -324,10 +371,12 @@ class RealtimeChart(QWidget):
         painter.setPen(QColor("#333333"))
         painter.setFont(QFont("Arial", 8))
 
-        # 绘制Y轴数值标签
-        for i in range(5):
-            y_value = y_min + (y_max - y_min) * (1 - i / 4)
-            y_pos = y + (height * i) // 4
+        # 绘制Y轴数值标签（与5×5网格对齐）
+        NUM_TICKS = 6  # 5个大格子 = 6条刻度线
+        DIVISIONS = NUM_TICKS - 1  # 5等分
+        for i in range(NUM_TICKS):
+            y_value = y_min + (y_max - y_min) * (1 - i / DIVISIONS)
+            y_pos = y + (height * i) // DIVISIONS
 
             # 绘制Y轴刻度线
             painter.drawLine(x - 5, y_pos, x, y_pos)
@@ -337,48 +386,41 @@ class RealtimeChart(QWidget):
             text_rect = painter.boundingRect(0, 0, 100, 20, Qt.AlignmentFlag.AlignRight, value_text)
             painter.drawText(x - text_rect.width() - 10, y_pos + 5, value_text)
 
-        # 绘制X轴时间标签
+        # 绘制X轴时间标签（与5×5网格对齐）
         import time
 
-        # 从数据中获取时间范围
-        all_timestamps = []
-        for data_points in self._series.values():
-            all_timestamps.extend([ts for ts, _ in data_points])
+        # 绘制X轴刻度线和时间标签
+        for i in range(NUM_TICKS):
+            x_pos = x + (width * i) // DIVISIONS
 
-        if all_timestamps:
-            start_time = min(all_timestamps)
-            end_time = max(all_timestamps)
+            # 绘制X轴刻度线
+            painter.drawLine(x_pos, y + height, x_pos, y + height + 5)
 
-            # 绘制X轴刻度线和时间标签
-            for i in range(5):
-                x_pos = x + (width * i) // 4
+            # 计算对应时间
+            timestamp = start_time + (end_time - start_time) * (i / DIVISIONS)
+            time_str = time.strftime("%H:%M:%S", time.localtime(timestamp))
 
-                # 绘制X轴刻度线
-                painter.drawLine(x_pos, y + height, x_pos, y + height + 5)
-
-                # 计算对应时间
-                timestamp = start_time + (end_time - start_time) * (i / 4)
-                time_str = time.strftime("%H:%M:%S", time.localtime(timestamp))
-
-                # 绘制X轴时间
-                text_rect = painter.boundingRect(0, 0, 100, 20, Qt.AlignmentFlag.AlignCenter, time_str)
-                painter.drawText(x_pos - text_rect.width() // 2, y + height + 20, time_str)
+            # 绘制X轴时间
+            text_rect = painter.boundingRect(0, 0, 100, 20, Qt.AlignmentFlag.AlignCenter, time_str)
+            painter.drawText(x_pos - text_rect.width() // 2, y + height + 20, time_str)
 
     def _draw_grid(self, painter: QPainter, x: int, y: int, width: int, height: int) -> None:
-        """绘制网格"""
-        pen = QPen(QColor("#E8E8E8"))
-        pen.setWidth(1)
-        pen.setStyle(Qt.PenStyle.DotLine)
-        painter.setPen(pen)
+        """绘制5×5网格 - 与坐标轴刻度对齐"""
+        MAJOR = 5  # 大格子数（5×5 = 25个小格子）
 
-        # 水平线
-        for i in range(1, 5):
-            y_pos = y + (height * i) // 5
+        # 浅色细线（小格子线）
+        pen_light = QPen(QColor("#E8E8E8"))
+        pen_light.setWidth(1)
+        pen_light.setStyle(Qt.PenStyle.DotLine)
+        painter.setPen(pen_light)
+
+        # 小格子线：i=1..MAJOR-1 共4条内线
+        for i in range(1, MAJOR):
+            # 水平小格子线
+            y_pos = y + (height * i) // MAJOR
             painter.drawLine(x, y_pos, x + width, y_pos)
-
-        # 垂直线
-        for i in range(1, 5):
-            x_pos = x + (width * i) // 5
+            # 垂直小格子线
+            x_pos = x + (width * i) // MAJOR
             painter.drawLine(x_pos, y, x_pos, y + height)
 
     def _calculate_y_range(self) -> tuple[Optional[float], Optional[float]]:
@@ -460,6 +502,42 @@ class RealtimeChart(QWidget):
     def resume(self) -> None:
         """继续更新"""
         self._paused = False
+
+    def _on_refresh_tick(self) -> None:
+        import time as _time
+
+        now = _time.time()
+        cutoff = now - max(self._max_points * 2, 20)
+        for name in list(self._series.keys()):
+            pts = self._series[name]
+            while pts and pts[0][0] < cutoff:
+                pts.pop(0)
+        self.update()
+
+    def stop_timer(self) -> None:
+        """停止刷新定时器"""
+        if self._refresh_timer.isActive():
+            self._refresh_timer.stop()
+
+    def start_timer(self) -> None:
+        """启动刷新定时器"""
+        if not self._refresh_timer.isActive():
+            self._refresh_timer.start(1000)
+
+    def hideEvent(self, event) -> None:
+        """隐藏时停止定时器以减少资源消耗"""
+        self.stop_timer()
+        super().hideEvent(event)
+
+    def showEvent(self, event) -> None:
+        """显示时恢复定时器"""
+        self.start_timer()
+        super().showEvent(event)
+
+    def closeEvent(self, event) -> None:
+        """关闭时清理定时器"""
+        self.stop_timer()
+        super().closeEvent(event)
 
     @property
     def is_paused(self) -> bool:

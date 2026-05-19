@@ -521,6 +521,12 @@ class BatchOperationsDialog(QDialog):
         self.progress_label.setText("执行失败")
         QMessageBox.critical(self, "批量操作失败", error_message)
 
+    def reject(self) -> None:
+        if self._worker_thread and self._worker_thread.isRunning():
+            self._worker_thread.quit()
+            self._worker_thread.wait(3000)
+        super().reject()
+
     def _cleanup_worker(self) -> None:
         if self._worker is not None:
             self._worker.deleteLater()

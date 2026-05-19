@@ -47,7 +47,6 @@ QTabBar::tab {
 QTableView, QTableWidget, QTreeView, QTreeWidget {
     border-radius: 8px;
     gridline-color: transparent;
-    selection-border-radius: 4px;
     show-decoration-selected: 1;
 }
 QTableView::item, QTableWidget::item,

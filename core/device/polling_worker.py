@@ -12,6 +12,7 @@ Async Polling Worker - Manages task submission and result dispatch
 
 from __future__ import annotations
 
+import threading
 import time
 from typing import Any, Dict, Optional
 
@@ -55,6 +56,7 @@ class AsyncPollingWorker(QObject):
 
         # 运行时统计
         self._pending_tasks: int = 0
+        self._pending_lock = threading.Lock()
         self._success_count: int = 0
         self._fail_count: int = 0
         self._total_poll_time_ms: float = 0.0
@@ -78,7 +80,8 @@ class AsyncPollingWorker(QObject):
     @property
     def active_task_count(self) -> int:
         """当前正在执行的任务数"""
-        return self._pending_tasks
+        with self._pending_lock:
+            return self._pending_tasks
 
     @property
     def thread_pool(self) -> QThreadPool:
@@ -121,7 +124,8 @@ class AsyncPollingWorker(QObject):
         task.signals.performance_warning.connect(self._on_performance_warning)
 
         # 提交到线程池
-        self._pending_tasks += 1
+        with self._pending_lock:
+            self._pending_tasks += 1
         self._thread_pool.start(task)
 
         return True
@@ -154,7 +158,9 @@ class AsyncPollingWorker(QObject):
         response_time_ms: float,
     ) -> None:
         """处理轮询成功（从工作线程接收）"""
-        self._pending_tasks -= 1
+        with self._pending_lock:
+            self._pending_tasks -= 1
+            remaining = self._pending_tasks
         self._success_count += 1
         self._total_poll_time_ms += response_time_ms
 
@@ -184,7 +190,8 @@ class AsyncPollingWorker(QObject):
         error_msg: str,
     ) -> None:
         """处理轮询失败（从工作线程接收）"""
-        self._pending_tasks -= 1
+        with self._pending_lock:
+            self._pending_tasks -= 1
         self._fail_count += 1
 
         # 更新设备的poll_info错误状态
@@ -204,7 +211,8 @@ class AsyncPollingWorker(QObject):
         elapsed_ms: float,
     ) -> None:
         """处理轮询超时（从工作线程接收）"""
-        self._pending_tasks -= 1
+        with self._pending_lock:
+            self._pending_tasks -= 1
         self._fail_count += 1
 
         # 更新设备的poll_info超时状态
@@ -260,8 +268,10 @@ class AsyncPollingWorker(QObject):
 
     def get_statistics(self) -> Dict[str, Any]:
         """获取运行时统计信息"""
+        with self._pending_lock:
+            active = self._pending_tasks
         return {
-            "active_tasks": self._pending_tasks,
+            "active_tasks": active,
             "max_threads": self._thread_pool.maxThreadCount(),
             "success_count": self._success_count,
             "fail_count": self._fail_count,

@@ -5,11 +5,14 @@ Device Type Manager
 """
 
 import json
+import logging
 import os
 import sys
 from typing import Any, Dict, List
 
 from PySide6.QtCore import QObject, Signal
+
+logger = logging.getLogger(__name__)
 
 
 class DeviceTypeManager(QObject):
@@ -55,7 +58,7 @@ class DeviceTypeManager(QObject):
                 with open(self._config_file, "r", encoding="utf-8") as f:
                     self._device_types = json.load(f)
             except Exception as e:
-                print(f"加载设备类型失败: {e}")
+                logger.warning("加载设备类型失败: %s", e)
                 self._device_types = []
         else:
             # 默认设备类型
@@ -75,7 +78,7 @@ class DeviceTypeManager(QObject):
             with open(self._config_file, "w", encoding="utf-8") as f:
                 json.dump(self._device_types, f, ensure_ascii=False, indent=2)
         except Exception as e:
-            print(f"保存设备类型失败: {e}")
+            logger.warning("保存设备类型失败: %s", e)
 
     def get_all_device_types(self) -> List[Dict[str, Any]]:
         """

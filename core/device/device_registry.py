@@ -28,6 +28,7 @@ from PySide6.QtCore import QObject, Signal
 from core.data import DatabaseManager, DeviceRepository
 from core.device.device_factory import DeviceFactory
 from core.device.device_model import Device, DeviceStatus
+from core.device.device_priority_helper import DevicePriorityHelper
 from core.device.polling import DevicePollInfo, PollPriority
 from core.utils.logger import get_logger
 
@@ -37,9 +38,9 @@ logger = get_logger("device_registry")
 class DeviceRegistrySignals(QObject):
     """设备注册表信号定义（分离信号对象，支持多重继承）"""
 
-    device_added = Signal(str)          # device_id
-    device_removed = Signal(str)        # device_id
-    device_updated = Signal(str)        # device_id
+    device_added = Signal(str)  # device_id
+    device_removed = Signal(str)  # device_id
+    device_updated = Signal(str)  # device_id
 
 
 class DeviceRegistry:
@@ -67,12 +68,10 @@ class DeviceRegistry:
         """
         self._db_manager = db_manager
         self._devices: Dict[str, DevicePollInfo] = {}
-        self._signals = DeviceRegistryDevices()
+        self._signals = DeviceRegistrySignals()
 
         # 设备创建函数（可注入，便于测试和解耦）
-        self._create_device_internal = (
-            create_device_internal_func or self._default_create_device
-        )
+        self._create_device_internal = create_device_internal_func or self._default_create_device
 
         # 加载已持久化的设备
         self._load_devices_from_db()
@@ -223,23 +222,25 @@ class DeviceRegistry:
         for device_id, poll_info in self._devices.items():
             device = poll_info.device
             config = device.get_device_config()
-            result.append({
-                "device_id": device_id,
-                "name": config.get("name", f"设备_{device_id}"),
-                "status": device.get_status(),
-                "use_simulator": device.is_using_simulator(),
-                "config": config,
-                "priority": poll_info.priority.name,
-                "poll_interval": poll_info.poll_interval,
-                "fault_type": poll_info.fault_type,
-                "fault_start_time": poll_info.fault_start_time,
-                "fault_duration": poll_info.fault_duration,
-                "recovery_attempts": poll_info.recovery_attempts,
-                "recovery_status": poll_info.recovery_status,
-                "recovery_mode": poll_info.recovery_mode,
-                "recovery_enabled": poll_info.recovery_enabled,
-                "fault_detection_enabled": poll_info.fault_detection_enabled,
-            })
+            result.append(
+                {
+                    "device_id": device_id,
+                    "name": config.get("name", f"设备_{device_id}"),
+                    "status": device.get_status(),
+                    "use_simulator": device.is_using_simulator(),
+                    "config": config,
+                    "priority": poll_info.priority.name,
+                    "poll_interval": poll_info.poll_interval,
+                    "fault_type": poll_info.fault_type,
+                    "fault_start_time": poll_info.fault_start_time,
+                    "fault_duration": poll_info.fault_duration,
+                    "recovery_attempts": poll_info.recovery_attempts,
+                    "recovery_status": poll_info.recovery_status,
+                    "recovery_mode": poll_info.recovery_mode,
+                    "recovery_enabled": poll_info.recovery_enabled,
+                    "fault_detection_enabled": poll_info.fault_detection_enabled,
+                }
+            )
         return result
 
     def get_connected_devices(self) -> List[Device]:
@@ -353,15 +354,9 @@ class DeviceRegistry:
         device = DeviceFactory.create_device(device_id, config)
 
         # 连接设备信号
-        device.status_changed.connect(
-            lambda s, d=device_id: self._on_device_status_changed(d, s)
-        )
-        device.data_received.connect(
-            lambda did, data, d=device_id: self._on_device_data_updated(d, data)
-        )
-        device.error_occurred.connect(
-            lambda error, d=device_id: self._on_device_error(d, error)
-        )
+        device.status_changed.connect(lambda s, d=device_id: self._on_device_status_changed(d, s))
+        device.data_received.connect(lambda did, data, d=device_id: self._on_device_data_updated(d, data))
+        device.error_occurred.connect(lambda error, d=device_id: self._on_device_error(d, error))
 
         # 确定优先级
         priority = self._determine_priority(config)
@@ -374,17 +369,7 @@ class DeviceRegistry:
 
     def _determine_priority(self, config: dict) -> PollPriority:
         """根据设备类型确定轮询优先级"""
-        device_type = config.get("device_type", "").lower()
-
-        high_priority_types = ["传感器", "变送器", "流量计", "压力计"]
-        if any(t in device_type for t in high_priority_types):
-            return PollPriority.HIGH
-
-        low_priority_types = ["historian", "记录仪", "存档"]
-        if any(t in device_type for t in low_priority_types):
-            return PollPriority.LOW
-
-        return PollPriority.NORMAL
+        return DevicePriorityHelper.determine_priority(config)
 
     def _load_devices_from_db(self):
         """从数据库加载已持久化的设备"""

@@ -30,6 +30,7 @@ from PySide6.QtCore import (
     Qt,
     QRunnable,
     QThreadPool,
+    Signal,
 )
 
 logger = logging.getLogger(__name__)
@@ -98,10 +99,12 @@ class AsyncWorker(QRunnable):
     """
 
     class Signals(QObject):
-        result = object()
-        error = object()
-        finished = object()
-        progress = object()
+        """后台任务完成时通过信号回传结果到主线程"""
+
+        result = Signal(object)
+        error = Signal(object)
+        finished = Signal()
+        progress = Signal(object)
 
     def __init__(self, func: Callable, *args, **kwargs):
         super().__init__()
@@ -193,13 +196,17 @@ def debounce(delay_ms: int = 300) -> Callable:
         def wrapper(*args, **kwargs):
             nonlocal timer
 
-            if timer is not None:
+            if timer is None:
+                timer = QTimer()
+                timer.setSingleShot(True)
+            else:
                 timer.stop()
+                try:
+                    timer.timeout.disconnect()
+                except (TypeError, RuntimeError):
+                    pass
 
-            timer = QTimer()
-            timer.setSingleShot(True)
-            timeout_func = lambda: func(*args, **kwargs)
-            timer.timeout.connect(timeout_func)
+            timer.timeout.connect(lambda: func(*args, **kwargs))
             timer.start(delay_ms)
 
         return wrapper
@@ -305,8 +312,8 @@ class RetryDecorator:
 
 
 if __name__ == "__main__":
-    print("✅ Async Utilities 加载成功")
-    print("\n📦 可用功能:")
+    print("[OK] Async Utilities 加载成功")
+    print("\n[PACKAGE] 可用功能:")
     print("  - async_sleep(): 非阻塞延迟")
     print("  - async_wait(): 保持响应的同步等待")
     print("  - run_async(): 后台线程执行")

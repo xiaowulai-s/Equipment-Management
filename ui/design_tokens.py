@@ -483,13 +483,13 @@ Colors.adjust_color = staticmethod(adjust_color)
 
 
 if __name__ == "__main__":
-    print("✅ Design Tokens 系统加载成功")
-    print(f"\n📊 统计信息:")
+    print("[OK] Design Tokens 系统加载成功")
+    print(f"\n[STATS] 统计信息:")
     print(f"  - 颜色常量: {len([attr for attr in dir(Colors) if not attr.startswith('_')])} 个")
     print(f"  - 字体样式: {len([attr for attr in dir(Typography) if not attr.startswith('_') and attr.isupper()])} 个")
     print(f"  - 间距单位: {len([attr for attr in dir(Spacing) if not attr.startswith('_') and attr.isupper()])} 个")
     print(f"  - 圆角半径: {len([attr for attr in dir(Radius) if not attr.startswith('_')])} 个")
-    print(f"\n🎨 示例用法:")
+    print(f"\n[USAGE] 示例用法:")
     print(f'  DT.C.TEXT_PRIMARY → "{DT.C.TEXT_PRIMARY}"')
     print(f"  DT.T.BODY → {DT.T.BODY}")
     print(f"  DT.S.MD → {DT.S.MD}px")

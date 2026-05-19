@@ -30,63 +30,68 @@ from core.services.mcgs_service import MCGSService, MCGSReadResult
 logger = logging.getLogger(__name__)
 
 
+class SafeSignalBridge(QObject):
+    """线程安全的信号桥接器 - 解决QRunnable自动删除导致的信号丢失问题"""
+
+    finished = Signal(object)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._result = None
+
+    def emit_result(self, result):
+        self._result = result
+        self.finished.emit(result)
+
+
 class _ConnectTask(QRunnable):
     """异步连接任务"""
-
-    class Signals(QObject):
-        finished = Signal(str, bool, str)
 
     def __init__(self, service: MCGSService, device_id: str):
         super().__init__()
         self.service = service
         self.device_id = device_id
-        self.signals = self.Signals()
+        self.bridge = SafeSignalBridge()
         self.setAutoDelete(True)
 
     def run(self):
         try:
             success = self.service.connect_device(self.device_id)
             msg = "连接成功" if success else "连接失败"
-            self.signals.finished.emit(self.device_id, success, msg)
+            self.bridge.emit_result((self.device_id, success, msg))
         except Exception as e:
-            self.signals.finished.emit(self.device_id, False, str(e))
+            self.bridge.emit_result((self.device_id, False, str(e)))
 
 
 class _ReadAndProcessTask(QRunnable):
     """异步读取+处理任务"""
 
-    class Signals(QObject):
-        finished = Signal(object)
-
     def __init__(self, service: MCGSService, device_id: str):
         super().__init__()
         self.service = service
         self.device_id = device_id
-        self.signals = self.Signals()
+        self.bridge = SafeSignalBridge()
         self.setAutoDelete(True)
 
     def run(self):
         try:
             result = self.service.read_and_process(self.device_id)
-            self.signals.finished.emit(result)
+            self.bridge.emit_result(result)
         except Exception as e:
             logger.error("[_ReadAndProcessTask] 异常: %s", e)
             result = MCGSReadResult(self.device_id)
             result.error_message = str(e)
-            self.signals.finished.emit(result)
+            self.bridge.emit_result(result)
 
 
 class _BatchReadTask(QRunnable):
     """异步批量读取任务（轮询时使用）"""
 
-    class Signals(QObject):
-        finished = Signal(list)
-
     def __init__(self, service: MCGSService, device_ids: List[str]):
         super().__init__()
         self.service = service
         self.device_ids = device_ids
-        self.signals = self.Signals()
+        self.bridge = SafeSignalBridge()
         self.setAutoDelete(True)
 
     def run(self):
@@ -100,7 +105,7 @@ class _BatchReadTask(QRunnable):
                 err_result = MCGSReadResult(device_id)
                 err_result.error_message = str(e)
                 results.append(err_result)
-        self.signals.finished.emit(results)
+        self.bridge.emit_result(results)
 
 
 class MCGSController(QObject):
@@ -140,6 +145,7 @@ class MCGSController(QObject):
         self._is_polling = False
         self._poll_interval_ms = 1000
         self._poll_cycle_count = 0
+        self._batch_in_progress = False
 
         self._stats = {
             "total_reads": 0,
@@ -153,10 +159,10 @@ class MCGSController(QObject):
 
     def _connect_data_bus(self):
         bus = DataBus.instance()
-        bus.subscribe('device_data_updated', self._on_bus_data_updated)
-        bus.subscribe('comm_error', self._on_bus_comm_error)
-        bus.subscribe('device_connected', self._on_bus_device_connected)
-        bus.subscribe('device_disconnected', self._on_bus_device_disconnected)
+        bus.subscribe("device_data_updated", self._on_bus_data_updated)
+        bus.subscribe("comm_error", self._on_bus_comm_error)
+        bus.subscribe("device_connected", self._on_bus_device_connected)
+        bus.subscribe("device_disconnected", self._on_bus_device_disconnected)
 
     @property
     def service(self) -> MCGSService:
@@ -212,7 +218,7 @@ class MCGSController(QObject):
 
     def connect_device(self, device_id: str):
         task = _ConnectTask(self._service, device_id)
-        task.signals.finished.connect(self._on_connect_finished)
+        task.bridge.finished.connect(self._on_connect_finished)
         self._start_task(task)
 
     def connect_devices(self, device_ids: List[str]):
@@ -231,7 +237,7 @@ class MCGSController(QObject):
 
     def read_device(self, device_id: str):
         task = _ReadAndProcessTask(self._service, device_id)
-        task.signals.finished.connect(self._on_read_finished)
+        task.bridge.finished.connect(self._on_read_finished)
         self._start_task(task)
 
     def start_polling(self, device_ids: List[str], interval_ms: int = 1000):
@@ -247,7 +253,8 @@ class MCGSController(QObject):
         self.polling_started.emit()
         logger.info(
             "MCGS轮询已启动 [设备=%s, 间隔=%dms]",
-            device_ids, interval_ms,
+            device_ids,
+            interval_ms,
         )
 
     def stop_polling(self):
@@ -264,19 +271,20 @@ class MCGSController(QObject):
 
     def get_device_config(self, device_id: str):
         reader = self.get_reader()
-        if reader and hasattr(reader, 'get_device_config'):
+        if reader and hasattr(reader, "get_device_config"):
             return reader.get_device_config(device_id)
         return None
 
     def list_devices(self) -> List[str]:
         reader = self.get_reader()
-        if reader and hasattr(reader, 'list_devices'):
+        if reader and hasattr(reader, "list_devices"):
             return reader.list_devices()
         return []
 
     def create_reader(self, config_path: str):
         try:
             from core.utils.mcgs_modbus_reader import MCGSModbusReader
+
             reader = MCGSModbusReader(config_path)
             self._service.set_reader(reader)
             logger.info("MCGS读取器已创建: %s", config_path)
@@ -290,15 +298,27 @@ class MCGSController(QObject):
 
     def _start_task(self, task: QRunnable):
         from PySide6.QtCore import QThreadPool
+
         QThreadPool.globalInstance().start(task)
 
-    @Slot(str, bool, str)
-    def _on_connect_finished(self, device_id: str, success: bool, msg: str):
+    @Slot(object)
+    def _on_connect_finished(self, result):
+        device_id, success, msg = result
         self.device_connected.emit(device_id, success, msg)
         if success:
             logger.info("[%s] 连接完成: %s", device_id, msg)
+            if device_id not in self._polling_device_ids:
+                if self._is_polling:
+                    self._polling_device_ids.append(device_id)
+                    logger.info(
+                        "[%s] 已加入轮询列表 (当前轮询设备: %s)",
+                        device_id,
+                        self._polling_device_ids,
+                    )
+                else:
+                    self.start_polling([device_id], self._poll_interval_ms)
         else:
-            logger.warning("[%s] 连接失败: %s", device_id, msg)
+            logger.debug("[%s] 连接失败: %s", device_id, msg)
 
     @Slot(object)
     def _on_read_finished(self, result: MCGSReadResult):
@@ -312,13 +332,18 @@ class MCGSController(QObject):
     def _on_poll_timeout(self):
         if not self._polling_device_ids:
             return
+        if self._batch_in_progress:
+            logger.debug("上一轮批量读取未完成，跳过本轮")
+            return
 
+        self._batch_in_progress = True
         task = _BatchReadTask(self._service, self._polling_device_ids)
-        task.signals.finished.connect(self._on_batch_read_finished)
+        task.bridge.finished.connect(self._on_batch_read_finished)
         self._start_task(task)
 
     @Slot(list)
     def _on_batch_read_finished(self, results: list):
+        self._batch_in_progress = False
         self._poll_cycle_count += 1
         success_count = 0
         fail_count = 0
@@ -339,6 +364,7 @@ class MCGSController(QObject):
         if result.success:
             self._stats["successful_reads"] += 1
             from datetime import datetime
+
             self._stats["last_read_time"] = datetime.now()
         else:
             self._stats["failed_reads"] += 1
@@ -357,8 +383,7 @@ class MCGSController(QObject):
 
     @Slot(str)
     def _on_bus_device_disconnected(self, device_id: str):
-        if device_id in self._polling_device_ids:
-            self._polling_device_ids.remove(device_id)
+        pass
 
     def cleanup(self):
         self.stop_polling()

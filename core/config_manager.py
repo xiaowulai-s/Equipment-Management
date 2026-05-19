@@ -5,11 +5,14 @@ Configuration Manager with Pydantic Validation
 """
 
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from .config_models import AlarmRuleConfig, ApplicationConfig, DeviceConfig, SystemConfig
+
+logger = logging.getLogger(__name__)
 
 
 class ConfigManager:
@@ -36,7 +39,7 @@ class ConfigManager:
             # 使用 Pydantic 验证和解析
             self._config = SystemConfig(**data)
         except Exception as e:
-            print(f"加载配置失败: {e}，使用默认配置")
+            logger.warning("加载配置失败: %s，使用默认配置", e)
             self._config = SystemConfig()
             self._save_config()
 
@@ -49,7 +52,7 @@ class ConfigManager:
             with open(self._config_file, "w", encoding="utf-8") as f:
                 json.dump(self._config.model_dump(), f, ensure_ascii=False, indent=2)
         except Exception as e:
-            print(f"保存配置失败: {e}")
+            logger.warning("保存配置失败: %s", e)
 
     def reload(self) -> None:
         """热重载配置"""
@@ -172,7 +175,7 @@ class ConfigManager:
             self._save_config()
             return True
         except Exception as e:
-            print(f"导入配置失败: {e}")
+            logger.warning("导入配置失败: %s", e)
             return False
 
     def validate_device_config(self, config_dict: Dict[str, Any]) -> tuple[bool, Optional[str]]:

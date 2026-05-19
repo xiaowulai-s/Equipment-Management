@@ -6,22 +6,30 @@ Refactored with maintainable constants and clear text mappings
 
 from __future__ import annotations
 
+import re
+import webbrowser
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from PySide6.QtCore import QSize, Qt, QTimer, Slot
-from PySide6.QtGui import QFont, QBrush, QColor
+from PySide6.QtCore import QDateTime, QSettings, QSize, Qt, QTimer, Slot, Signal, QObject, QRunnable, QThreadPool
+from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import QApplication, QTableWidget  # noqa: F401  (base class of DataTable)
 from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QDateTimeEdit,
     QDialog,
     QFileDialog,
     QGridLayout,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QPlainTextEdit,
+    QProgressBar,
+    QProgressDialog,
     QPushButton,
     QSizePolicy,
     QSplitter,
@@ -50,6 +58,7 @@ from ui.device_type_dialogs import DeviceTypeDialog
 from ui.register_write_dialog import RegisterWriteDialog
 from ui.widgets.dynamic_monitor_panel import DynamicMonitorPanel
 from ui.dialogs.mcgs_config_dialog import MCGSConfigDialog
+from ui.dialogs.device_scan_dialog import DeviceScanDialog
 from ui.controllers.device_controller import DeviceController
 from ui.widgets import (
     DangerButton,
@@ -74,7 +83,7 @@ logger = get_logger("main_window")
 class TextConstants:
     """UI text constants - centralized for easy maintenance"""
 
-    APP_NAME = "工业设备管理系统"
+    APP_NAME = "MCGS_EMS"
     APP_VERSION = __version__
     WINDOW_TITLE = f"{APP_NAME} v{APP_VERSION}"
 
@@ -83,7 +92,7 @@ class TextConstants:
     REMOVE_DEVICE_BTN = "移除设备"
     SEARCH_PLACEHOLDER = "搜索设备名称..."
 
-    WELCOME_TITLE = "欢迎使用工业设备管理系统"
+    WELCOME_TITLE = "欢迎使用MCGS_EMS"
     WELCOME_SUBTITLE = "请从左侧面板选择设备进行监控"
 
     DEVICE_MONITOR_TITLE = "设备监控"
@@ -191,40 +200,142 @@ class UIMessages:
     IMPORT_CONFIRM_TITLE = "确认导入"
     DEVICE_CONFIG_IMPORT_CONFIRM_MSG = "确定要导入设备配置吗？\n现有设备将被覆盖。"
 
+    GITHUB_REPO_URL = "https://github.com/xiaowulai-s/Equipment-Management"
+
     ABOUT_TITLE = "关于"
     ABOUT_MSG = (
-        f"{TextConstants.APP_NAME} v{TextConstants.APP_VERSION}\n\n"
-        "基于 PySide6 和 Modbus 协议的工业设备监控软件\n"
-        "采用四层解耦架构设计\n\n"
-        "功能特性:\n"
-        "━━━━━━━━━━━━━━━━━━━━━\n"
-        "【协议支持】\n"
-        "  • Modbus TCP - 以太网通信\n"
-        "  • Modbus RTU - 串口通信\n"
-        "  • Modbus ASCII - ASCII编码通信\n\n"
-        "【设备管理】\n"
-        "  • 多设备并发管理 (100+设备、20000+寄存器)\n"
-        "  • 设备增删改查、搜索、批量操作\n"
-        "  • JSON配置持久化\n"
-        "  • 自动重连和失败重试\n\n"
-        "【数据可视化】\n"
-        "  • DataCard 数据卡片\n"
-        "  • Canvas 仪表盘\n"
-        "  • 实时趋势图\n"
-        "  • 高性能实时曲线图\n\n"
-        "【系统功能】\n"
-        "  • Fluent Design 风格主题\n"
-        "  • 数据导出 (CSV/Excel)\n"
-        "  • 日志查看器\n"
-        "  • 设备仿真模式\n\n"
-        "━━━━━━━━━━━━━━━━━━━━━\n"
-        "Power By 喝口阔落"
+        f"{TextConstants.APP_NAME} v{TextConstants.APP_VERSION}<br><br>"
+        "基于 PySide6 和 Modbus TCP 协议的工业设备监控上位机软件<br>"
+        "四层解耦架构: UI → Controller → Service → Core<br><br>"
+        "功能特性:<br>"
+        "━━━━━━━━━━━━━━━━━━━━━<br>"
+        "• MCGS 触摸屏 Modbus TCP 通信<br>"
+        "• 多设备并发轮询与实时监控<br>"
+        "• DataCard 数据卡片 | 实时曲线图<br>"
+        "• 寄存器表格 | 数据日志 | 历史查询<br>"
+        "• 设备增删改查 | 批量管理<br>"
+        "• 报警检测 | 数据导出 (CSV/Excel/JSON)<br>"
+        "• 浅色/深色主题切换<br>"
+        "━━━━━━━━━━━━━━━━━━━━━<br>"
+        "技术栈:<br>"
+        "  Python 3.10+ | PySide6 | SQLAlchemy<br>"
+        "  pymodbus | structlog | QThreadPool<br><br>"
+        f"© 2026 QYH MCGS_EMS Team<br>"
+        f'代码仓库: <a href="{GITHUB_REPO_URL}" style="color: #3B82F6;">{GITHUB_REPO_URL}</a>'
     )
+
+
+def _downsample_data(points: List[Tuple[datetime, float]], max_points: int = 5000) -> List[Tuple[datetime, float]]:
+    """等间隔降采样，减少图表渲染压力
+
+    Args:
+        points: 原始数据点列表 [(timestamp, value), ...]
+        max_points: 最多保留的数据点数
+
+    Returns:
+        降采样后的数据点列表
+    """
+    if len(points) <= max_points:
+        return points
+
+    step = len(points) / max_points
+    result: List[Tuple[datetime, float]] = []
+    for i in range(max_points):
+        idx = min(int(i * step), len(points) - 1)
+        result.append(points[idx])
+    return result
+
+
+class _HistoryQueryTask(QRunnable):
+    """历史数据查询任务（在 QThreadPool 中执行）
+
+    负责在后台线程中查询数据库，通过信号回传结果到主线程。
+    """
+
+    class Signals(QObject):
+        """信号集合"""
+
+        result = Signal(object)  # data_by_param, param_names, has_data
+        progress = Signal(object)  # (current_index, total)
+        error = Signal(str)  # error_message
+
+    def __init__(
+        self, history_service, device_id: str, param_names: List[str], hours: int = 24, start_time=None, end_time=None
+    ):
+        super().__init__()
+        self._hs = history_service
+        self._device_id = device_id
+        self._param_names = param_names
+        self._hours = hours
+        self._start_time = start_time
+        self._end_time = end_time
+        self._cancelled = False
+        self.signals = self.Signals()
+        self.setAutoDelete(True)
+
+    def cancel(self):
+        """取消任务"""
+        self._cancelled = True
+
+    def run(self):
+        """在后台线程中执行数据库查询"""
+        from datetime import datetime as _dt
+        import logging as _logging
+
+        _log = _logging.getLogger(__name__)
+
+        try:
+            data_by_param: Dict[str, List[Tuple[str, float]]] = {}
+            has_data = False
+            total = len(self._param_names)
+
+            for idx, pname in enumerate(self._param_names):
+                # 检查是否被取消
+                if self._cancelled:
+                    _log.info("历史查询任务被取消 [dev=%s]", self._device_id)
+                    return
+
+                # 发送进度更新
+                self.signals.progress.emit((idx + 1, total))
+
+                # 查询数据库
+                try:
+                    if self._start_time is not None and self._end_time is not None:
+                        data = self._hs.query_trend(
+                            self._device_id, pname, start_time=self._start_time, end_time=self._end_time
+                        )
+                    else:
+                        data = self._hs.query_trend(self._device_id, pname, hours=self._hours)
+                except Exception as e:
+                    _log.error("查询历史数据异常 [dev=%s, param=%s]: %s", self._device_id, pname, e)
+                    data = None
+
+                if data:
+                    has_data = True
+                    points_list: List[Tuple[str, float]] = []
+                    for timestamp, value in data:
+                        if isinstance(timestamp, str):
+                            try:
+                                dt = _dt.fromisoformat(timestamp)
+                            except ValueError:
+                                dt = _dt.now()
+                        else:
+                            dt = timestamp
+                        ts_str = dt.strftime("%Y-%m-%d %H:%M:%S")
+                        points_list.append((ts_str, float(value)))
+                    data_by_param[pname] = points_list
+
+            # 发送最终结果
+            self.signals.result.emit((data_by_param, self._param_names, has_data))
+
+        except Exception as e:
+            _log.error("后台加载历史数据失败: %s", e, exc_info=True)
+            self.signals.error.emit(str(e))
 
 
 class MainWindow(QMainWindow):
     """
-    主窗口 - 工业设备管理系统
+    主窗口 - MCGS_EMS
 
     提供完整的设备管理功能，包括：
     - 设备列表管理
@@ -251,6 +362,7 @@ class MainWindow(QMainWindow):
         """
         super().__init__(parent)
 
+        self._set_app_icon()
         self._db_manager = db_manager or DatabaseManager()
         self._device_manager = DeviceManager(db_manager=self._db_manager)
         self._device_controller = DeviceController(self._device_manager, parent=self)
@@ -258,6 +370,7 @@ class MainWindow(QMainWindow):
         self._sort_order = Qt.SortOrder.AscendingOrder
         self._sort_column = 0
         self._current_device_id: Optional[str] = None
+        self._group_by_type: bool = False  # 设备树是否按类型分组
         self._left_panel_collapsed = False
         self._left_panel_saved_size = 520  # 从480增加到520，确保设备列表有足够空间显示
 
@@ -384,6 +497,11 @@ class MainWindow(QMainWindow):
         init_height = min(int(screen_height * 0.8), 900)
         self.resize(init_width, init_height)
 
+        self._settings = QSettings("MCGS_EMS", "EquipmentManagement")
+        geom = self._settings.value("window/geometry")
+        if geom is not None:
+            self.restoreGeometry(geom)
+
         self._create_menu_bar()
 
         self._central_widget = QWidget()
@@ -458,9 +576,6 @@ class MainWindow(QMainWindow):
 
         file_menu.addSeparator()
 
-        export_action = file_menu.addAction(TextConstants.ACTION_DATA_EXPORT)
-        export_action.triggered.connect(self._show_export_dialog)
-
         # 设备配置导出/导入选项
         export_config_action = file_menu.addAction(TextConstants.ACTION_EXPORT_DEVICE_CONFIG)
         export_config_action.triggered.connect(self._show_export_device_config_dialog)
@@ -470,30 +585,13 @@ class MainWindow(QMainWindow):
 
         file_menu.addSeparator()
 
+        history_action = file_menu.addAction("历史数据 (&H)")
+        history_action.triggered.connect(self._on_mcgsm_show_history)
+
+        file_menu.addSeparator()
+
         exit_action = file_menu.addAction(TextConstants.ACTION_EXIT)
         exit_action.triggered.connect(self.close)
-
-        tools_menu = menubar.addMenu(TextConstants.MENU_TOOLS)
-
-        # ✅ 新增：MCGS快速连接入口
-        mcgsm_connect_action = tools_menu.addAction("🔌 MCGS快速连接")
-        mcgsm_connect_action.triggered.connect(self._on_mcgsm_quick_connect)
-        mcgsm_connect_action.setToolTip("使用devices.json配置快速连接MCGS触摸屏")
-
-        # MCGS历史数据查看
-        mcgsm_history_action = tools_menu.addAction("📊 MCGS历史数据")
-        mcgsm_history_action.triggered.connect(self._on_mcgsm_show_history)
-
-        # MCGS异常检测报告
-        mcgsm_anomaly_action = tools_menu.addAction("⚠️ MCGS健康检测")
-        mcgsm_anomaly_action.triggered.connect(self._on_mcgsm_health_check)
-
-        # ✅ 新增：MCGS设备配置入口
-        mcgsm_config_action = tools_menu.addAction("⚙️ MCGS设备配置")
-        mcgsm_config_action.triggered.connect(self._on_show_mcgsm_config)
-        mcgsm_config_action.setToolTip("打开可视化配置编辑器，编辑devices.json")
-
-        tools_menu.addSeparator()
 
         help_menu = menubar.addMenu(TextConstants.MENU_HELP)
 
@@ -506,70 +604,6 @@ class MainWindow(QMainWindow):
         toolbar.setStyleSheet(AppStyles.TOOLBAR)
         self.addToolBar(toolbar)
 
-        # ✅ 新增：MCGS快速连接工具栏按钮
-        mcgsm_btn = QPushButton("🔌 MCGS连接")
-        mcgsm_btn.setToolTip("快速连接MCGS触摸屏（使用devices.json配置）")
-        mcgsm_btn.clicked.connect(self._on_mcgsm_quick_connect)
-        mcgsm_btn.setStyleSheet(
-            """
-            QPushButton {
-                background-color: #3B82F6;
-                color: white;
-                border: none;
-                padding: 6px 16px;
-                border-radius: 4px;
-                font-weight: bold;
-                font-size: 13px;
-            }
-            QPushButton:hover {
-                background-color: #2563EB;
-            }
-            QPushButton:pressed {
-                background-color: #1D4ED8;
-            }
-        """
-        )
-        toolbar.addWidget(mcgsm_btn)
-
-        # MCGS历史数据按钮
-        history_btn = QPushButton("📊 历史")
-        history_btn.setToolTip("查看MCGS设备的历史数据趋势图")
-        history_btn.clicked.connect(self._on_mcgsm_show_history)
-        toolbar.addWidget(history_btn)
-
-        # MCGS健康检测按钮
-        health_btn = QPushButton("⚠️ 检测")
-        health_btn.setToolTip("运行异常检测算法检查设备健康状态")
-        health_btn.clicked.connect(self._on_mcgsm_health_check)
-        toolbar.addWidget(health_btn)
-
-        # ✅ 新增：MCGS配置按钮
-        config_btn = QPushButton("⚙️ 配置")
-        config_btn.setToolTip("打开MCGS设备可视化配置编辑器")
-        config_btn.clicked.connect(self._on_show_mcgsm_config)
-        config_btn.setStyleSheet(
-            """
-            QPushButton {
-                background-color: #6366F1;
-                color: white;
-                border: none;
-                padding: 6px 16px;
-                border-radius: 4px;
-                font-weight: bold;
-                font-size: 13px;
-            }
-            QPushButton:hover {
-                background-color: #4F46E5;
-            }
-            QPushButton:pressed {
-                background-color: #3730A3;
-            }
-        """
-        )
-        toolbar.addWidget(config_btn)
-
-        toolbar.addSeparator()
-
     def _create_status_bar(self) -> None:
         self._status_bar_controller.build(self, AppStyles.__dict__)
 
@@ -578,10 +612,6 @@ class MainWindow(QMainWindow):
         self._status_online_label = self._status_bar_controller._status_online_label
         self._status_offline_label = self._status_bar_controller._status_offline_label
         self._status_error_label = self._status_bar_controller._status_error_label
-        self._status_auto_reconnect_enabled = self._status_bar_controller._status_auto_reconnect_enabled
-        self._status_auto_reconnect_disabled = self._status_bar_controller._status_auto_reconnect_disabled
-        self._status_tx_label = self._status_bar_controller._status_tx_label
-        self._status_rx_label = self._status_bar_controller._status_rx_label
 
         # 最后更新时间
         self._status_time_label = self._make_status_label("更新时间: 00:00:00", "#6B7280")
@@ -728,18 +758,17 @@ class MainWindow(QMainWindow):
 
         vertical_height = self._right_splitter.height()
 
-        # 根据窗口总高度动态调整比例
+        # 根据窗口总高度动态调整比例（线性过渡）
         total_height = self.height()
 
-        if total_height < 800:
-            # 小高度窗口：监控区占更多空间 (80%)
-            monitor_ratio = 0.80
-        elif total_height < 1000:
-            # 中等高度：标准比例 (70%)
-            monitor_ratio = 0.70
+        # 线性插值计算监控区比例: 600px->0.80, 1200px->0.65
+        if total_height <= 600:
+            monitor_ratio = 0.80  # 小窗口：监控区占更多空间
+        elif total_height >= 1200:
+            monitor_ratio = 0.65  # 大窗口：给终端更多空间
         else:
-            # 大高度窗口：监控区适当减少，给终端更多空间 (65%)
-            monitor_ratio = 0.65
+            # 线性插值
+            monitor_ratio = 0.80 - (total_height - 600) / 600 * 0.15
 
         monitor_height = int(vertical_height * monitor_ratio)
         log_height = vertical_height - monitor_height
@@ -817,7 +846,6 @@ class MainWindow(QMainWindow):
             return
 
         current_width = self.width()
-        current_height = self.height()
 
         # 获取当前分割器状态
         sizes = list(self._splitter.sizes())
@@ -826,44 +854,65 @@ class MainWindow(QMainWindow):
         if total == 0:
             return
 
-        # 自适应策略：根据窗口宽度动态调整面板比例（优化左侧面板显示）
-        if current_width < 1280:
-            # 小屏幕模式 (<1280px)：保持左侧面板合理宽度，适当压缩中间区域
-            left_width = max(sizes[0], int(total * 0.25))  # 左侧至少25%（从15%增加）
-            middle_width = total - left_width
-            self._splitter.setSizes([left_width, middle_width])
-        elif current_width < 1600:
-            # 中等屏幕 (1280-1600px)：标准比例 左28% + 中52% + 右20%
-            left_width = int(total * 0.28)  # 从20%增加到28%
-            middle_width = total - left_width
-            self._splitter.setSizes([left_width, middle_width])
+        # 自适应策略：根据窗口宽度动态调整面板比例（线性过渡）
+        # 线性插值: 800px->0.25, 1600px->0.35
+        if current_width <= 800:
+            left_ratio = 0.25  # 小窗口：左侧最小比例
+        elif current_width >= 1600:
+            left_ratio = 0.35  # 大窗口：左侧更宽松
         else:
-            # 大屏幕 (>1600px)：左侧适当放宽，确保设备列表完整显示
-            left_width = int(total * 0.30)  # 从22%增加到30%
-            middle_width = total - left_width
-            self._splitter.setSizes([left_width, middle_width])
+            # 线性插值
+            left_ratio = 0.25 + (current_width - 800) / 800 * 0.10
 
-        # 动态调整左侧面板最小宽度（确保设备树5列能完整显示）
+        left_width = int(total * left_ratio)
+        middle_width = total - left_width
+        self._splitter.setSizes([left_width, middle_width])
+
+        # 动态调整左侧面板最小宽度（确保设备树列能完整显示）
         if hasattr(self, "_left_panel"):
-            if current_width < 1280:
-                self._left_panel.setMinimumWidth(300)  # 从220增加到300，确保基本可用
-            elif current_width < 1600:
-                self._left_panel.setMinimumWidth(320)  # 从260增加到320
+            # 线性插值: 800px->300px, 1600px->380px
+            if current_width <= 800:
+                min_width = 300
+            elif current_width >= 1600:
+                min_width = 380
             else:
-                self._left_panel.setMinimumWidth(340)  # 从280增加到340，大屏幕更宽敞
+                min_width = int(300 + (current_width - 800) / 800 * 80)
+            self._left_panel.setMinimumWidth(min_width)
 
     def showEvent(self, event) -> None:
-        """窗口显示时初始化按钮位置."""
+        """窗口显示时初始化按钮位置 + 自动刷新设备列表."""
         super().showEvent(event)
         QTimer.singleShot(0, self._reposition_edge_buttons)
+        if not hasattr(self, "_startup_refreshed"):
+            self._startup_refreshed = True
+            QTimer.singleShot(300, self._startup_load_devices)
+
+    def _startup_load_devices(self) -> None:
+        """启动时自动加载设备列表并连接MCGS设备"""
+        self._refresh_device_list()
+        QTimer.singleShot(1000, self._auto_connect_mcgs_devices)
+
+    def _auto_connect_mcgs_devices(self) -> None:
+        """自动连接所有MCGS设备"""
+        if self._mcgs_controller is None:
+            return
+        try:
+            device_ids = self._mcgs_controller.list_devices()
+            if device_ids:
+                logger.info("[自动连接] 准备连接 %d 个MCGS设备: %s", len(device_ids), device_ids)
+                for device_id in device_ids:
+                    self._mcgs_controller.connect_device(device_id)
+                logger.info("[自动连接] 已发送连接请求")
+        except Exception as e:
+            logger.error("[自动连接] 失败: %s", e)
 
     def _create_left_panel(self) -> QWidget:
         left_widget = QWidget()
-        # 增加左侧面板最小宽度，确保设备树5列能完整显示
-        left_widget.setMinimumWidth(320)  # 从280增加到320，确保设备列表完整显示
+        # 增加左侧面板最小宽度，确保5列设备列表和4个按钮完整显示
+        left_widget.setMinimumWidth(380)
         left_layout = QVBoxLayout(left_widget)
-        left_layout.setContentsMargins(12, 12, 12, 12)
-        left_layout.setSpacing(8)
+        left_layout.setContentsMargins(12, 10, 10, 8)
+        left_layout.setSpacing(6)
         left_widget.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
         # 浅色背景
         left_widget.setStyleSheet("background-color: #FFFFFF;")
@@ -902,15 +951,6 @@ class MainWindow(QMainWindow):
         title_layout.addWidget(self._left_title_label)
         title_layout.addStretch()
 
-        # 添加刷新按钮到标题右侧
-        self._refresh_btn = PrimaryButton("刷新设备列表")
-        self._refresh_btn.setMinimumHeight(32)
-        self._refresh_btn.setMinimumWidth(120)
-        self._refresh_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        self._refresh_btn.clicked.connect(self._on_full_refresh_devices)
-        self._refresh_btn.setToolTip("刷新设备列表，显示最新的设备配置")
-        title_layout.addWidget(self._refresh_btn)
-
         left_layout.addLayout(title_layout)
 
         # ── 搜索框 ──
@@ -920,46 +960,119 @@ class MainWindow(QMainWindow):
         self._search_edit.textChanged.connect(self._filter_devices)
         left_layout.addWidget(self._search_edit)
 
+        # ── 分组/扁平切换 ──
+        group_toggle_layout = QHBoxLayout()
+        group_toggle_layout.setContentsMargins(4, 4, 4, 0)
+        self._group_toggle = QPushButton("☰ 按类型分组")
+        self._group_toggle.setFixedHeight(24)
+        self._group_toggle.setCheckable(True)
+        self._group_toggle.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._group_toggle.setStyleSheet(
+            """
+            QPushButton {
+                background: transparent; border: 1px solid #D0D7DE; border-radius: 4px;
+                padding: 2px 8px; font-size: 11px; color: #57606A; text-align: left;
+            }
+            QPushButton:checked {
+                background: #E3F2FD; border-color: #0969DA; color: #0969DA; font-weight: 600;
+            }
+            QPushButton:hover { background: #F3F4F6; }
+        """
+        )
+        self._group_toggle.clicked.connect(self._toggle_group_by_type)
+        group_toggle_layout.addWidget(self._group_toggle)
+        group_toggle_layout.addStretch()
+        left_layout.addLayout(group_toggle_layout)
+
         # ── 设备树 (弹性拉伸) ──
         self._device_tree = DeviceTree(self)
         self._device_tree.currentItemChanged.connect(self._on_device_selected)
         self._device_tree.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self._device_tree._context_menu_handler = self._handle_device_context_menu
         left_layout.addWidget(self._device_tree, 1)
 
-        # ── 底部按钮行 ──
+        # ── 底部按钮行 (等距排满栏目宽度，不同背景色) ──
+        from ui.widgets import PrimaryButton, SecondaryButton, Colors
+
         btn_layout = QHBoxLayout()
-        btn_layout.setSpacing(12)  # 增加按钮之间的间距
-        btn_layout.setContentsMargins(16, 16, 16, 16)  # 添加边距
+        btn_layout.setSpacing(4)
+        btn_layout.setContentsMargins(0, 12, 0, 12)
 
-        # 自动重连控制按钮 - 放置在添加设备按钮左侧
-        from ui.widgets import Colors
-
-        self._auto_reconnect_btn = PrimaryButton("禁用重连")
-        self._auto_reconnect_btn.setCheckable(True)
-        self._auto_reconnect_btn.setChecked(False)
-        self._auto_reconnect_btn.setMinimumHeight(36)
-        self._auto_reconnect_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self._auto_reconnect_btn.clicked.connect(self._toggle_all_auto_reconnect)
-        self._auto_reconnect_btn.setToolTip("切换所有设备的自动重连功能")
-        # 初始样式 - 禁用状态（红色）
-        self._auto_reconnect_btn.setStyleSheet(
-            f"""
-            QPushButton {{ background: {Colors.DANGER}; color: #FFFFFF;
-            border: none; border-radius: {Colors.RADIUS}; padding: 6px 16px;
-            font-size: 13px; font-weight: 500; }}
-            QPushButton:hover {{ background: {Colors.DANGER_HOVER}; }}
-            QPushButton:pressed {{ background: {Colors.DANGER}; opacity: 0.8; }}
-            QPushButton:disabled {{ color: #9CA3AF; background: #F3F4F6; }}
+        # 添加设备按钮 - 绿色背景
+        self._add_device_btn = QPushButton(TextConstants.ADD_DEVICE_BTN)
+        self._add_device_btn.setFixedHeight(36)
+        self._add_device_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._add_device_btn.setStyleSheet(
             """
+            QPushButton { background-color: #2DA44E; color: white; border: 1px solid #1a7a37; border-radius: 6px; padding: 5px 12px; font-size: 12px; font-weight: 500; }
+            QPushButton:hover { background-color: #54AE76; }
+            QPushButton:pressed { background-color: #1a7a37; }
+        """
         )
-
-        self._add_device_btn = SuccessButton(TextConstants.ADD_DEVICE_BTN)
-        self._add_device_btn.setMinimumHeight(36)
-        self._add_device_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._add_device_btn.clicked.connect(self._add_device)
+        self._add_device_btn.setToolTip("添加新设备")
+        btn_layout.addWidget(self._add_device_btn, 1)
 
-        btn_layout.addWidget(self._auto_reconnect_btn)
-        btn_layout.addWidget(self._add_device_btn)
+        # 设备配置按钮 - 蓝色背景
+        self._device_config_btn = QPushButton("设备配置")
+        self._device_config_btn.setFixedHeight(36)
+        self._device_config_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._device_config_btn.setStyleSheet(
+            """
+            QPushButton { background-color: #0969DA; color: white; border: 1px solid #0550AE; border-radius: 6px; padding: 5px 12px; font-size: 12px; font-weight: 500; }
+            QPushButton:hover { background-color: #4CA1ED; }
+            QPushButton:pressed { background-color: #0550AE; }
+        """
+        )
+        self._device_config_btn.clicked.connect(self._on_show_mcgsm_config)
+        self._device_config_btn.setToolTip("打开MCGS设备可视化配置编辑器")
+        btn_layout.addWidget(self._device_config_btn, 1)
+
+        # 刷新列表按钮 - 灰色背景
+        self._refresh_btn = QPushButton("刷新列表")
+        self._refresh_btn.setFixedHeight(36)
+        self._refresh_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._refresh_btn.setStyleSheet(
+            """
+            QPushButton { background-color: #6B7280; color: white; border: 1px solid #4B5563; border-radius: 6px; padding: 5px 12px; font-size: 12px; font-weight: 500; }
+            QPushButton:hover { background-color: #9CA3AF; }
+            QPushButton:pressed { background-color: #4B5563; }
+        """
+        )
+        self._refresh_btn.clicked.connect(self._on_full_refresh_devices)
+        self._refresh_btn.setToolTip("刷新设备列表，显示最新的设备配置")
+        btn_layout.addWidget(self._refresh_btn, 1)
+
+        # 扫描网络按钮 - 橙色背景
+        self._scan_btn = QPushButton("扫描设备")
+        self._scan_btn.setFixedHeight(36)
+        self._scan_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._scan_btn.setStyleSheet(
+            """
+            QPushButton { background-color: #F59E0B; color: white; border: 1px solid #D97706; border-radius: 6px; padding: 5px 12px; font-size: 12px; font-weight: 500; }
+            QPushButton:hover { background-color: #FBBF24; }
+            QPushButton:pressed { background-color: #D97706; }
+        """
+        )
+        self._scan_btn.clicked.connect(self._open_scan_dialog)
+        self._scan_btn.setToolTip("扫描局域网内的 Modbus TCP 设备")
+        btn_layout.addWidget(self._scan_btn, 1)
+
+        # 删除设备按钮 - 红色背景
+        self._remove_btn = QPushButton(TextConstants.REMOVE_DEVICE_BTN)
+        self._remove_btn.setFixedHeight(36)
+        self._remove_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._remove_btn.setStyleSheet(
+            """
+            QPushButton { background-color: #CF222E; color: white; border: 1px solid #A51D26; border-radius: 6px; padding: 5px 12px; font-size: 12px; font-weight: 500; }
+            QPushButton:hover { background-color: #E85B65; }
+            QPushButton:pressed { background-color: #A51D26; }
+        """
+        )
+        self._remove_btn.clicked.connect(self._remove_device)
+        self._remove_btn.setToolTip("删除选中的设备（需确认）")
+        btn_layout.addWidget(self._remove_btn, 1)
+
         left_layout.addLayout(btn_layout)
 
         return left_widget
@@ -992,14 +1105,13 @@ class MainWindow(QMainWindow):
             parent=self,
             styles=AppStyles.__dict__,
             constants=TextConstants.__dict__,
-            on_manage_cards=self._on_manage_cards,
-            on_manage_charts=self._on_manage_charts,
             on_expand_panel=self._expand_left_panel,
         )
 
         self._expand_btn = self._monitor_controller.expand_btn
         self._device_title_label = self._monitor_controller.device_title_label
         self._device_name_label = self._monitor_controller.device_name_label
+        self._device_desc_label = self._monitor_controller.device_desc_label
         self._last_update_label = self._monitor_controller.last_update_label
         self._device_status_badge = self._monitor_controller.device_status_badge
         self._right_splitter = self._monitor_controller.right_splitter
@@ -1007,8 +1119,6 @@ class MainWindow(QMainWindow):
         self._data_cards_layout = self._monitor_controller.data_cards_layout
         self._chart_layout = self._monitor_controller.chart_layout
         self._register_table = self._monitor_controller.get_register_table()
-        self._manage_cards_btn = self._monitor_controller.manage_cards_btn
-        self._manage_charts_btn = self._monitor_controller.manage_charts_btn
 
         return page
 
@@ -1043,6 +1153,37 @@ class MainWindow(QMainWindow):
 
         self._connect_data_bus()
 
+        # 将 Python logging 模块的输出也转发到 UI 日志
+        self._install_log_handler()
+
+    def _install_log_handler(self) -> None:
+        """安装 Python logging 处理器，将所有日志记录转发到 UI 日志框"""
+        import logging
+
+        class _UiLogHandler(logging.Handler):
+            def __init__(self, append_fn):
+                super().__init__()
+                self._append_fn = append_fn
+
+            def emit(self, record):
+                level = (
+                    "ERROR"
+                    if record.levelno >= logging.ERROR
+                    else (
+                        "WARNING"
+                        if record.levelno >= logging.WARNING
+                        else "INFO" if record.levelno >= logging.INFO else "DEBUG"
+                    )
+                )
+                try:
+                    self._append_fn(record.getMessage(), level)
+                except Exception:
+                    pass
+
+        handler = _UiLogHandler(self._log_message)
+        handler.setLevel(logging.INFO)
+        logging.getLogger().addHandler(handler)
+
     def _connect_data_bus(self):
         """订阅 DataBus 全局信号 — 统一数据更新入口（规范控制点⑥）"""
         from core.foundation.data_bus import DataBus
@@ -1050,7 +1191,6 @@ class MainWindow(QMainWindow):
         bus = DataBus.instance()
 
         bus.subscribe("device_data_updated", self._on_bus_device_data_updated)
-        bus.subscribe("device_data_changed", self._on_bus_device_data_changed)
         bus.subscribe("comm_error", self._on_bus_comm_error)
         bus.subscribe("device_status_changed", self._on_bus_device_status_changed)
         bus.subscribe("device_connected", self._on_bus_device_connected)
@@ -1060,83 +1200,201 @@ class MainWindow(QMainWindow):
     @Slot(str, dict)
     def _on_bus_device_data_updated(self, device_id: str, data: dict):
         """DataBus 数据更新回调 — 更新日志 + 监控面板数据"""
-        if data:
-            param_names = list(data.keys())[:3]
-            param_str = ", ".join(param_names)
-            if len(data) > 3:
-                param_str += f" 等{len(data)}个参数"
-            message = f"数据更新: {param_str}"
-            self._log_message(message, "INFO", device_id, "DATA_UPDATE")
-            self._last_update_label.setText(f"{TextConstants.LAST_UPDATE_LABEL} {datetime.now().strftime('%H:%M:%S')}")
-        if data:
-            was_none = self._current_device_id is None
-            if was_none or self._current_device_id == device_id:
-                if device_id not in self._device_cards:
-                    self._auto_setup_monitor_for_device(device_id)
-                self._update_card_values(data)
-                self._update_chart_data(data)
-                self._update_register_table_from_data(data)
+        if not data:
+            return
 
-    def _auto_setup_monitor_for_device(self, device_id: str):
-        """数据到达时自动初始化监控面板（用户未手动选中设备时）"""
-        reader = None
-        if self._mcgs_controller:
-            reader = self._mcgs_controller.get_reader()
-        config = None
-        if reader:
-            config = reader.get_device_config(device_id)
-        if config:
+        is_current_device = device_id == self._current_device_id
+        is_mcgs = self._is_mcgs_device(device_id)
+
+        if is_current_device:
+            self._last_update_label.setText(f"{TextConstants.LAST_UPDATE_LABEL} {datetime.now().strftime('%H:%M:%S')}")
+
+        was_none = self._current_device_id is None
+        should_update = False
+
+        if was_none:
             self._current_device_id = device_id
-            self._stack_widget.setCurrentIndex(1)
-            display_name = getattr(config, "name", device_id) or device_id
-            self._device_name_label.setText(display_name)
-            self._device_status_badge.set_status("online")
-            points = getattr(config, "points", []) or []
-            cards_config = []
-            register_map = []
-            for p in points:
-                p_name = getattr(p, "name", "")
-                p_addr = getattr(p, "addr", "")
-                p_unit = getattr(p, "unit", "")
-                cards_config.append({"title": f"{p_name}\n[{p_addr}]", "register_name": p_name})
-                register_map.append(
-                    {"address": p_addr, "function_code": "03", "name": p_name, "value": "-", "unit": p_unit}
-                )
+            should_update = True
+        elif is_current_device:
+            should_update = True
+
+        if should_update:
+            if not self._device_cards.get(device_id):
+                card_configs = self._build_cards_config_from_json(device_id, data)
+                if card_configs:
+                    self._device_cards[device_id] = card_configs
+                    self._update_cards_display()
+            elif not self._monitor_controller.get_all_card_widgets():
+                self._update_cards_display()
+
+            if is_mcgs:
+                return
+            self._update_card_values(data)
+            self._update_register_table_from_data(data)
+
+    def _is_mcgs_device(self, device_id: str) -> bool:
+        if self._mcgs_controller is None:
+            return False
+        reader = self._mcgs_controller.get_reader()
+        if reader is None:
+            return False
+        try:
+            return device_id in (reader.list_devices() or [])
+        except Exception:
+            return False
+
+    def _auto_create_cards_from_data(self, device_id: str, data: dict):
+        """根据接收到的数据自动创建数据卡片配置"""
+        cards_config = []
+        point_decimal_map = {}
+        point_unit_map = {}
+        point_desc_map = {}
+
+        # 直接从 devices.json 读取点位描述/单位/精度
+        try:
+            import json as _json
+            from pathlib import Path as _Path
+
+            cfg_path = _Path(__file__).parent.parent / "config" / "devices.json"
+            if cfg_path.exists():
+                with open(cfg_path, "r", encoding="utf-8") as f:
+                    cfg_data = _json.load(f)
+                for dev in cfg_data.get("devices", []):
+                    if dev.get("id") == device_id:
+                        for pt in dev.get("points", []):
+                            pname = pt.get("name", "")
+                            if pt.get("description"):
+                                point_desc_map[pname] = pt["description"]
+                            if pt.get("unit"):
+                                point_unit_map[pname] = pt["unit"]
+                            dp = pt.get("decimal_places")
+                            if dp is not None:
+                                point_decimal_map[pname] = int(dp)
+                        break
+        except Exception:
+            pass
+
+        # 备用：从MCGS读取器配置获取（如果JSON读取失败）
+        try:
+            if self._mcgs_controller and (not point_desc_map or not point_unit_map):
+                reader = self._mcgs_controller.get_reader()
+                if reader:
+                    dev_cfg = reader.get_device_config(device_id)
+                    if dev_cfg and dev_cfg.points:
+                        for p in dev_cfg.points:
+                            if p.name not in point_desc_map and p.description:
+                                point_desc_map[p.name] = p.description
+                            if p.name not in point_unit_map and p.unit:
+                                point_unit_map[p.name] = p.unit
+                            if p.name not in point_decimal_map:
+                                point_decimal_map[p.name] = p.decimal_places
+        except Exception:
+            pass
+
+        if not data:
+            keys = [pn for pn in point_desc_map] or [pn for pn in point_unit_map]
+        else:
+            keys = list(data.keys())
+
+        for key in keys:
+            display_name = point_desc_map.get(key, key)
+            unit = point_unit_map.get(key, "")
+
+            cards_config.append(
+                {
+                    "title": display_name,
+                    "register_name": key,
+                    "description": display_name if display_name != key else "",
+                    "unit": unit,
+                    "decimal_places": point_decimal_map.get(key, 2),
+                }
+            )
+
+        if cards_config:
             self._device_cards[device_id] = cards_config
             self._update_cards_display()
-            self._update_register_table(register_map)
+            logger.info(f"[Monitor] 自动为设备 {device_id} 创建了 {len(cards_config)} 个数据卡片")
+
+    _json_cards_cache: Dict[str, tuple] = {}
+
+    def _build_cards_config_from_json(self, device_id: str, data: dict) -> list:
+        """直接从 devices.json 读取点位描述/单位/精度，构建卡片配置（带内存缓存）"""
+        if device_id in MainWindow._json_cards_cache:
+            desc_map, unit_map, dec_map = MainWindow._json_cards_cache[device_id]
+        else:
+            desc_map, unit_map, dec_map = {}, {}, {}
+            try:
+                import json as _json
+                from pathlib import Path as _Path
+
+                cfg_path = _Path(__file__).parent.parent / "config" / "devices.json"
+                if cfg_path.exists():
+                    with open(cfg_path, "r", encoding="utf-8") as f:
+                        cfg = _json.load(f)
+                    for dev in cfg.get("devices", []):
+                        if dev.get("id") == device_id:
+                            for pt in dev.get("points", []):
+                                pname = pt.get("name", "")
+                                if pt.get("description"):
+                                    desc_map[pname] = pt["description"]
+                                if pt.get("unit"):
+                                    unit_map[pname] = pt["unit"]
+                                dp = pt.get("decimal_places")
+                                if dp is not None:
+                                    dec_map[pname] = int(dp)
+                            break
+                    MainWindow._json_cards_cache[device_id] = (desc_map, unit_map, dec_map)
+            except Exception:
+                pass
+
+        cards = []
+        for key in data.keys():
+            display_name = desc_map.get(key, key)
+            cards.append(
+                {
+                    "title": display_name,
+                    "register_name": key,
+                    "description": display_name,
+                    "unit": unit_map.get(key, ""),
+                    "decimal_places": dec_map.get(key, 2),
+                }
+            )
+        return cards
+
+    def _refresh_cards_for_device(self, device_id: str) -> None:
+        """强制刷新指定设备的数据卡片（标记待刷新，下次数据到达时重建）"""
+        if not device_id:
+            return
+        # 标记该设备需要在下一次数据更新时重建卡片
+        if not hasattr(self, "_pending_card_refresh"):
+            self._pending_card_refresh = set()
+        self._pending_card_refresh.add(device_id)
+        logger.info(f"[Monitor] 标记设备 {device_id} 卡片待刷新")
 
     def _update_register_table_from_data(self, data: dict):
         """根据DataBus数据更新寄存器表格"""
+        if self._register_table is None:
+            return
+        try:
+            _ = self._register_table.rowCount()
+        except RuntimeError:
+            return
         self._register_table.setRowCount(len(data))
+        COL_COUNT = 3  # Function Code, Variable Name, Value
+        self._register_table.setColumnCount(COL_COUNT)
         for row, (name, value_info) in enumerate(data.items()):
             if isinstance(value_info, dict):
                 value = value_info.get("value", "")
-                addr = value_info.get("address", "")
-                unit = value_info.get("unit", "")
             else:
                 value = str(value_info) if value_info is not None else ""
-                addr = ""
-                unit = ""
-            self._register_table.setItem(row, 0, QTableWidgetItem(str(addr)))
-            self._register_table.setItem(row, 1, QTableWidgetItem("03"))
-            self._register_table.setItem(row, 2, QTableWidgetItem(name))
-            self._register_table.setItem(row, 3, QTableWidgetItem(str(value)))
-            self._register_table.setItem(row, 4, QTableWidgetItem(unit))
-            for col in range(5):
+            self._register_table.setItem(row, 0, QTableWidgetItem("03"))
+            self._register_table.setItem(row, 1, QTableWidgetItem(name))
+            self._register_table.setItem(row, 2, QTableWidgetItem(str(value)))
+            for col in range(COL_COUNT):
                 item = self._register_table.item(row, col)
                 if item:
                     item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         self._register_table.resizeColumnsToContents()
-
-    @Slot(str, dict, set)
-    def _on_bus_device_data_changed(self, device_id: str, data: dict, changed_keys: set):
-        """DataBus 死区过滤后的数据变更回调 — 更新监控面板"""
-        if data:
-            if self._current_device_id is None or self._current_device_id == device_id:
-                self._update_card_values(data)
-                self._update_chart_data(data)
-                self._update_register_table_from_data(data)
 
     @Slot(str, str)
     def _on_bus_comm_error(self, device_id: str, error_msg: str):
@@ -1152,14 +1410,17 @@ class MainWindow(QMainWindow):
 
     @Slot(str)
     def _on_bus_device_connected(self, device_id: str):
-        """DataBus 设备连接回调"""
-        self._refresh_device_list(self._search_edit.text())
+        """DataBus 设备连接回调 — 更新状态并强制刷新设备树按钮"""
+        self._update_device_status_in_tree(device_id, is_connected=True)
         self._log_message("设备已连接", "SUCCESS", device_id, "CONNECT")
+        # 延迟刷新设备树确保按钮状态正确（使用50ms避免与_toggle_mcgs_connection的500ms竞态）
+        QTimer.singleShot(50, lambda: self._refresh_device_list(self._search_edit.text()))
 
     @Slot(str)
     def _on_bus_device_disconnected(self, device_id: str):
-        """DataBus 设备断开回调"""
-        self._refresh_device_list(self._search_edit.text())
+        """DataBus 设备断开回调 — 更新状态并强制刷新设备树按钮"""
+        self._update_device_status_in_tree(device_id, is_connected=False)
+        QTimer.singleShot(50, lambda: self._refresh_device_list(self._search_edit.text()))
         self._log_message("设备已断开", "INFO", device_id, "DISCONNECT")
 
     @Slot(str, str, str, float)
@@ -1182,6 +1443,22 @@ class MainWindow(QMainWindow):
 
     def _refresh_device_list(self, search_text: str = "") -> None:
         """从 MCGS 配置 (devices.json) 加载设备列表，替代通用协议栈"""
+        if self._mcgs_controller is not None and self._mcgs_controller.get_reader() is None:
+            try:
+                self._get_or_create_mcgsm_reader()
+            except Exception:
+                pass
+
+        if self._mcgs_controller is not None and self._mcgs_controller.get_reader() is not None:
+            try:
+                from pathlib import Path
+
+                config_path = Path(__file__).parent.parent / "config" / "devices.json"
+                if config_path.exists():
+                    self._mcgs_controller.get_reader().load_config(config_path)
+            except Exception as e:
+                logger.warning("重新加载设备配置失败: %s", e)
+
         current_device_id = self._current_device_id
 
         self._device_tree.currentItemChanged.disconnect(self._on_device_selected)
@@ -1190,6 +1467,47 @@ class MainWindow(QMainWindow):
         # ── 从 MCGS Controller 获取设备列表 ──
         mcgs_devices = self._get_mcgs_device_list()
 
+        if self._group_by_type:
+            self._build_device_tree_grouped(mcgs_devices, search_text)
+        else:
+            self._build_device_tree_flat(mcgs_devices, search_text)
+
+        # 重新连接信号
+        self._device_tree.currentItemChanged.connect(self._on_device_selected)
+
+        # 恢复之前选中的设备
+        if current_device_id:
+            restored = self._restore_selected_device(current_device_id)
+            if not restored and self._device_tree.topLevelItemCount() > 0:
+                self._restore_first_available_child()
+        elif self._device_tree.topLevelItemCount() > 0:
+            self._restore_first_available_child()
+
+        # 刷新后自适应调整尺寸
+        QTimer.singleShot(0, self._update_tree_adaptive_sizes)
+
+    def _update_device_status_in_tree(self, device_id: str, is_connected: bool) -> None:
+        """更新设备树中指定设备的状态显示和操作按钮（不重建整树）"""
+        status_text = "在线" if is_connected else "离线"
+        for i in range(self._device_tree.topLevelItemCount()):
+            item = self._device_tree.topLevelItem(i)
+            if item is None:
+                continue
+            # 扁平模式：直接检查
+            if item.data(0, Qt.ItemDataRole.UserRole) == device_id:
+                item.setText(3, status_text)
+                self._attach_action_widget(item, device_id, is_connected)
+                return
+            # 分组模式：检查子节点
+            for ci in range(item.childCount()):
+                child = item.child(ci)
+                if child and child.data(0, Qt.ItemDataRole.UserRole) == device_id:
+                    child.setText(3, status_text)
+                    self._attach_action_widget(child, device_id, is_connected)
+                    return
+
+    def _build_device_tree_flat(self, mcgs_devices: list, search_text: str = "") -> None:
+        """构建扁平设备树（每台设备一行）"""
         for dev in mcgs_devices:
             device_id = dev["id"]
             name = dev["name"]
@@ -1198,12 +1516,13 @@ class MainWindow(QMainWindow):
                 continue
 
             is_connected = dev.get("connected", False)
+            device_type = dev.get("device_type", "") or "MCGS触摸屏"
 
             item = QTreeWidgetItem()
-            item.setText(0, "MCGS触摸屏")  # 设备类型
-            item.setText(1, f"{dev['ip']}:{dev['port']}")  # IP:端口标识
-            item.setText(2, str(dev.get("point_count", 0)))  # 点位数量
-            item.setText(3, "在线" if is_connected else "离线")  # 连接状态
+            item.setText(0, device_type)
+            item.setText(1, str(device_id))
+            item.setText(2, str(dev.get("point_count", 0)))
+            item.setText(3, "在线" if is_connected else "离线")
 
             item.setTextAlignment(0, Qt.AlignmentFlag.AlignCenter)
             item.setTextAlignment(1, Qt.AlignmentFlag.AlignCenter)
@@ -1212,42 +1531,120 @@ class MainWindow(QMainWindow):
             item.setData(0, Qt.ItemDataRole.UserRole, device_id)
             item.setSizeHint(0, QSize(0, 48))
             self._device_tree.addTopLevelItem(item)
+            self._attach_action_widget(item, device_id, is_connected)
 
-            # 操作按钮：仅连接/断开（无编辑按钮，MCGS 设备通过配置对话框编辑）
-            action_widget = QWidget()
-            action_widget.setStyleSheet("background: transparent;")
-            action_layout = QHBoxLayout(action_widget)
-            action_layout.setContentsMargins(4, 4, 4, 4)
-            action_layout.setSpacing(6)
+    def _build_device_tree_grouped(self, mcgs_devices: list, search_text: str = "") -> None:
+        """构建分组设备树（按 device_type 分组）"""
+        from collections import OrderedDict
 
-            if is_connected:
-                conn_btn = DangerButton(TextConstants.BTN_DISCONNECT)
-                conn_btn.setToolTip("断开连接")
-            else:
-                conn_btn = SuccessButton(TextConstants.BTN_CONNECT)
-                conn_btn.setToolTip("连接设备")
-            conn_btn.setMinimumHeight(30)
-            conn_btn.setMaximumHeight(38)
-            conn_btn.setMinimumWidth(44)
-            conn_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-            conn_btn.clicked.connect(lambda checked, did=device_id: self._toggle_mcgs_connection(did))
+        groups: Dict[str, list] = OrderedDict()
+        for dev in mcgs_devices:
+            dtype = dev.get("device_type", "") or "未分类"
+            if dtype not in groups:
+                groups[dtype] = []
+            groups[dtype].append(dev)
 
-            action_layout.addWidget(conn_btn)
-            self._device_tree.setItemWidget(item, 4, action_widget)
+        for dtype, dev_list in groups.items():
+            # 过滤：至少有一个设备的名称匹配搜索词
+            filtered = [d for d in dev_list if not search_text or search_text.lower() in d["name"].lower()]
+            if not filtered:
+                continue
 
-        # 重新连接信号
-        self._device_tree.currentItemChanged.connect(self._on_device_selected)
+            # 创建分组父节点
+            group_item = QTreeWidgetItem()
+            group_item.setText(0, f"{dtype} ({len(filtered)} 设备)")
+            group_item.setText(1, "")
+            group_item.setText(2, "")
+            group_item.setText(3, "")
+            group_item.setFirstColumnSpanned(True)
+            group_item.setSizeHint(0, QSize(0, 36))
+            group_item.setFlags(group_item.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+            # 展开状态
+            group_item.setExpanded(True)
+            self._device_tree.addTopLevelItem(group_item)
 
-        # 恢复之前选中的设备
-        if current_device_id:
-            for i in range(self._device_tree.topLevelItemCount()):
-                item = self._device_tree.topLevelItem(i)
-                if item and item.data(0, Qt.ItemDataRole.UserRole) == current_device_id:
-                    self._device_tree.setCurrentItem(item)
-                    break
+            for dev in filtered:
+                device_id = dev["id"]
+                name = dev["name"]
+                is_connected = dev.get("connected", False)
 
-        # 刷新后自适应调整尺寸
-        QTimer.singleShot(0, self._update_tree_adaptive_sizes)
+                child = QTreeWidgetItem()
+                child.setText(0, name)
+                child.setText(1, str(device_id))
+                child.setText(2, str(dev.get("point_count", 0)))
+                child.setText(3, "在线" if is_connected else "离线")
+
+                child.setTextAlignment(0, Qt.AlignmentFlag.AlignCenter)
+                child.setTextAlignment(1, Qt.AlignmentFlag.AlignCenter)
+                child.setTextAlignment(2, Qt.AlignmentFlag.AlignCenter)
+                child.setTextAlignment(3, Qt.AlignmentFlag.AlignCenter)
+                child.setData(0, Qt.ItemDataRole.UserRole, device_id)
+                child.setSizeHint(0, QSize(0, 48))
+
+                group_item.addChild(child)
+                self._attach_action_widget(child, device_id, is_connected)
+
+    def _attach_action_widget(self, item: QTreeWidgetItem, device_id: str, is_connected: bool) -> None:
+        """为树节点附加连接/断开按钮（自动替换旧按钮）"""
+        # 先移除旧按钮
+        old_widget = self._device_tree.itemWidget(item, 4)
+        if old_widget:
+            self._device_tree.removeItemWidget(item, 4)
+            old_widget.deleteLater()
+
+        action_widget = QWidget()
+        action_widget.setStyleSheet("background: transparent;")
+        action_layout = QHBoxLayout(action_widget)
+        action_layout.setContentsMargins(4, 4, 4, 4)
+        action_layout.setSpacing(6)
+
+        if is_connected:
+            conn_btn = DangerButton(TextConstants.BTN_DISCONNECT)
+            conn_btn.setToolTip("断开连接")
+        else:
+            conn_btn = SuccessButton(TextConstants.BTN_CONNECT)
+            conn_btn.setToolTip("连接设备")
+        conn_btn.setMinimumHeight(30)
+        conn_btn.setMaximumHeight(38)
+        conn_btn.setMinimumWidth(44)
+        conn_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        conn_btn.clicked.connect(lambda checked, did=device_id: self._toggle_mcgs_connection(did))
+
+        action_layout.addWidget(conn_btn)
+        self._device_tree.setItemWidget(item, 4, action_widget)
+
+    def _restore_selected_device(self, device_id: str) -> bool:
+        """恢复选中的设备（支持扁平/分组两种模式）"""
+        for i in range(self._device_tree.topLevelItemCount()):
+            item = self._device_tree.topLevelItem(i)
+            if item is None:
+                continue
+            # 扁平模式：直接顶级
+            if item.data(0, Qt.ItemDataRole.UserRole) == device_id:
+                self._device_tree.setCurrentItem(item)
+                return True
+            # 分组模式：遍历子节点
+            for ci in range(item.childCount()):
+                child = item.child(ci)
+                if child and child.data(0, Qt.ItemDataRole.UserRole) == device_id:
+                    self._device_tree.setCurrentItem(child)
+                    return True
+        return False
+
+    def _restore_first_available_child(self) -> None:
+        """选中第一个可用设备（分组模式下跳过父节点）"""
+        for i in range(self._device_tree.topLevelItemCount()):
+            item = self._device_tree.topLevelItem(i)
+            if item is None:
+                continue
+            # 如果是父节点且有子节点，选第一个子节点
+            if item.childCount() > 0:
+                self._device_tree.setCurrentItem(item.child(0))
+                return
+            # 扁平模式：直接选
+            if item.data(0, Qt.ItemDataRole.UserRole) is not None:
+                self._device_tree.setCurrentItem(item)
+                return
 
     def _get_mcgs_device_list(self) -> list:
         """
@@ -1268,13 +1665,16 @@ class MainWindow(QMainWindow):
                     for device_id in device_ids:
                         config = reader.get_device_config(device_id)
                         if config:
+                            # ★ 关键修复：使用 device_id（与 DataBus 发布一致）
+                            # 而不是 config.id（可能不同）
                             result.append(
                                 {
-                                    "id": config.id,
-                                    "name": config.name,
-                                    "ip": config.ip,
-                                    "port": config.port,
-                                    "point_count": len(config.points),
+                                    "id": device_id,  # 使用原始 device_id，确保与 DataBus 一致
+                                    "name": getattr(config, "name", device_id) or device_id,
+                                    "device_type": getattr(config, "device_type", ""),
+                                    "ip": getattr(config, "ip", ""),
+                                    "port": getattr(config, "port", 0),
+                                    "point_count": len(getattr(config, "points", [])),
                                     "connected": reader.is_device_connected(device_id),
                                 }
                             )
@@ -1287,7 +1687,7 @@ class MainWindow(QMainWindow):
                 for gw_id, model in models.items():
                     result.append(
                         {
-                            "id": model.id,
+                            "id": gw_id,  # 使用网关ID
                             "name": model.name,
                             "ip": model.ip,
                             "port": model.port,
@@ -1316,66 +1716,14 @@ class MainWindow(QMainWindow):
             self._mcgs_controller.connect_device(device_id)
             self._log_message(f"MCGS 连接请求已发送: {device_id}", "INFO", device_id, "CONNECT")
 
-        # 延迟刷新列表以反映状态变化
-        QTimer.singleShot(500, lambda: self._refresh_device_list(self._search_edit.text()))
-
     def _filter_devices(self) -> None:
         search_text = self._search_edit.text()
         self._refresh_device_list(search_text)
 
-    def _toggle_all_auto_reconnect(self) -> None:
-        """一键控制所有设备的自动重连功能"""
-        # 获取按钮当前状态（已经自动切换）
-        enabled = self._auto_reconnect_btn.isChecked()
-
-        # 设置所有设备的自动重连状态
-        count = self._device_manager.set_all_devices_auto_reconnect(enabled)
-
-        # 更新按钮文本
-        self._auto_reconnect_btn.setText(f"{'启用重连' if enabled else '禁用重连'}")
-
-        # 动态更新按钮样式
-        from ui.widgets import Colors
-
-        if enabled:
-            # 启用状态 - 蓝色
-            self._auto_reconnect_btn.setStyleSheet(
-                f""
-                f"QPushButton {{ background: {Colors.PRIMARY}; color: #FFFFFF; "
-                f"border: none; border-radius: {Colors.RADIUS}; padding: 6px 16px; "
-                f"font-size: 13px; font-weight: 500; }}"
-                f"QPushButton:hover {{ background: {Colors.PRIMARY_HOVER}; }}"
-                f"QPushButton:pressed {{ background: {Colors.PRIMARY}; opacity: 0.8; }}"
-                f"QPushButton:disabled {{ color: #9CA3AF; background: #F3F4F6; }}"
-                f""
-            )
-        else:
-            # 禁用状态 - 红色
-            self._auto_reconnect_btn.setStyleSheet(
-                f""
-                f"QPushButton {{ background: {Colors.DANGER}; color: #FFFFFF; "
-                f"border: none; border-radius: {Colors.RADIUS}; padding: 6px 16px; "
-                f"font-size: 13px; font-weight: 500; }}"
-                f"QPushButton:hover {{ background: {Colors.DANGER_HOVER}; }}"
-                f"QPushButton:pressed {{ background: {Colors.DANGER}; opacity: 0.8; }}"
-                f"QPushButton:disabled {{ color: #9CA3AF; background: #F3F4F6; }}"
-                f""
-            )
-
-        # 更新状态栏
-        self._update_auto_reconnect_status()
-
-        # 显示操作结果
-        status_msg = f"已{'启用' if enabled else '禁用'}所有设备的自动重连功能，共影响{count}台设备"
-        self._status_msg_label.setText(status_msg)
-        logger.info(status_msg)
-
-    def _update_auto_reconnect_status(self) -> None:
-        """更新状态栏的自动重连状态显示"""
-        enabled_count, disabled_count = self._device_manager.get_auto_reconnect_status()
-
-        self._status_auto_reconnect_enabled.setText(f"● 自动重连启用 {enabled_count}")
-        self._status_auto_reconnect_disabled.setText(f"● 自动重连禁用 {disabled_count}")
+    def _toggle_group_by_type(self) -> None:
+        """切换设备树分组/扁平模式"""
+        self._group_by_type = self._group_toggle.isChecked()
+        self._refresh_device_list(self._search_edit.text())
 
     def _update_tree_adaptive_sizes(self) -> None:
         """根据面板当前宽度自适应调整设备树行高和操作列按钮.
@@ -1415,19 +1763,42 @@ class MainWindow(QMainWindow):
                     btn.setMaximumHeight(btn_max_h)
 
     def _add_device(self) -> None:
-        from ui.device_type_dialogs import DeviceTypeManager
+        from ui.device_type_dialogs import AddMCGSDeviceDialog
+        import json
 
-        logger.debug("Opening add device dialog")
+        logger.debug("Opening add MCGS device dialog")
         try:
-            device_type_manager = DeviceTypeManager("device_types.json")
-            dialog = AddDeviceDialog(device_type_manager, self)
+            dialog = AddMCGSDeviceDialog(self)
             if dialog.exec():
                 config = dialog.get_device_config()
-                device_id = self._device_manager.add_device(config)
-                logger.info(LogMessages.DEVICE_ADDED.format(device_id=device_id))
-                self._status_msg_label.setText(f"设备添加成功: {device_id}")
+                if config:
+                    from pathlib import Path
+
+                    devices_path = Path("config/devices.json")
+                    data = {}
+                    if devices_path.exists():
+                        with open(devices_path, "r", encoding="utf-8") as f:
+                            data = json.load(f)
+
+                    for existing in data.get("devices", []):
+                        if existing.get("id") == config["id"]:
+                            QMessageBox.warning(self, "错误", f"设备ID '{config['id']}' 已存在")
+                            return
+
+                    data.setdefault("devices", []).append(config)
+                    data.setdefault("_meta", {})["version"] = "3.0.4"
+                    data["_meta"]["source"] = "AddMCGSDeviceDialog"
+
+                    with open(devices_path, "w", encoding="utf-8") as f:
+                        json.dump(data, f, ensure_ascii=False, indent=2)
+
+                    self._status_msg_label.setText(f"MCGS设备添加成功: {config['id']}")
+                    MainWindow._json_cards_cache.clear()
+                    self._refresh_device_list("")
+                    self._update_status_bar()
+                    logger.info("[MCGS] 设备已添加: %s @ %s:%s", config["id"], config["ip"], config["port"])
         except Exception as e:
-            logger.error("添加设备失败: %s", str(e))
+            logger.error("添加MCGS设备失败: %s", str(e))
             QMessageBox.warning(self, "添加设备失败", f"无法添加设备: {str(e)}")
             self._status_msg_label.setText(f"添加设备失败: {str(e)}")
 
@@ -1450,10 +1821,31 @@ class MainWindow(QMainWindow):
 
         if reply == QMessageBox.StandardButton.Yes:
             try:
-                success = self._device_manager.remove_device(device_id)
+                is_mcgs = False
+
+                if self._mcgs_controller:
+                    reader = self._mcgs_controller.get_reader()
+                    if reader and device_id in reader.list_devices():
+                        is_mcgs = True
+
+                if is_mcgs:
+                    success = self._remove_mcgs_device(device_id)
+                else:
+                    success = self._device_manager.remove_device(device_id)
+
                 if success:
                     logger.info(LogMessages.DEVICE_REMOVED.format(device_id=device_id))
                     self._status_msg_label.setText(f"设备移除成功: {device_id}")
+
+                    if device_id in self._device_cards:
+                        del self._device_cards[device_id]
+
+                    was_current = self._current_device_id == device_id
+                    if was_current:
+                        self._current_device_id = None
+                        self._stack_widget.setCurrentIndex(0)
+
+                    self._refresh_device_list(self._search_edit.text())
                 else:
                     logger.error("移除设备失败: %s", device_id)
                     QMessageBox.warning(self, "移除设备失败", f"无法移除设备: {device_id}")
@@ -1462,6 +1854,37 @@ class MainWindow(QMainWindow):
                 logger.error("移除设备失败: %s", str(e))
                 QMessageBox.warning(self, "移除设备失败", f"无法移除设备: {str(e)}")
                 self._status_msg_label.setText(f"移除设备失败: {str(e)}")
+
+    def _remove_mcgs_device(self, device_id: str) -> bool:
+        """删除MCGS设备：断开连接 + 从配置文件移除"""
+        try:
+            if self._mcgs_controller:
+                if device_id in self._mcgs_controller._polling_device_ids:
+                    self._mcgs_controller.disconnect_device(device_id)
+
+                reader = self._mcgs_controller.get_reader()
+                if reader and device_id in reader._devices:
+                    del reader._devices[device_id]
+
+                import json
+                from pathlib import Path
+
+                config_path = Path(__file__).parent.parent / "config" / "devices.json"
+                if config_path.exists():
+                    with open(config_path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    devices = data.get("devices", [])
+                    original_count = len(devices)
+                    data["devices"] = [d for d in devices if d.get("id") != device_id]
+                    if len(data["devices"]) < original_count:
+                        with open(config_path, "w", encoding="utf-8") as f:
+                            json.dump(data, f, ensure_ascii=False, indent=2)
+                        logger.info("[MCGS删除] 已从配置文件移除设备: %s", device_id)
+
+                return True
+        except Exception as e:
+            logger.error("[MCGS删除] 删除设备异常: %s - %s", device_id, e)
+            return False
 
     def _set_operation_lock(self, locked: bool, btn: Optional[QPushButton] = None, loading_text: str = "") -> None:
         """设置操作锁，防止重复点击（P0-2修复）
@@ -1640,52 +2063,156 @@ class MainWindow(QMainWindow):
             if "device_type_manager" in locals():
                 del device_type_manager
 
-    def _update_monitor_page(self, device_id: str) -> None:
-        device = self._device_manager.get_device(device_id)
-        if not device:
-            # 没有选中设备时，显示默认信息
-            self._device_title_label.setText(f"{TextConstants.DEVICE_MONITOR_TITLE}")
-            self._device_name_label.setText("未选择设备")
-            self._device_status_badge.set_status("offline")
-            self._last_update_label.setText("-")
-            self._update_cards_display()
-            self._update_register_table([])
+    def _handle_device_context_menu(self, action_type: str, target_id: str) -> None:
+        """处理设备树右键菜单操作"""
+        if action_type == "edit":
+            self._edit_mcgs_device(target_id)
+        elif action_type == "copy":
+            self._copy_mcgs_device(target_id)
+        elif action_type == "delete":
+            self._remove_device_by_id(target_id)
+        elif action_type == "scan":
+            self._open_scan_dialog()
+
+    def _edit_mcgs_device(self, device_id: str) -> None:
+        """编辑 MCGS 设备的连接参数（IP/端口/从站ID 等）"""
+        logger.info("[编辑设备] 开始编辑设备: %s", device_id)
+        import json
+        from pathlib import Path
+        from ui.device_type_dialogs import EditMCGSDeviceDialog
+
+        devices_path = Path("config/devices.json")
+        if not devices_path.exists():
+            QMessageBox.warning(self, "错误", "设备配置文件不存在")
             return
 
-        config = device.get_device_config()
-        status = device.get_status()
+        try:
+            with open(devices_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
 
-        # 优化设备名称显示：优先使用name，如果name包含ID格式则提取友好名称
-        raw_name = config.get("name", "") or ""
-        # 如果name为空或只是device_id的副本，使用更友好的显示
-        if not raw_name or raw_name == device_id:
-            # 尝试从device_type生成友好名称
-            device_type = config.get("device_type", "未知设备")
-            display_name = f"{device_type} ({device_id[:8]}...)"
-        elif len(raw_name) > 30:
-            # 名称过长时截断
-            display_name = f"{raw_name[:27]}..."
-        else:
-            display_name = raw_name
+            device_cfg = None
+            for dev in data.get("devices", []):
+                if dev.get("id") == device_id:
+                    device_cfg = dev
+                    break
 
-        self._device_title_label.setText(f"{TextConstants.DEVICE_MONITOR_TITLE}")
-        self._device_name_label.setText(display_name)
+            if not device_cfg:
+                QMessageBox.warning(self, "错误", f"未找到设备: {device_id}")
+                return
 
-        status_text, badge_type = StatusText.get_text_with_badge(status)
-        # badge_type: "success"/"warning"/"info"/"error" → StatusBadge status: "online"/"offline"/"warning"/"error"
-        badge_status_map = {"success": "online", "warning": "warning", "info": "warning", "error": "error"}
-        badge_status = badge_status_map.get(badge_type, "offline")
-        self._device_status_badge.set_status(badge_status)
+            logger.info("[编辑设备] 找到设备配置: %s", device_cfg.get("name", ""))
 
-        self._last_update_label.setText(datetime.now().strftime("%H:%M:%S"))
+            was_connected = False
+            if self._mcgs_controller:
+                reader = self._mcgs_controller.get_reader()
+                if reader and hasattr(reader, "is_device_connected") and reader.is_device_connected(device_id):
+                    was_connected = True
+                    logger.info("[编辑设备] 设备正在连接，先断开: %s", device_id)
+                    self._mcgs_controller.disconnect_device(device_id)
 
-        # 获取寄存器列表 (从设备对象或配置中获取)
-        register_map = config.get("register_map", [])
-        if not register_map and hasattr(device, "_register_map"):
-            register_map = device._register_map
+            logger.info("[编辑设备] 打开编辑对话框...")
+            dialog = EditMCGSDeviceDialog(device_cfg, parent=self)
+            result = dialog.exec()
+            logger.info("[编辑设备] 对话框关闭，结果: %s", result)
 
-        self._update_cards_display()
-        self._update_register_table(register_map)
+            if result == QDialog.DialogCode.Accepted:
+                new_config = dialog.get_device_config()
+                if new_config:
+                    for i, dev in enumerate(data.get("devices", [])):
+                        if dev.get("id") == device_id:
+                            data["devices"][i] = new_config
+                            break
+
+                    with open(devices_path, "w", encoding="utf-8") as f:
+                        json.dump(data, f, ensure_ascii=False, indent=2)
+
+                    logger.info(
+                        "[MCGS] 设备连接参数已更新: %s -> %s:%s",
+                        device_id,
+                        new_config["ip"],
+                        new_config["port"],
+                    )
+                    self._status_msg_label.setText(f"[OK] 设备参数已更新: {new_config['ip']}:{new_config['port']}")
+
+                    if self._mcgs_controller:
+                        self._mcgs_controller.reset_reader()
+                        if was_connected:
+                            QTimer.singleShot(300, lambda did=device_id: self._mcgs_controller.connect_device(did))
+
+                    self._refresh_device_list(self._search_edit.text())
+        except Exception as e:
+            logger.error("编辑 MCGS 设备失败: %s", str(e))
+            QMessageBox.warning(self, "编辑失败", f"无法编辑设备: {str(e)}")
+
+    def _copy_mcgs_device(self, device_id: str) -> None:
+        """复制已有 MCGS 设备，生成新 ID 和默认名称"""
+        import json
+        from pathlib import Path
+        from ui.device_type_dialogs import AddMCGSDeviceDialog
+
+        devices_path = Path("config/devices.json")
+        if not devices_path.exists():
+            return
+
+        try:
+            with open(devices_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            source_cfg = None
+            for dev in data.get("devices", []):
+                if dev.get("id") == device_id:
+                    source_cfg = dev
+                    break
+
+            if not source_cfg:
+                return
+
+            dialog = AddMCGSDeviceDialog(self)
+            dialog.type_combo.setCurrentIndex(0)
+            copy_idx = dialog.copy_combo.findData(source_cfg)
+            if copy_idx > 0:
+                dialog.copy_combo.setCurrentIndex(copy_idx)
+                dialog._on_copy_changed(copy_idx)
+
+            base_name = source_cfg.get("name", device_id)
+            dialog.device_name_edit.setText(f"{base_name}_副本")
+            base_id = device_id
+            dialog.device_id_edit.setText(f"{base_id}_copy")
+
+            if dialog.exec():
+                config = dialog.get_device_config()
+                if config:
+                    data.setdefault("devices", []).append(config)
+                    data["_meta"]["source"] = "CopyMCGSDevice"
+                    with open(devices_path, "w", encoding="utf-8") as f:
+                        json.dump(data, f, ensure_ascii=False, indent=2)
+                    self._refresh_device_list("")
+                    self._log_message(f"设备已复制: {device_id} -> {config['id']}", "INFO")
+        except Exception as e:
+            logger.error("复制设备失败: %s", str(e))
+            QMessageBox.warning(self, "复制失败", f"无法复制设备: {str(e)}")
+
+    @Slot()
+    def _open_scan_dialog(self) -> None:
+        """打开 Modbus TCP 局域网设备扫描对话框"""
+        dialog = DeviceScanDialog(parent=self)
+        dialog.device_added.connect(lambda cfg: self._on_scan_device_added(cfg))
+        result = dialog.exec()
+
+        if result == QDialog.DialogCode.Accepted or dialog.get_added_devices():
+            added_count = len(dialog.get_added_devices())
+            if added_count > 0:
+                self._log_message(f"扫描添加了 {added_count} 个新设备", "INFO")
+                self._on_full_refresh_devices()
+
+    def _on_scan_device_added(self, device_cfg: dict) -> None:
+        """扫描发现设备被添加后的回调"""
+        logger.info(
+            "[Scan] 新设备已通过扫描添加: %s @ %s:%s",
+            device_cfg.get("id"),
+            device_cfg.get("ip"),
+            device_cfg.get("port"),
+        )
 
     def _update_register_table(self, registers: List) -> None:
         self._register_table.setRowCount(len(registers))
@@ -1705,63 +2232,13 @@ class MainWindow(QMainWindow):
         self._register_table.resizeColumnsToContents()
 
     def _show_device_type_dialog(self) -> None:
-        from ui.device_type_dialogs import DeviceTypeManager
+        from ui.device_type_dialogs import DeviceTypeDialog
 
-        logger.debug("Opening device type management dialog")
-        device_type_manager = DeviceTypeManager("device_types.json")
-        dialog = DeviceTypeDialog(device_type_manager, self)
+        logger.debug("Opening MCGS device type management dialog")
+        dialog = DeviceTypeDialog(self)
         dialog.exec()
-
-    def _show_export_dialog(self) -> None:
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Export Data",
-            "",
-            "CSV Files (*.csv);;Excel Files (*.xlsx);;JSON Files (*.json)",
-        )
-
-        if file_path:
-            devices = self._device_manager.get_all_devices()
-            export_data = []
-
-            for device_info in devices:
-                device = device_info.get("config", {})
-                device_obj = self._device_manager.get_device(device_info["device_id"])
-                data = device_obj.get_current_data() if device_obj else {}
-
-                row = {
-                    "Device ID": device_info["device_id"],
-                    "Device Name": device.get("name", ""),
-                    "Device Type": device.get("device_type", ""),
-                    "Status": StatusText.get_text(device_info["status"]),
-                    "IP Address": device.get("host", ""),
-                    "Port": device.get("port", ""),
-                }
-
-                for param_name, param_info in data.items():
-                    if isinstance(param_info, dict):
-                        row[f"{param_name}({param_info.get('unit', '')})"] = param_info.get("value", "")
-
-                row["Export Time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                export_data.append(row)
-
-            if file_path.endswith(".csv"):
-                fmt = "csv"
-            elif file_path.endswith(".xlsx"):
-                fmt = "excel"
-            elif file_path.endswith(".json"):
-                fmt = "json"
-            else:
-                fmt = ""
-            success = self._device_controller.export_data(export_data, file_path, fmt) if fmt else False
-
-            if success:
-                QMessageBox.information(
-                    self, UIMessages.EXPORT_SUCCESS_TITLE, UIMessages.EXPORT_SUCCESS_MSG.format(path=file_path)
-                )
-                logger.info(LogMessages.DATA_EXPORT_SUCCESS.format(path=file_path))
-            else:
-                QMessageBox.warning(self, UIMessages.EXPORT_FAILED_TITLE, UIMessages.EXPORT_FAILED_MSG)
+        self._refresh_device_list()
+        self._update_status_bar()
 
     def _show_batch_operations(self) -> None:
         dialog = BatchOperationsDialog(self._device_manager, self)
@@ -1817,8 +2294,94 @@ class MainWindow(QMainWindow):
                         self, UIMessages.IMPORT_FAILED_TITLE, UIMessages.DEVICE_CONFIG_IMPORT_FAILED_MSG
                     )
 
+    def _set_app_icon(self):
+        from PySide6.QtGui import QPixmap, QPainter, QColor, QFont
+        from PySide6.QtCore import Qt
+
+        pixmap = QPixmap(64, 64)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setBrush(QColor("#3B82F6"))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawRoundedRect(4, 4, 56, 56, 12, 12)
+        painter.setPen(QColor("white"))
+        font = QFont("Segoe UI", 28, QFont.Weight.Bold)
+        painter.setFont(font)
+        painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, "M")
+        painter.end()
+        self.setWindowIcon(QPixmap(pixmap))
+
     def _show_about(self) -> None:
-        QMessageBox.about(self, UIMessages.ABOUT_TITLE, UIMessages.ABOUT_MSG)
+        dialog = QDialog(self)
+        dialog.setWindowTitle(UIMessages.ABOUT_TITLE)
+        dialog.setMinimumWidth(480)
+        layout = QVBoxLayout(dialog)
+        layout.setSpacing(12)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        info_label = QLabel(UIMessages.ABOUT_MSG)
+        info_label.setWordWrap(True)
+        info_label.setTextFormat(Qt.TextFormat.RichText)
+        info_label.setOpenExternalLinks(True)
+        info_label.setStyleSheet("font-size: 13px;")
+        layout.addWidget(info_label)
+
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+
+        license_btn = QPushButton("许可证 (&L)")
+        license_btn.setStyleSheet(
+            "QPushButton { padding: 6px 16px; border: 1px solid #D0D0D0; border-radius: 4px; }"
+            "QPushButton:hover { background: #F0F0F0; }"
+        )
+        license_btn.clicked.connect(self._show_license)
+        btn_layout.addWidget(license_btn)
+
+        ok_btn = QPushButton("确定")
+        ok_btn.setDefault(True)
+        ok_btn.setStyleSheet(
+            "QPushButton { padding: 6px 20px; background: #3B82F6; color: white; "
+            "border: none; border-radius: 4px; }"
+            "QPushButton:hover { background: #2563EB; }"
+        )
+        ok_btn.clicked.connect(dialog.accept)
+        btn_layout.addWidget(ok_btn)
+
+        layout.addLayout(btn_layout)
+        dialog.exec()
+
+    def _show_license(self) -> None:
+        try:
+            license_path = Path(__file__).parent.parent / "LICENSE"
+            if license_path.exists():
+                text = license_path.read_text(encoding="utf-8")
+            else:
+                text = "许可证文件未找到。"
+        except Exception as e:
+            text = f"无法读取许可证文件: {e}"
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("许可证 — MIT License")
+        dialog.setMinimumSize(560, 440)
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(16, 16, 16, 16)
+
+        text_edit = QPlainTextEdit()
+        text_edit.setReadOnly(True)
+        text_edit.setPlainText(text)
+        text_edit.setStyleSheet("font-family: Consolas, monospace; font-size: 13px;")
+        layout.addWidget(text_edit)
+
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        ok_btn = QPushButton("确定")
+        ok_btn.setDefault(True)
+        ok_btn.clicked.connect(dialog.accept)
+        btn_layout.addWidget(ok_btn)
+        layout.addLayout(btn_layout)
+
+        dialog.exec()
 
     def _on_device_selected(self, current: Optional[QTreeWidgetItem], previous: Optional[QTreeWidgetItem]) -> None:
         if not current:
@@ -1828,13 +2391,19 @@ class MainWindow(QMainWindow):
         device_id = current.data(0, Qt.ItemDataRole.UserRole)
 
         if device_id == self._current_device_id:
-            logger.info("[设备选中] 同一设备已选中，跳过重建: %s", device_id)
+            if self._stack_widget.currentIndex() != 1:
+                self._stack_widget.setCurrentIndex(1)
+            if not self._monitor_controller.get_all_card_widgets():
+                if self._device_cards.get(device_id):
+                    self._monitor_controller.clear_all_cards()
+                    self._update_cards_display()
             return
 
         logger.info("[设备选中] _on_device_selected 触发: device_id=%s (之前=%s)", device_id, self._current_device_id)
         self._current_device_id = device_id
 
         is_mcgs_device = False
+        config = None
         reader = None
         if self._mcgs_controller:
             reader = self._mcgs_controller.get_reader()
@@ -1842,33 +2411,55 @@ class MainWindow(QMainWindow):
             config = reader.get_device_config(device_id)
             if config:
                 is_mcgs_device = True
+                is_connected = (
+                    reader.is_device_connected(device_id) if hasattr(reader, "is_device_connected") else False
+                )
                 self._log_message(
                     f"MCGS设备已选中: {config.name} ({config.ip}:{config.port})", "INFO", device_id, "SELECT"
                 )
-                self._update_monitor_page_for_mcgs(device_id, config)
+                self._monitor_controller.clear_all_cards()
+                self._update_monitor_page_for_mcgs(device_id, config, is_connected=is_connected)
             else:
-                self._log_message(f"设备已选中: {device_id}", "INFO", device_id, "SELECT")
+                if device_id in (reader.list_devices() or []):
+                    logger.warning("[设备选中] 设备在reader列表中但get_config返回None，尝试重建: %s", device_id)
+                    is_mcgs_device = True
+                    self._monitor_controller.clear_all_cards()
+                    self._auto_create_cards_from_data(device_id, {})
+                    self._device_name_label.setText(device_id)
+                    self._device_desc_label.setText("")
+                    self._device_desc_label.hide()
+                    self._device_status_badge.status = "offline"
+                    self._last_update_label.setText("-")
+                    self._stack_widget.setCurrentIndex(1)
+                else:
+                    self._log_message(f"设备已选中: {device_id}", "INFO", device_id, "SELECT")
         else:
             self._log_message(f"设备已选中: {device_id}", "INFO", device_id, "SELECT")
 
         if not is_mcgs_device:
             self._stack_widget.setCurrentIndex(0)
 
-    def _update_monitor_page_for_mcgs(self, device_id: str, config) -> None:
+    def _update_monitor_page_for_mcgs(self, device_id: str, config, is_connected: bool = True) -> None:
         """为MCGS设备更新监控面板"""
         self._stack_widget.setCurrentIndex(1)
         display_name = getattr(config, "name", device_id) or device_id
         self._device_name_label.setText(display_name)
-        self._device_status_badge.set_status("online")
-        self._last_update_label.setText(datetime.now().strftime("%H:%M:%S"))
+        description = getattr(config, "description", "") or ""
+        if description:
+            self._device_desc_label.setText(f"({description})")
+            self._device_desc_label.show()
+        else:
+            self._device_desc_label.setText("")
+            self._device_desc_label.hide()
+
+        if is_connected:
+            self._device_status_badge.status = "online"
+        else:
+            self._device_status_badge.status = "offline"
+        self._last_update_label.setText(datetime.now().strftime("%H:%M:%S") if is_connected else "-")
         points = getattr(config, "points", []) or []
 
-        cards_already_exist = device_id in self._device_cards and self._data_cards_layout.count() > 0
-        if cards_already_exist:
-            logger.info("[MCGS监控页] 卡片已存在，仅更新头部信息，跳过重建: %s", device_id)
-            return
-
-        logger.info("[MCGS监控页] 首次创建卡片: %s", device_id)
+        logger.info("[MCGS监控页] 创建/重建卡片: %s (已连接=%s)", device_id, is_connected)
         register_map = []
         cards_config = []
         for p in points:
@@ -1887,8 +2478,11 @@ class MainWindow(QMainWindow):
             )
             cards_config.append(
                 {
-                    "title": f"{p_name}\n[{p_addr}]",
+                    "title": p_desc if p_desc else p_name,
                     "register_name": p_name,
+                    "description": p_desc,
+                    "unit": p_unit,
+                    "decimal_places": getattr(p, "decimal_places", 2),
                 }
             )
         self._device_cards[device_id] = cards_config
@@ -1914,7 +2508,7 @@ class MainWindow(QMainWindow):
 
     @Slot(str)
     def _on_device_connected(self, device_id: str) -> None:
-        self._refresh_device_list(self._search_edit.text())
+        self._update_device_status_in_tree(device_id, is_connected=True)
         self._update_status_bar()
         message = f"设备已连接"
         self._status_msg_label.setText(f"设备已连接: {device_id}")
@@ -1923,14 +2517,27 @@ class MainWindow(QMainWindow):
 
     @Slot(str)
     def _on_device_disconnected(self, device_id: str) -> None:
-        self._refresh_device_list(self._search_edit.text())
+        self._update_device_status_in_tree(device_id, is_connected=False)
         self._update_status_bar()
         message = f"设备已断开"
         self._status_msg_label.setText(f"设备已断开: {device_id}")
         logger.info(LogMessages.DEVICE_DISCONNECTED.format(device_id=device_id))
         self._log_message(message, "INFO", device_id, "DISCONNECT")
         if self._current_device_id == device_id:
-            self._update_monitor_page(device_id)
+            try:
+                reader = None
+                if self._mcgs_controller:
+                    reader = self._mcgs_controller.get_reader()
+                config = reader.get_device_config(device_id) if reader else None
+                if config is not None:
+                    self._update_monitor_page_for_mcgs(device_id, config, is_connected=False)
+                else:
+                    self._current_device_id = None
+                    self._stack_widget.setCurrentIndex(0)
+            except Exception as e:
+                logger.warning("断开时更新监控页异常: %s", e)
+                self._current_device_id = None
+                self._stack_widget.setCurrentIndex(0)
 
     @Slot(str, dict)
     def _on_device_data_updated(self, device_id: str, data: dict) -> None:
@@ -1938,35 +2545,50 @@ class MainWindow(QMainWindow):
         self._on_bus_device_data_updated(device_id, data)
 
     def _update_card_values(self, data: Dict[str, Any]) -> None:
-        """更新数据卡片数值"""
-        for i in range(self._data_cards_layout.count()):
-            item = self._data_cards_layout.itemAt(i)
-            if item and item.widget():
-                card = item.widget()
-                if isinstance(card, DataCard) and hasattr(card, "register_name"):
-                    register_name = card.register_name
-                    if register_name and register_name in data:
-                        value_info = data[register_name]
-                        if isinstance(value_info, dict):
-                            value = value_info.get("value", 0)
+        """更新数据卡片数值 + 收集曲线历史数据"""
+        try:
+            updated_count = 0
+            card_widgets = self._monitor_controller.get_all_card_widgets()
+
+            for register_name, card in card_widgets.items():
+                if not isinstance(card, DataCard):
+                    continue
+                if register_name and register_name in data:
+                    value_info = data[register_name]
+
+                    if isinstance(value_info, dict):
+                        value = value_info.get("value", 0)
+                        unit = value_info.get("unit", "")
+                    elif isinstance(value_info, (int, float)):
+                        value = float(value_info)
+                        unit = ""
+                    elif isinstance(value_info, str):
+                        # 尝试从格式化字符串（如"36.00 ℃"）中提取数值和单位
+                        match = re.match(r"([-+]?\d*\.?\d+)\s*(.*)", value_info.strip())
+                        if match:
+                            value = float(match.group(1))
+                            unit = match.group(2).strip()  # 提取单位（如"℃"）
                         else:
-                            value = float(value_info) if value_info else 0
-                        card.set_value(f"{value:.2f}")
+                            # 非数值字符串（如"gg"），直接显示原始值
+                            card.set_value(value_info.strip())
+                            updated_count += 1
+                            continue
+                    else:
+                        value = 0.0
+                        unit = ""
 
-    def _update_chart_data(self, data: dict) -> None:
-        """更新图表数据"""
-        if not hasattr(self, "_chart_widget") or not self._chart_widget:
-            return
+                    precision = self._monitor_controller.get_card_precision(register_name)
+                    display_str = f"{round(value, precision):.{precision}f}"
+                    full_display = f"{display_str} {unit}" if unit else display_str
+                    card.set_value(full_display)
+                    updated_count += 1
+                    if hasattr(self._monitor_controller, "update_selected_card_chart"):
+                        self._monitor_controller.update_selected_card_chart(register_name, float(value))
 
-        # 遍历数据，添加到图表
-        for param_name, param_info in data.items():
-            if isinstance(param_info, dict) and "value" in param_info:
-                try:
-                    value = float(param_info["value"])
-                    self._chart_widget.add_value(param_name, value)
-                except (ValueError, TypeError):
-                    # 忽略无法转换为数值的数据
-                    pass
+            if updated_count > 0:
+                logger.debug("[Card-UPDATE] 成功更新 %d/%d 个卡片", updated_count, len(card_widgets))
+        except Exception as e:
+            logger.error(f"[Card-UPDATE] 异常: {e}", exc_info=True)
 
     @Slot(str, str)
     def _on_device_error(self, device_id: str, error: str) -> None:
@@ -2048,151 +2670,37 @@ class MainWindow(QMainWindow):
 
     def _update_status_bar(self) -> None:
         """更新状态栏信息"""
-        all_devices = self._device_manager.get_all_devices()
-        total_count = len(all_devices)
-        online_count = sum(1 for d in all_devices if d["status"] == DeviceStatus.CONNECTED)
-        offline_count = sum(1 for d in all_devices if d["status"] == DeviceStatus.DISCONNECTED)
-        connecting_count = sum(1 for d in all_devices if d["status"] == DeviceStatus.CONNECTING)
-        error_count = sum(1 for d in all_devices if d["status"] == DeviceStatus.ERROR)
+        mcgs_online = 0
+        mcgs_offline = 0
+        mcgs_error = 0
+        mcgs_total = 0
 
-        # 更新设备状态统计
+        if self._mcgs_controller:
+            try:
+                reader = self._mcgs_controller.get_reader()
+                if reader:
+                    device_ids = reader.list_devices()
+                    mcgs_total = len(device_ids)
+                    for did in device_ids:
+                        if reader.is_device_connected(did):
+                            mcgs_online += 1
+                        else:
+                            mcgs_offline += 1
+            except Exception as e:
+                logger.warning("更新状态栏异常: %s", e)
+
+        total_count = mcgs_total
+        online_count = mcgs_online
+        offline_count = mcgs_offline
+        error_count = mcgs_error
+
         self._status_total_label.setText(f"设备 {total_count}")
         self._status_online_label.setText(f"● 在线 {online_count}")
         self._status_offline_label.setText(f"● 离线 {offline_count}")
         self._status_error_label.setText(f"● 错误 {error_count}")
 
-        # 如果有正在连接的设备，显示连接中状态
-        if connecting_count > 0:
-            self._status_msg_label.setText(f"正在连接 {connecting_count} 台设备...")
-
-        # 更新自动重连状态
-        self._update_auto_reconnect_status()
-
         current_time = datetime.now().strftime("%H:%M:%S")
         self._status_time_label.setText(f"更新时间: {current_time}")
-
-    def _on_manage_charts(self) -> None:
-        """管理趋势图"""
-        if not self._current_device_id:
-            QMessageBox.information(self, "提示", "请先选择一个设备")
-            return
-
-        # 清除现有图表
-        while self._chart_layout.count():
-            item = self._chart_layout.takeAt(0)
-            widget = item.widget()
-            if widget:
-                widget.deleteLater()
-
-        from ui.widgets.visual import RealtimeChart
-
-        # 获取数据卡片配置
-        cards_config = self._device_cards.get(self._current_device_id, [])
-
-        if not cards_config:
-            # 如果没有数据卡片，添加默认趋势图
-            chart = RealtimeChart(title="设备数据趋势图")
-            chart.setMinimumHeight(300)
-            self._chart_layout.addWidget(chart)
-        else:
-            # 使用一个图表显示所有数据卡片变量
-            chart = RealtimeChart(title="设备数据趋势图")
-            chart.setMinimumHeight(300)
-            self._chart_layout.addWidget(chart)
-
-        # 保存图表配置
-        self._device_charts[self._current_device_id] = [{"title": "设备数据趋势图", "registers": []}]
-
-        # 初始化设备数据关联
-        self._init_chart_data()
-
-    def _init_chart_data(self) -> None:
-        """初始化图表数据关联"""
-        if not self._current_device_id:
-            return
-
-        # 确保有图表实例
-        if not hasattr(self, "_chart_layout") or self._chart_layout.count() == 0:
-            return
-
-        chart_item = self._chart_layout.itemAt(0)
-        if not chart_item or not chart_item.widget():
-            return
-
-        self._chart_widget = chart_item.widget()
-        self._chart_widget.clear()
-
-        # 从数据卡片配置中获取寄存器信息
-        cards_config = self._device_cards.get(self._current_device_id, [])
-
-        for card_config in cards_config:
-            register_name = card_config.get("register_name", "")
-            if register_name:
-                self._chart_widget.add_series(register_name)
-
-        # 如果没有数据卡片，则从设备寄存器中获取
-        if not cards_config:
-            device = self._device_manager.get_device(self._current_device_id)
-            if not device:
-                return
-
-            if isinstance(device, dict):
-                register_map = device.get("register_map", [])
-            else:
-                config = device.get_device_config()
-                register_map = config.get("register_map", [])
-
-            for reg in register_map:
-                if isinstance(reg, dict) and reg.get("name"):
-                    self._chart_widget.add_series(reg["name"])
-
-    def _on_manage_cards(self) -> None:
-        """打开数据卡片管理对话框"""
-        if not self._current_device_id:
-            QMessageBox.information(self, "提示", "请先选择一个设备")
-            return
-
-        device = self._device_manager.get_device(self._current_device_id)
-        if not device:
-            return
-
-        # 获取设备寄存器列表 (从 register_map 获取)
-        if isinstance(device, dict):
-            register_map = device.get("register_map", [])
-        else:
-            # Device 对象
-            config = device.get_device_config()
-            register_map = config.get("register_map", [])
-
-        # 转换为可用格式
-        available_registers = []
-        for reg in register_map:
-            if isinstance(reg, dict):
-                available_registers.append(
-                    {
-                        "name": reg.get("name", ""),
-                        "address": reg.get("address", ""),
-                    }
-                )
-
-        # 获取当前数据卡片配置
-        existing_cards = self._device_cards.get(self._current_device_id, [])
-
-        # 打开数据卡片管理对话框
-        from ui.widgets.card_manager_dialog import CardManagerDialog
-
-        dialog = CardManagerDialog(
-            device_id=self._current_device_id,
-            device_name=device.get("name", "") if isinstance(device, dict) else getattr(device, "name", ""),
-            available_registers=available_registers,
-            existing_cards=existing_cards,
-            parent=self,
-        )
-
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            self._device_cards[self._current_device_id] = dialog.get_cards()
-            self._ui_prefs.save_cards(self._current_device_id, self._device_cards[self._current_device_id])
-            self._update_cards_display()
 
     def cleanup(self) -> None:
         if getattr(self, "_cleaned", False):
@@ -2201,7 +2709,47 @@ class MainWindow(QMainWindow):
         logger.info(LogMessages.APP_SHUTDOWN)
         self._save_ui_preferences()
 
-        # 清理全局动画调度器单例
+        try:
+            if self._mcgs_controller is not None:
+                try:
+                    self._mcgs_controller.device_data_updated.disconnect(self._on_mcgsm_raw_data_updated)
+                except Exception:
+                    pass
+                try:
+                    self._mcgs_controller.device_error.disconnect(self._on_mcgsm_device_error)
+                except Exception:
+                    pass
+                try:
+                    self._mcgs_controller.polling_started.disconnect(self._on_mcgsm_polling_started)
+                except Exception:
+                    pass
+                try:
+                    self._mcgs_controller.polling_stopped.disconnect(self._on_mcgsm_polling_stopped)
+                except Exception:
+                    pass
+                try:
+                    self._mcgs_controller.poll_cycle_completed.disconnect(self._on_mcgsm_poll_cycle_completed)
+                except Exception:
+                    pass
+                self._mcgs_controller.cleanup()
+                logger.info("MCGSController 已清理")
+        except Exception as e:
+            logger.warning("MCGSController 清理异常: %s", e)
+
+        try:
+            from core.foundation.data_bus import DataBus
+
+            bus = DataBus.instance()
+            bus.unsubscribe("device_data_updated", self._on_bus_device_data_updated)
+            bus.unsubscribe("comm_error", self._on_bus_comm_error)
+            bus.unsubscribe("device_status_changed", self._on_bus_device_status_changed)
+            bus.unsubscribe("device_connected", self._on_bus_device_connected)
+            bus.unsubscribe("device_disconnected", self._on_bus_device_disconnected)
+            bus.unsubscribe("alarm_triggered", self._on_bus_alarm_triggered)
+            logger.info("DataBus 订阅已释放")
+        except Exception as e:
+            logger.warning("DataBus 取消订阅异常: %s", e)
+
         try:
             from ui.animation_scheduler import AnimationScheduler
 
@@ -2246,6 +2794,7 @@ class MainWindow(QMainWindow):
             self._ui_prefs.save_panel_state(
                 left_collapsed=self._left_panel_collapsed,
                 left_width=self._left_panel_saved_size,
+                right_width=self.width() - self._left_panel_saved_size,
             )
             logger.debug("UI 偏好配置已保存")
         except Exception:
@@ -2281,6 +2830,8 @@ class MainWindow(QMainWindow):
 
         # 更新状态栏
         self._status_msg_label.setText(f"会话超时: {username} 已自动登出")
+
+        self._update_permission_ui()
 
     def _update_permission_ui(self) -> None:
         """
@@ -2360,31 +2911,36 @@ class MainWindow(QMainWindow):
             from ui.controllers.mcgs_controller import MCGSController
             from core.services.mcgs_service import MCGSService
             from core.services.history_service import HistoryService
-            from core.services.anomaly_service import AnomalyService
 
-            db_path = (
-                self._db_manager.db_path if hasattr(self._db_manager, "db_path") else "data/equipment_management.db"
+            # 使用绝对路径避免运行时CWD不一致导致数据库文件错位
+            from pathlib import Path as _Path
+
+            _project_root = _Path(__file__).resolve().parent.parent
+            _raw_db_path = (
+                getattr(self._db_manager, "_db_path", None) or self._db_manager.db_path
+                if hasattr(self._db_manager, "db_path")
+                else "data/equipment_management.db"
             )
+            db_path = str(_Path(_raw_db_path))
+            if not _Path(db_path).is_absolute():
+                db_path = str(_project_root / _raw_db_path)
 
+            logger.info("HistoryService 数据库路径: %s", db_path)
             history_service = HistoryService(db_path=db_path)
             history_service.initialize()
 
-            anomaly_service = AnomalyService(history_service=history_service)
-            anomaly_service.initialize()
-
             mcgs_service = MCGSService(
                 history_service=history_service,
-                anomaly_service=anomaly_service,
             )
 
             self._mcgs_controller = MCGSController(mcgs_service=mcgs_service, parent=self)
 
-            self._mcgs_controller.device_connected.connect(self._on_mcgsm_device_connected)
-            self._mcgs_controller.device_data_updated.connect(self._on_mcgsm_data_updated)
+            # 数据更新通过 DataBus 订阅接收（见 _connect_data_bus）
             self._mcgs_controller.device_error.connect(self._on_mcgsm_device_error)
             self._mcgs_controller.polling_started.connect(self._on_mcgsm_polling_started)
             self._mcgs_controller.polling_stopped.connect(self._on_mcgsm_polling_stopped)
             self._mcgs_controller.poll_cycle_completed.connect(self._on_mcgsm_poll_cycle_completed)
+            self._mcgs_controller.device_data_updated.connect(self._on_mcgsm_raw_data_updated)
 
             logger.info("MCGSController 初始化完成")
 
@@ -2403,6 +2959,8 @@ class MainWindow(QMainWindow):
             return reader
 
         try:
+            from pathlib import Path
+
             config_path = Path(__file__).parent.parent / "config" / "devices.json"
 
             if config_path.exists():
@@ -2424,168 +2982,19 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "MCGS连接错误", f"无法初始化MCGS读取器:\n{str(e)}")
             return None
 
-    @Slot()
-    def _on_mcgsm_quick_connect(self) -> None:
-        """
-        MCGS快速连接入口（菜单/工具栏按钮触发）
-
-        重构后: 通过 MCGSController 异步调度，不再阻塞UI
-
-        功能：
-        1. 加载devices.json配置
-        2. 通过Controller异步连接MCGS触摸屏
-        3. 结果通过Controller的Signal回调处理
-        """
-        logger.info("MCGS快速连接被触发")
-
-        if self._mcgs_controller is None:
-            QMessageBox.warning(self, "功能不可用", "MCGS控制器未初始化")
-            return
-
-        reader = self._get_or_create_mcgsm_reader()
-        if reader is None:
-            return
-
-        try:
-            self._status_msg_label.setText("正在连接MCGS设备...")
-
-            device_ids = reader.list_devices()
-            if not device_ids:
-                QMessageBox.information(
-                    self, "无设备", "devices.json中未配置任何设备。\n" "请先编辑 config/devices.json 添加设备配置。"
-                )
-                return
-
-            self._mcgs_pending_connect_devices = list(device_ids)
-            self._mcgs_connect_index = 0
-            self._connect_next_mcgsm_device()
-
-        except Exception as e:
-            error_msg = f"MCGS连接过程出错: {str(e)}"
-            logger.exception(error_msg)
-            QMessageBox.critical(self, "MCGS连接错误", error_msg)
-            self._status_msg_label.setText("MCGS连接失败")
-
-    def _connect_next_mcgsm_device(self):
-        """逐个异步连接MCGS设备"""
-        if not hasattr(self, "_mcgs_pending_connect_devices"):
-            return
-
-        if self._mcgs_connect_index >= len(self._mcgs_pending_connect_devices):
-            self._on_mcgsm_all_devices_connected()
-            return
-
-        device_id = self._mcgs_pending_connect_devices[self._mcgs_connect_index]
-        logger.info(
-            "异步连接MCGS设备: %s (%d/%d)",
-            device_id,
-            self._mcgs_connect_index + 1,
-            len(self._mcgs_pending_connect_devices),
-        )
-
-        self._mcgs_controller.connect_device(device_id)
-
-    def _on_mcgsm_all_devices_connected(self):
-        """所有设备连接完成后的处理"""
-        logger.info("[MCGS流程] _on_mcgsm_all_devices_connected 被调用")
-        if not hasattr(self, "_mcgs_pending_connect_devices"):
-            logger.warning("[MCGS流程] _mcgs_pending_connect_devices 不存在，跳过")
-            return
-
-        device_ids = self._mcgs_pending_connect_devices
-        logger.info("[MCGS流程] 设备列表: %s, is_polling=%s", device_ids, self._mcgs_controller.is_polling)
-
-        if not self._mcgs_controller.is_polling and device_ids:
-            first_device = device_ids[0]
-            reader = self._mcgs_controller.get_reader()
-            if reader:
-                config = reader.get_device_config(first_device) if hasattr(reader, "get_device_config") else None
-                interval_ms = getattr(config, "polling_interval_ms", 1000) if config else 1000
-            else:
-                interval_ms = 1000
-            self._mcgs_controller.start_polling(device_ids, interval_ms)
-
-        del self._mcgs_pending_connect_devices
-        if hasattr(self, "_mcgs_connect_index"):
-            del self._mcgs_connect_index
-
-    @Slot(str, bool, str)
-    def _on_mcgsm_device_connected(self, device_id: str, success: bool, msg: str):
-        """MCGS设备连接结果回调（由Controller异步触发）"""
-        self._refresh_device_list(self._search_edit.text())
-
-        if success:
-            reader = self._mcgs_controller.get_reader() if self._mcgs_controller else None
-            config = reader.get_device_config(device_id) if reader and hasattr(reader, "get_device_config") else None
-
-            if self._mcgs_controller:
-                self._mcgs_controller.read_device(device_id)
-
-            self._status_msg_label.setText(f"MCGS连接成功: {device_id}")
-            logger.info("[%s] MCGS设备连接成功", device_id)
-            self._log_message(f"MCGS连接成功: {device_id}", "SUCCESS", device_id, "CONNECT")
-        else:
-            reader = self._mcgs_controller.get_reader() if self._mcgs_controller else None
-            config = reader.get_device_config(device_id) if reader and hasattr(reader, "get_device_config") else None
-
-            self._log_message(f"MCGS连接失败: {device_id}", "ERROR", device_id, "ERROR")
-
-            error_detail = f"无法连接到设备 [{device_id}]\n"
-            if config:
-                error_detail += f"{config.name}@{config.ip}:{config.port}\n\n"
-            error_detail += f"原因: {msg}"
-            logger.warning("[%s] MCGS连接失败: %s", device_id, msg)
-            error_detail += (
-                f"可能的原因：\n"
-                f"• IP地址或端口号错误\n"
-                f"• 设备未开机或网络不通\n"
-                f"• Modbus TCP端口502未开放\n"
-                f"• Unit ID不匹配\n"
-            )
-
-            reply = QMessageBox.question(
-                self,
-                "连接失败 - 配置引导",
-                f"{error_detail}\n\n" f"是否打开【设备配置编辑器】检查并修正参数？",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.Yes,
-            )
-
-            if reply == QMessageBox.StandardButton.Yes:
-                config_saved = self._open_mcgsm_config_dialog(device_id)
-                if config_saved and self._mcgs_controller:
-                    self._mcgs_controller.reset_reader()
-                    new_reader = self._get_or_create_mcgsm_reader()
-                    if new_reader:
-                        self._mcgs_controller.set_reader(new_reader)
-
-        if hasattr(self, "_mcgs_connect_index"):
-            self._mcgs_connect_index += 1
-            self._connect_next_mcgsm_device()
-
-        if success and self._mcgs_controller and not self._mcgs_controller.is_polling:
-            device_ids = [device_id]
-            reader = self._mcgs_controller.get_reader()
-            if reader:
-                config = reader.get_device_config(device_id)
-                if config:
-                    interval_ms = getattr(config, "polling_interval_ms", 1000)
-                    self._mcgs_controller.start_polling(device_ids, interval_ms)
-                    logger.info("[MCGS轮询] 连接后自动启动轮询: %s, interval=%dms", device_id, interval_ms)
-
-    @Slot(str, dict)
-    def _on_mcgsm_data_updated(self, device_id: str, data: dict):
-        """MCGS数据更新回调 — 已迁移至 DataBus 订阅（保留向后兼容）"""
-        self._on_bus_device_data_updated(device_id, data)
-
     @Slot(str, str)
     def _on_mcgsm_device_error(self, device_id: str, error_msg: str):
         """MCGS设备错误回调"""
         logger.warning("[%s] MCGS错误: %s", device_id, error_msg)
         self._status_msg_label.setText(f"MCGS错误 [{device_id}]: {error_msg}")
         self._log_message(f"MCGS错误 [{device_id}]: {error_msg}", "ERROR", device_id, "ERROR")
-        # 刷新设备列表以反映可能的断线状态
-        self._refresh_device_list(self._search_edit.text())
+        # 更新受影响的设备状态（只更新文本，不重建整树）
+        self._update_device_status_in_tree(device_id, is_connected=False)
+
+    @Slot(str, dict)
+    def _on_mcgsm_raw_data_updated(self, device_id: str, data: dict):
+        if device_id == self._current_device_id and data:
+            self._update_card_values(data)
 
     @Slot()
     def _on_mcgsm_polling_started(self):
@@ -2604,266 +3013,894 @@ class MainWindow(QMainWindow):
         """轮询周期完成回调"""
         if fail_count > 0:
             self._log_message(f"轮询完成: {success_count}成功, {fail_count}失败", "WARNING")
-        # 每个周期刷新设备列表（轻量，仅当列表可见时有效）
-        self._refresh_device_list(self._search_edit.text())
-
-    def _create_mcgsm_monitor_panel(self, device_id: str, config, initial_data: Dict[str, str]) -> DynamicMonitorPanel:
-        """为MCGS设备创建专用监控面板"""
-        from ui.widgets.dynamic_monitor_panel import DynamicMonitorPanel
-
-        # 如果面板已存在，则更新数据
-        if device_id in self._monitor_panels:
-            panel = self._monitor_panels[device_id]
-            panel.update_data(initial_data)
-            return panel
-
-        # 创建新面板
-        panel = DynamicMonitorPanel(device_id)
-
-        # 从RegisterPointConfig列表构建配置（适配DynamicMonitorPanel接口）
-        rp_list = []
-        for point in config.points:
-            from core.enums.data_type_enum import RegisterDataType, RegisterPointConfig
-
-            type_map = {
-                "float": RegisterDataType.HOLDING_FLOAT32,
-                "int16": RegisterDataType.HOLDING_INT16,
-                "coil": RegisterDataType.COIL,
-                "di": RegisterDataType.DISCRETE_INPUT,
-            }
-
-            rp = RegisterPointConfig(
-                name=point.name,
-                data_type=type_map.get(point.type.lower(), RegisterDataType.HOLDING_FLOAT32),
-                address=point.addr,
-                decimal_places=point.decimal_places,
-                unit=point.unit,
-                alarm_high=point.alarm_high,
-                alarm_low=point.alarm_low,
-                writable=False,  # MCGS默认只读
-            )
-            rp_list.append(rp)
-
-        # 构建面板UI
-        panel.build_from_config(rp_list)
-
-        # 填充初始数据
-        panel.update_data(initial_data)
-
-        # 连接信号
-        panel.coil_write_requested.connect(self._on_coil_write_request)
-
-        # 存储并添加到Tab
-        self._monitor_panels[device_id] = panel
-        tab_text = f"MCGS-{config.name}"
-        self._monitor_tabs.addTab(panel, tab_text)
-
-        logger.info(f"MCGS监控面板已创建: {tab_text} ({len(rp_list)}个数据点)")
-        return panel
+        # 更新状态栏统计即可，不重建设备树
 
     @Slot()
     def _on_mcgsm_show_history(self) -> None:
-        if not self._mcgs_controller or not self._mcgs_controller.is_history_available():
-            QMessageBox.warning(self, "功能不可用", "历史数据存储模块未初始化")
-            return
-
-        from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QDateEdit
-        from PySide6.QtCore import QDate
+        from PySide6.QtWidgets import QComboBox
+        from PySide6.QtCore import Qt, QDateTime as _QDt
         from ui.widgets.history_chart_widget import HistoryChartWidget
 
         dialog = QDialog(self)
         dialog.setWindowTitle("MCGS历史数据查看")
-        dialog.resize(1000, 700)
+        dialog.resize(1100, 800)
 
         layout = QVBoxLayout(dialog)
 
+        # ── 顶部控制栏 ──
         control_bar = QHBoxLayout()
 
         control_bar.addWidget(QLabel("设备:"))
         device_combo = QComboBox()
-        device_ids = self._mcgs_controller.list_devices() if self._mcgs_controller else []
+        device_combo.setMinimumWidth(180)
+        reader = None
+        if self._mcgs_controller:
+            reader = self._mcgs_controller.get_reader()
+        device_ids = reader.list_devices() if reader else []
         for dev_id in device_ids:
-            device_combo.addItem(dev_id, dev_id)
+            config = reader.get_device_config(dev_id) if reader else None
+            display_name = getattr(config, "name", dev_id) or dev_id if config else dev_id
+            label = f"{display_name} ({dev_id})"
+            device_combo.addItem(label, dev_id)
         control_bar.addWidget(device_combo)
 
         control_bar.addWidget(QLabel("参数:"))
         param_combo = QComboBox()
-        param_combo.addItems(
-            [
-                "Hum_in (进气湿度)",
-                "RH_in (相对湿度)",
-                "AT_in (进气温度)",
-                "Flow_in (进气流量)",
-                "VPa (大气压)",
-                "VPaIn (进气压力)",
-            ]
-        )
+        param_combo.setMinimumWidth(140)
+        param_combo.addItem("全部参数", "__ALL__")
         control_bar.addWidget(param_combo)
 
-        control_bar.addWidget(QLabel("时间范围:"))
+        # 计算默认时间范围
+        from datetime import datetime as _dt_local
+
+        _now_ts = _dt_local.now()
+        _today_9am = _now_ts.replace(hour=9, minute=0, second=0, microsecond=0)
+
+        control_bar.addWidget(QLabel("起始:"))
+        dt_start = QDateTimeEdit(calendarPopup=True)
+        dt_start.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
+        dt_start.setDateTime(_QDt(_today_9am))
+        dt_start.setFixedWidth(185)
+        dt_start.setFixedHeight(30)
+        dt_start.setStyleSheet(
+            "QDateTimeEdit { padding: 2px 4px; border: 1px solid #c0c0c0; " "border-radius: 3px; background: white; }"
+        )
+        control_bar.addWidget(dt_start)
+
+        control_bar.addWidget(QLabel("结束:"))
+        dt_end = QDateTimeEdit(calendarPopup=True)
+        dt_end.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
+        dt_end.setDateTime(_QDt.currentDateTime())
+        dt_end.setFixedWidth(185)
+        dt_end.setFixedHeight(30)
+        dt_end.setStyleSheet(
+            "QDateTimeEdit { padding: 2px 4px; border: 1px solid #c0c0c0; " "border-radius: 3px; background: white; }"
+        )
+        control_bar.addWidget(dt_end)
+
+        # 快捷时间范围下拉框
         range_combo = QComboBox()
-        range_combo.addItems(["最近1小时", "最近6小时", "最近24小时", "最近7天"])
-        range_combo.setCurrentIndex(2)
+        range_combo.addItems(["最近1小时", "最近24小时", "最近1天", "最近1周"])
+        range_combo.setCurrentIndex(0)  # 默认最近1小时
+        range_combo.setToolTip("选择后自动应用快捷时间范围")
         control_bar.addWidget(range_combo)
 
-        refresh_btn = QPushButton("刷新")
+        refresh_btn = QPushButton("加载")
         control_bar.addWidget(refresh_btn)
 
-        export_btn = QPushButton("导出CSV")
+        # 合并导出按钮 - 点击弹出格式选择菜单
+        export_btn = QPushButton("导出 ▼")
+
+        def _show_export_menu():
+            """点击导出按钮时创建菜单（延迟绑定，避免导出函数尚未定义）"""
+            menu = QMenu(dialog)
+            menu.addAction("CSV文件 (*.csv)", on_export_csv)
+            menu.addAction("HTML报表 (*.html)", on_export_html)
+            menu.addAction("Excel报表 (*.xlsx)", on_export_excel)
+            menu.exec(export_btn.mapToGlobal(export_btn.rect().bottomLeft()))
+
+        export_btn.clicked.connect(_show_export_menu)
         control_bar.addWidget(export_btn)
 
         control_bar.addStretch()
         layout.addLayout(control_bar)
 
+        # ── 图表 + 表格 分割区 ──
+        splitter = QSplitter(Qt.Orientation.Vertical)
+
         chart_widget = HistoryChartWidget("mcgsm_viewer")
-        layout.addWidget(chart_widget)
+        splitter.addWidget(chart_widget)
+
+        data_table = QTableWidget()
+        data_table.setAlternatingRowColors(True)
+        data_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        data_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        data_table.horizontalHeader().setStretchLastSection(True)
+        data_table.setMinimumHeight(150)
+        splitter.addWidget(data_table)
+
+        splitter.setStretchFactor(0, 3)  # 图表占 3/4
+        splitter.setStretchFactor(1, 1)  # 表格占 1/4
+        layout.addWidget(splitter, 1)
+
+        # 存储当前加载的数据（用于导出）
+        _current_data: Dict[str, List[Tuple[str, float]]] = {}  # {param: [(ts_str, val), ...]}
+        _current_params: List[str] = []
+        _current_dev_id: str = ""
+        _current_hours: int = 0
+        _pending_task: Optional[_HistoryQueryTask] = None
+
+        def _get_param_display_map(dev_id: str) -> Dict[str, str]:
+            """获取参数名→显示名的映射（含描述信息），格式：name（description）"""
+            cfg = reader.get_device_config(dev_id) if reader else None
+            pts = getattr(cfg, "points", []) or []
+            display_map = {}
+            for p in pts:
+                p_name = getattr(p, "name", "")
+                if not p_name:
+                    continue
+                p_desc = getattr(p, "description", "") or getattr(p, "unit", "")
+                if p_desc:
+                    display_map[p_name] = f"{p_name}（{p_desc}）"
+                else:
+                    display_map[p_name] = p_name
+            return display_map
+
+        def _collect_param_names(dev_id: str) -> List[str]:
+            """获取设备所有的参数名称列表"""
+            cfg = reader.get_device_config(dev_id) if reader else None
+            pts = getattr(cfg, "points", []) or []
+            return [getattr(p, "name", "") for p in pts if getattr(p, "name", "")]
+
+        def _populate_param_combo(dev_id: str):
+            """填充参数下拉框"""
+            param_combo.blockSignals(True)
+            param_combo.clear()
+            param_combo.addItem("全部参数", "__ALL__")
+            cfg = reader.get_device_config(dev_id) if reader else None
+            pts = getattr(cfg, "points", []) or []
+            for p in pts:
+                p_name = getattr(p, "name", "")
+                p_unit = getattr(p, "unit", "")
+                p_addr = getattr(p, "addr", "")
+                if p_name:
+                    display = f"{p_name}"
+                    if p_unit:
+                        display += f" ({p_unit})"
+                    display += f" @{p_addr}"
+                    param_combo.addItem(display, p_name)
+            param_combo.blockSignals(False)
+
+        def _get_dt_range(dev_id: str):
+            """获取设备数据在 DB 中的时间范围，用于限制 QDateTimeEdit"""
+            try:
+                hs = self._mcgs_controller._service._history_service if self._mcgs_controller else None
+                if hs and hs.storage:
+                    import sqlite3
+
+                    cur = hs.storage._conn.cursor()
+                    cur.execute("SELECT MIN(timestamp), MAX(timestamp) FROM mcgs_history WHERE device_id=?", (dev_id,))
+                    row = cur.fetchone()
+                    if row and row[0] and row[1]:
+                        from datetime import datetime as _dtp
+
+                        ts_min = _QDt.fromString(row[0].split(".")[0], "yyyy-MM-dd HH:mm:ss")
+                        ts_max = _QDt.fromString(row[1].split(".")[0], "yyyy-MM-dd HH:mm:ss")
+                        return ts_min, ts_max
+            except Exception:
+                pass
+            return None, None
+
+        def _update_dt_limits(dev_id: str):
+            """根据设备数据的实际时间范围更新 QDateTimeEdit 上限（不下限，避免快捷时间被钳位）"""
+            ts_min, ts_max = _get_dt_range(dev_id)
+            if ts_min and ts_max:
+                # 只限制最大值，不限制最小值
+                # 如果设了 setMinimumDateTime，当用户选"最近1小时"时
+                # 计算出的起始时间可能早于 ts_min，QDateTimeEdit 会自动钳位到 ts_min
+                # 导致起始=结束，数据展示异常
+                dt_start.setMaximumDateTime(ts_max)
+                dt_end.setMaximumDateTime(ts_max)
+
+        def _apply_shortcut(hours_delta: float, from_today_start: bool = False):
+            """应用快捷时间选择"""
+            from datetime import datetime as _dts
+
+            now_py = _dts.now()
+            if from_today_start:
+                start_py = now_py.replace(hour=0, minute=0, second=0, microsecond=0)
+            else:
+                start_py = now_py - __import__("datetime").timedelta(hours=hours_delta)
+            dt_start.setDateTime(_QDt(start_py))
+            dt_end.setDateTime(_QDt.currentDateTime())
+
+        def _populate_table(
+            data_by_param: Dict[str, List[Tuple[str, float]]],
+            param_names: List[str],
+            display_names: Optional[List[str]] = None,
+        ):
+            """填充数据表格（宽表格式：时间戳|param1|param2|...）"""
+            nonlocal _current_data
+            _current_data.clear()
+            _current_data.update(data_by_param)
+
+            if not data_by_param:
+                data_table.setRowCount(0)
+                data_table.setColumnCount(0)
+                return
+
+            # 以第一个参数的行数为基准
+            first_param = param_names[0] if param_names else list(data_by_param.keys())[0]
+            rows = data_by_param.get(first_param, [])
+            cols = len(param_names) + 1  # 时间戳 + 各参数
+
+            # 表头使用显示名（含描述）
+            headers = ["时间戳"] + ((display_names or param_names) if display_names else param_names)
+
+            data_table.clear()
+            data_table.setColumnCount(cols)
+            data_table.setHorizontalHeaderLabels(headers)
+
+            data_table.setRowCount(len(rows))
+            for ri, (ts_str, _) in enumerate(rows):
+                # 时间戳居中
+                ts_item = QTableWidgetItem(ts_str)
+                ts_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                data_table.setItem(ri, 0, ts_item)
+                for ci, pn in enumerate(param_names):
+                    param_data = data_by_param.get(pn, [])
+                    if ri < len(param_data):
+                        _, val = param_data[ri]
+                        item = QTableWidgetItem(f"{val:.2f}")
+                        item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                        data_table.setItem(ri, ci + 1, item)
+
+            # 所有列均匀拉伸，每个格子大小相同
+            for col_i in range(cols):
+                data_table.horizontalHeader().setSectionResizeMode(col_i, QHeaderView.ResizeMode.Stretch)
+            # 统一行高
+            data_table.verticalHeader().setDefaultSectionSize(30)
 
         def load_chart_data():
-            dev_id = device_combo.currentData() or device_combo.currentText()
-            param_name = param_combo.currentText().split()[0]
+            dev_id = device_combo.currentData()
+            if not dev_id:
+                return
 
-            hours_map = {"最近1小时": 1, "最近6小时": 6, "最近24小时": 24, "最近7天": 168}
-            hours = hours_map.get(range_combo.currentText(), 24)
+            dt_start_py = dt_start.dateTime().toPython()
+            dt_end_py = dt_end.dateTime().toPython()
 
-            data = self._mcgs_controller.query_history_trend(dev_id, param_name, hours=hours)
+            if dt_start_py >= dt_end_py:
+                QMessageBox.warning(dialog, "时间错误", "起始时间必须早于结束时间")
+                return
 
-            if data:
-                chart_widget.clear_series()
-                series = chart_widget.add_data_series(param_name)
-                for timestamp, value in data:
-                    series.append(timestamp.toMSecsSinceEpoch(), value)
-                chart_widget.refresh_chart()
+            nonlocal _current_dev_id, _pending_task
+            _current_dev_id = dev_id
+
+            # 取消之前未完成的任务
+            if _pending_task is not None:
+                _pending_task.cancel()
+                _pending_task = None
+
+            # 按钮状态 + 任务栏标题
+            refresh_btn.setText("加载中...")
+            refresh_btn.setEnabled(False)
+            dialog.setWindowTitle("MCGS历史数据查看 - 刷新中...")
+
+            if self._mcgs_controller and self._mcgs_controller.is_history_available():
+                _load_from_history_service(dev_id, dt_start_py, dt_end_py)
             else:
-                QMessageBox.information(dialog, "无数据", f"未找到 [{dev_id}].[{param_name}] 的历史数据")
+                _load_from_memory(dev_id)
 
-        def on_export():
-            from pathlib import Path
+        def _set_loading_done():
+            """恢复按钮状态和窗口标题"""
+            refresh_btn.setText("刷新")
+            refresh_btn.setEnabled(True)
+            dialog.setWindowTitle("MCGS历史数据查看")
 
-            file_path, _ = QFileDialog.getSaveFileName(dialog, "导出CSV", "", "CSV Files (*.csv)")
-            if file_path:
-                dev_id = device_combo.currentData() or device_combo.currentText()
-                param_name = param_combo.currentText().split()[0]
-                success = self._mcgs_controller.export_history_csv(file_path, dev_id, [param_name])
-                if success:
-                    QMessageBox.information(dialog, "导出成功", f"数据已保存至:\n{file_path}")
+        def _load_from_history_service(dev_id, start_time, end_time):
+            # 确定参数列表（支持全部参数/单参数选择）
+            param_key = param_combo.currentData()
+            if param_key and param_key != "__ALL__":
+                param_names = [param_key]
+            else:
+                param_names = _collect_param_names(dev_id)
 
-        refresh_btn.clicked.connect(load_chart_data)
-        export_btn.clicked.connect(on_export)
-        device_combo.currentIndexChanged.connect(load_chart_data)
-        param_combo.currentIndexChanged.connect(load_chart_data)
-        range_combo.currentTextChanged.connect(load_chart_data)
+            nonlocal _current_params, _current_hours
+            _current_params = param_names
+            _current_hours = 0
 
-        load_chart_data()
+            if not param_names:
+                data_table.setRowCount(0)
+                data_table.setColumnCount(0)
+                QMessageBox.information(dialog, "无数据", f"设备 [{dev_id}] 没有配置参数")
+                _set_loading_done()
+                return
 
-        dialog.exec()
+            # 移除之前残留的加载指示器
+            for _i in range(splitter.count()):
+                _w = splitter.widget(_i)
+                if isinstance(_w, (QLabel, QProgressBar)):
+                    _w.deleteLater()
 
-    @Slot()
-    def _on_mcgsm_health_check(self) -> None:
-        if (
-            not self._mcgs_controller
-            or not self._mcgs_controller.is_anomaly_available()
-            or self._mcgs_controller.get_reader() is None
-        ):
-            QMessageBox.warning(self, "功能不可用", "异常检测模块或MCGS读取器未初始化")
-            return
+            # 使用 QProgressDialog 模态进度对话框，不影响布局
+            progress_dialog = QProgressDialog("正在加载历史数据...", "", 0, len(param_names), dialog)
+            progress_dialog.setWindowTitle("加载中")
+            progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
+            progress_dialog.setCancelButton(None)
+            progress_dialog.setAutoClose(True)
+            progress_dialog.setMinimumDuration(0)
+            progress_dialog.setStyleSheet(
+                "QProgressDialog { min-width: 360px; min-height: 120px; }"
+                "QProgressBar { border: 1px solid #B0C4DE; border-radius: 6px; "
+                "background: #F0F4FF; text-align: center; font-size: 13px; font-weight: bold; "
+                "color: #1A56DB; height: 24px; }"
+                "QProgressBar::chunk { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, "
+                "stop:0 #3B82F6, stop:1 #1A56DB); border-radius: 5px; }"
+                "QLabel { font-size: 13px; color: #333; }"
+            )
+            progress_dialog.show()
 
-        from PySide6.QtWidgets import QTextBrowser
+            def _on_result(result_data):
+                """结果回调（在主线程）"""
+                data_by_param, param_names_out, has_data = result_data
+                nonlocal _pending_task
+                _pending_task = None
+                _set_loading_done()
 
-        dialog = QDialog(self)
-        dialog.setWindowTitle("⚠️ MCGS设备健康检测报告")
-        dialog.resize(800, 600)
+                # 对话框关闭保护
+                if not dialog.isVisible():
+                    return
 
-        layout = QVBoxLayout(dialog)
+                # 关闭进度对话框
+                progress_dialog.close()
+                progress_dialog.deleteLater()
 
-        report_browser = QTextBrowser()
-        report_browser.setOpenExternalLinks(True)
-        layout.addWidget(report_browser)
+                if has_data:
+                    # 计算参数显示名（含描述）
+                    _display_map = _get_param_display_map(dev_id)
+                    _display_names = [_display_map.get(n, n) for n in param_names_out]
+                    _dev_label = device_combo.currentText()
+                    # 降采样：减少图表渲染压力
+                    for pname in data_by_param:
+                        total_before = len(data_by_param[pname])
+                        data_by_param[pname] = _downsample_data(data_by_param[pname], 5000)
+                        total_after = len(data_by_param[pname])
+                        if total_before != total_after:
+                            logger.info("降采样 [%s]: %d → %d 点", pname, total_before, total_after)
 
-        close_btn = QPushButton("关闭")
-        close_btn.clicked.connect(dialog.close)
-        layout.addWidget(close_btn)
+                    # 将字符串时间戳转换为 datetime 对象
+                    _dt_data = {}
+                    for pname, points in data_by_param.items():
+                        from datetime import datetime as _dt
 
-        report_html = "<h2>📋 MCGS设备健康检测报告</h2>\n"
-        report_html += f"<p>生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>\n"
+                        _dt_data[pname] = []
+                        for ts_str, val in points:
+                            try:
+                                dt = _dt.strptime(ts_str, "%Y-%m-%d %H:%M:%S")
+                            except (ValueError, TypeError):
+                                dt = _dt.now()
+                            _dt_data[pname].append((dt, val))
 
-        device_ids = self._mcgs_controller.list_devices()
+                    logger.info("图表加载: %d 参数, 总 %d 点", len(_dt_data), sum(len(v) for v in _dt_data.values()))
 
-        overall_status = "✅ 正常"
+                    chart_widget.set_bulk_data(
+                        _dt_data, param_names_out, display_names=_display_names, device_display_name=_dev_label
+                    )
+                    from PySide6.QtCore import QCoreApplication
 
-        for device_id in device_ids:
-            config = self._mcgs_controller.get_device_config(device_id)
+                    QCoreApplication.processEvents()
+                    chart_widget.refresh_chart()
+                    chart_widget.repaint()
+                    _populate_table(data_by_param, param_names_out, display_names=_display_names)
+                else:
+                    data_table.setRowCount(0)
+                    data_table.setColumnCount(0)
+                    QMessageBox.information(dialog, "无数据", f"未找到设备 [{dev_id}] 的历史数据")
 
-            report_html += f"<hr><h3>🔌 设备: {config.name} [{device_id}]</h3>\n"
-            report_html += f"<b>地址:</b> {config.ip}:{config.port}<br>\n"
-            report_html += f"<b>字节序:</b> {config.byte_order}<br>\n"
-            report_html += f"<b>数据点:</b> {len(config.points)} 个<br><br>\n"
+            def _on_progress(progress_data):
+                """进度更新回调（在主线程）"""
+                if not dialog.isVisible():
+                    return
+                current, total = progress_data
+                progress_dialog.setValue(current)
+                progress_dialog.setLabelText(f"正在加载... ({current}/{total})")
 
-            health_report = self._mcgs_controller.get_health_report(device_id)
+            def _on_error(error_msg):
+                """错误回调（在主线程）"""
+                nonlocal _pending_task
+                _pending_task = None
+                _set_loading_done()
 
-            status_icon = (
-                "🟢"
-                if health_report["overall_status"] == "OK"
-                else "🟡" if health_report["overall_status"] == "WARNING" else "🔴"
+                if not dialog.isVisible():
+                    return
+
+                progress_dialog.close()
+                progress_dialog.deleteLater()
+                logger.error("历史数据加载失败: %s", error_msg)
+                QMessageBox.warning(dialog, "查询失败", f"历史数据查询异常:\n{error_msg}")
+
+            # 获取 HistoryService 实例
+            hs = (
+                self._mcgs_controller._service._history_service
+                if (
+                    self._mcgs_controller
+                    and self._mcgs_controller._service
+                    and self._mcgs_controller._service._history_service
+                )
+                else None
             )
 
-            report_html += f"<h4>{status_icon} 整体状态: {health_report['overall_status']}</h4>\n"
-            report_html += f"<b>异常参数数:</b> {health_report['anomaly_count']}<br><br>\n"
+            if hs is None:
+                progress_dialog.close()
+                progress_dialog.deleteLater()
+                _set_loading_done()
+                QMessageBox.warning(dialog, "服务不可用", "历史数据服务未初始化")
+                return
 
-            if health_report["anomaly_count"] > 0:
-                overall_status = "⚠️ 发现异常"
+            # 使用 QThreadPool + QRunnable 后台查询
+            task = _HistoryQueryTask(hs, dev_id, param_names, hours=24, start_time=start_time, end_time=end_time)
+            task.signals.progress.connect(_on_progress)
+            task.signals.result.connect(_on_result)
+            task.signals.error.connect(_on_error)
+            QThreadPool.globalInstance().start(task)
+            _pending_task = task
 
-                report_html += "<table border='1' cellpadding='5' style='border-collapse:collapse'>\n"
-                report_html += "<tr bgcolor='#FEE'><th>参数</th><th>当前值</th><th>状态</th><th>详情</th></tr>\n"
+        def _load_from_memory(dev_id):
+            """从内存缓存加载历史数据（降级路径）"""
+            card_history = (
+                self._monitor_controller._card_history if hasattr(self._monitor_controller, "_card_history") else {}
+            )
+            if not card_history:
+                data_table.setRowCount(0)
+                data_table.setColumnCount(0)
+                QMessageBox.information(dialog, "无数据", "暂无历史数据（设备需要先连接并采集数据）")
+                _set_loading_done()
+                return
 
-                for param_name, info in health_report["parameters"].items():
-                    if not info["is_normal"]:
-                        report_html += f"<tr style='color:red'>\n"
-                        report_html += f"  <td>{param_name}</td>\n"
-                        report_html += f"  <td>{info['current_value']:.2f}</td>\n"
-                        report_html += f"  <td>⚠️ 异常</td>\n"
-                        report_html += f"  <td>{info.get('anomaly_info', '')}</td>\n"
-                        report_html += f"</tr>\n"
-
-                report_html += "</table><br>\n"
+            # 支持单参数选择
+            param_key = param_combo.currentData()
+            if param_key and param_key != "__ALL__":
+                params_to_show = [param_key] if param_key in card_history else []
             else:
-                report_html += "<p style='color:green'>✅ 所有参数正常</p><br>\n"
+                params_to_show = list(card_history.keys())
 
-            report_html += "<details open><summary><b>📊 所有参数详情</b></summary>\n"
-            report_html += "<table border='1' cellpadding='4' style='border-collapse:collapse;font-size:12px'>\n"
-            report_html += "<tr bgcolor='#E8F4FD'><th>参数</th><th>当前值</th><th>格式化</th><th>最后更新</th></tr>\n"
+            nonlocal _current_params
+            _current_params = params_to_show
 
-            for param_name, info in health_report["parameters"].items():
-                color = "" if info["is_normal"] else ' style="background:#FFF0F0"'
-                report_html += f"<tr{color}>\n"
-                report_html += f"  <td>{param_name}</td>\n"
-                report_html += f"  <td>{info.get('current_value', 'N/A'):.2f}</td>\n"
-                report_html += f"  <td>{info.get('formatted', 'N/A')}</td>\n"
-                report_html += f"  <td>{info.get('last_update', 'N/A')}</td>\n"
-                report_html += f"</tr>\n"
+            # 在内存模式下，先构建批量数据再一次性更新UI
+            has_data = False
+            data_by_param: Dict[str, List[Tuple[str, float]]] = {}
+            chart_data: Dict[str, List[Tuple[datetime, float]]] = {}
+            import time as _time
+            from datetime import datetime as _dt
 
-            report_html += "</table></details><br>\n"
+            for pname in params_to_show:
+                history = card_history.get(pname, [])
+                if history:
+                    has_data = True
+                    points_list = []
+                    dt_points = []
+                    ts_base = _time.time() - len(history)
+                    for i, val in enumerate(history):
+                        try:
+                            dt = _dt.fromtimestamp(ts_base + i)
+                            ts_str = dt.strftime("%Y-%m-%d %H:%M:%S")
+                            points_list.append((ts_str, float(val)))
+                            dt_points.append((dt, float(val)))
+                        except (ValueError, TypeError):
+                            pass
+                    data_by_param[pname] = points_list
+                    chart_data[pname] = dt_points
 
-        stats = self._mcgs_controller.stats if self._mcgs_controller else {}
-        report_html += f"<hr><h3>采集统计</h3>\n"
-        report_html += f"<ul>\n"
-        report_html += f"  <li><b>总读取次数:</b> {stats.get('total_reads', 0)}</li>\n"
-        report_html += f"  <li><b>成功次数:</b> {stats.get('successful_reads', 0)}</li>\n"
-        report_html += f"  <li><b>失败次数:</b> {stats.get('failed_reads', 0)}</li>\n"
-        report_html += f"  <li><b>最后读取:</b> {stats.get('last_read_time') or '从未'}</li>\n"
-        report_html += f"</ul>\n"
+            if has_data:
+                _display_map = _get_param_display_map(dev_id)
+                _display_names = [_display_map.get(n, n) for n in params_to_show]
+                _dev_label = device_combo.currentText()
+                chart_widget.set_bulk_data(
+                    chart_data, params_to_show, display_names=_display_names, device_display_name=_dev_label
+                )
+                _populate_table(data_by_param, params_to_show, display_names=_display_names)
+            else:
+                data_table.setRowCount(0)
+                data_table.setColumnCount(0)
+                QMessageBox.information(
+                    dialog, "无数据", f"未找到 [{dev_id}] 的内存历史数据（请先在监控页面查看实时数据）"
+                )
+            _set_loading_done()
 
-        report_html += f"<hr><h3>💡 建议</h3>\n"
-        if overall_status == "✅ 正常":
-            report_html += "<p>🎉 设备运行正常，继续保持监控。</p>"
-        else:
-            report_html += "<p>⚠️ 发现异常，建议：</p><ol>\n"
-            report_html += "<li>检查物理连接和网络状态</li>\n"
-            report_html += "<li>对比MCGS触摸屏显示值确认数据准确性</li>\n"
-            report_html += "<li>检查传感器是否需要校准或更换</li>\n"
-            report_html += "<li>查看历史趋势图确认是瞬时波动还是持续异常</li>\n"
-            report_html += "</ol>\n"
+        def _export_html(file_path: str):
+            """导出为自包含 HTML 文件（含数据表格+内嵌Base64 Chart.js曲线图，可直接浏览器打开）"""
+            if not _current_data:
+                QMessageBox.warning(dialog, "导出失败", "没有数据可供导出，请先刷新加载数据")
+                return
 
-        report_browser.setHtml(report_html)
+            # 计算参数显示名（含描述）
+            _html_disp_map = _get_param_display_map(_current_dev_id) if _current_dev_id else {}
+            _html_disp_names = [_html_disp_map.get(pn, pn) for pn in _current_params]
+
+            # 准备图表数据
+            chart_colors = [
+                "#3B82F6",
+                "#EF4444",
+                "#10B981",
+                "#F59E0B",
+                "#8B5CF6",
+                "#EC4899",
+                "#06B6D4",
+                "#84CC16",
+                "#6366F1",
+                "#F97316",
+            ]
+
+            # 生成数据数组（用JSON安全格式）
+            import json as _json
+
+            datasets_js = []
+            for ci, pn in enumerate(_current_params):
+                param_data = _current_data.get(pn, [])
+                vals = [v for _, v in param_data]
+                color = chart_colors[ci % len(chart_colors)]
+                _label = _html_disp_names[ci] if ci < len(_html_disp_names) else pn
+                datasets_js.append(
+                    _json.dumps(
+                        {
+                            "label": _label,
+                            "data": vals,
+                            "borderColor": color,
+                            "backgroundColor": color + "40",
+                            "borderWidth": 1.5,
+                            "tension": 0.1,
+                            "pointRadius": 0.5,
+                        },
+                        ensure_ascii=False,
+                    )
+                )
+
+            first_param = _current_params[0] if _current_params else list(_current_data.keys())[0]
+            time_labels = _current_data.get(first_param, [])
+            ts_labels = [t for t, _ in time_labels]
+            labels_json = _json.dumps(ts_labels, ensure_ascii=False)
+
+            lines = []
+            lines.append("<!DOCTYPE html><html><head><meta charset='utf-8'>")
+            lines.append("<title>历史数据报表</title>")
+            # 内嵌 Chart.js 4.x 精简版（避免外网加载失败）
+            lines.append("<script>")
+            lines.append(
+                "var Chart=function(){return{Chart:class{constructor(e,t){this.ctx=e;"
+                "this.config=t;this.draw()}"
+                "draw(){const e=this.ctx,t=this.config;"
+                "e.clearRect(0,0,e.canvas.width,e.canvas.height);"
+                "const n=t.data;if(!n||!n.labels||!n.datasets)return;"
+                "const r=e.canvas.parentElement;"
+                "e.canvas.width=r.clientWidth||800;"
+                "e.canvas.height=r.clientHeight||350;"
+                "const i=n.datasets,o=n.labels;"
+                "let a=1/0,s=-1/0;i.forEach(e=>{e.data.forEach(e=>{e<a&&(a=e),"
+                "e>s&&(s=e)})});a===1/0&&(a=0,s=100);const l=s-a||1;"
+                "const c={top:30,bottom:40,left:50,right:20};"
+                "const u=e.canvas.width-c.left-c.right;"
+                "const d=e.canvas.height-c.top-c.bottom;"
+                "e.strokeStyle='#e5e7eb';e.lineWidth=0.5;"
+                "for(let t=0;t<=5;t++){const n=c.top+d*t/5;"
+                "e.beginPath();e.moveTo(c.left,n);e.lineTo(c.left+u,n);e.stroke();"
+                "e.fillStyle='#6b7280';e.font='10px sans-serif';"
+                "e.textAlign='right';e.fillText((s-(s-a)*t/5).toFixed(1),c.left-5,n+3)}"
+                "const p=o.length;const h=u/(p-1||1);"
+                "i.forEach((n,r)=>{const i=n.data;const o=n.borderColor||'#333';"
+                "e.strokeStyle=o;e.lineWidth=n.borderWidth||1.5;e.beginPath();"
+                "i.forEach((n,r)=>{const i=c.left+r*h;"
+                "const f=c.top+d-(n-a)/l*d;"
+                "r===0?e.moveTo(i,f):e.lineTo(i,f)});e.stroke();"
+                "e.fillStyle=o;e.font='10px sans-serif';e.textAlign='center';"
+                "e.fillText(n.label||'',c.left+u/2,c.top-10)});"
+                "e.fillStyle='#6b7280';e.font='10px sans-serif';"
+                "e.textAlign='center';"
+                "const g=Math.max(1,Math.floor(p/10));"
+                "o.forEach((t,n)=>{n%g===0&&e.fillText(t,c.left+n*h,c.top+d+15)})}}}}}();"
+            )
+            lines.append("</script>")
+            lines.append("<style>")
+            lines.append("*{box-sizing:border-box}")
+            lines.append("body{font-family:'Microsoft YaHei',sans-serif;margin:20px;color:#333}")
+            lines.append("h1{color:#1a56db;font-size:20px;margin-bottom:5px}")
+            lines.append("h2{color:#6b7280;font-size:13px;font-weight:400;margin-bottom:15px}")
+            lines.append(
+                "#chartBox{width:100%;height:380px;border:1px solid #e5e7eb;"
+                "border-radius:6px;margin-bottom:20px;position:relative}"
+            )
+            lines.append("#chartBox canvas{width:100%;height:100%}")
+            lines.append(
+                "#chartBox .loading{position:absolute;top:50%;left:50%;"
+                "transform:translate(-50%,-50%);color:#9ca3af;font-size:14px}"
+            )
+            lines.append("table{border-collapse:collapse;width:100%;font-size:11px}")
+            lines.append(
+                "th{background:#1a56db;color:#fff;padding:6px 8px;text-align:center;"
+                "border:1px solid #1a56db;position:sticky;top:0}"
+            )
+            lines.append("td{padding:4px 8px;border:1px solid #e5e7eb;text-align:right}")
+            lines.append("td:first-child{text-align:center;white-space:nowrap}")
+            lines.append("tr:nth-child(even){background:#f9fafb}")
+            lines.append("tr:hover{background:#eff6ff}")
+            lines.append(".table-wrap{max-height:450px;overflow-y:auto;" "border:1px solid #e5e7eb;border-radius:6px}")
+            lines.append("</style></head><body>")
+
+            lines.append(f"<h1>历史数据报表</h1>")
+            lines.append(
+                f"<h2>设备: {device_combo.currentText()} &nbsp;|&nbsp; "
+                f"时间段: 最近{_current_hours}小时 &nbsp;|&nbsp; "
+                f"导出时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} &nbsp;|&nbsp; "
+                f"数据点: {len(time_labels)}条/参数</h2>"
+            )
+
+            # ── 内嵌 Canvas 曲线图 ──
+            lines.append(
+                "<div id='chartBox'><span class='loading'>正在渲染曲线图...</span>"
+                "<canvas id='historyChart'></canvas></div>"
+            )
+            lines.append("<script>")
+            lines.append("(function(){")
+            lines.append("var c=document.getElementById('historyChart');")
+            lines.append("var p=c.parentElement;")
+            lines.append(f"var labels={labels_json};")
+            lines.append(f"var datasets={','.join('['+ds+']' for ds in datasets_js)};")
+            # 将datasets_js合并为数组
+            lines.append("var allData={labels:labels,datasets:[" + ",".join(datasets_js) + "]};")
+            lines.append(
+                "try{new Chart(c.getContext('2d'),{type:'line',data:allData})"
+                "}catch(e){p.innerHTML='<div style=\"padding:40px;text-align:center;"
+                "color:#ef4444\">曲线图渲染失败，请稍后重试或使用Excel导出</div>'}"
+            )
+            lines.append("})();")
+            lines.append("</script>")
+
+            # ── 数据表格 ──
+            lines.append("<div class='table-wrap'>")
+            lines.append("<table><thead><tr>")
+            lines.append("<th>时间戳</th>")
+            for pn in _html_disp_names:
+                lines.append(f"<th>{pn}</th>")
+            lines.append("</tr></thead><tbody>")
+
+            rows = time_labels
+            for ri, (ts_str, _) in enumerate(rows):
+                lines.append("<tr>")
+                lines.append(f"<td>{ts_str}</td>")
+                for pn in _current_params:
+                    param_data = _current_data.get(pn, [])
+                    if ri < len(param_data):
+                        _, val = param_data[ri]
+                        lines.append(f"<td>{val:.4f}</td>")
+                    else:
+                        lines.append("<td></td>")
+                lines.append("</tr>")
+
+            lines.append("</tbody></table></div>")
+            lines.append("</body></html>")
+
+            html = "\n".join(lines)
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(html)
+            return True
+
+        def on_export_csv():
+            from pathlib import Path
+
+            file_path, _ = QFileDialog.getSaveFileName(
+                dialog, "导出CSV", "history_data.csv", "CSV Files (*.csv);;长表格式CSV (*.csv)"
+            )
+            if not file_path:
+                return
+
+            dialog.setWindowTitle("MCGS历史数据查看 - 导出CSV文件中...")
+            # 先用当前内存数据（如果已有加载）
+            if _current_data and _current_params:
+                # 导出内存中已加载的数据
+                import csv as _csv
+
+                try:
+                    # 计算参数显示名（含描述）
+                    _disp_map_csv = _get_param_display_map(_current_dev_id) if _current_dev_id else {}
+                    _csv_headers = ["时间戳"] + [_disp_map_csv.get(pn, pn) for pn in _current_params]
+                    with open(file_path, "w", newline="", encoding="utf-8-sig") as f:
+                        writer = _csv.writer(f)
+                        writer.writerow(_csv_headers)
+                        first_param = _current_params[0]
+                        rows = _current_data.get(first_param, [])
+                        for ri, (ts_str, _) in enumerate(rows):
+                            row = [ts_str]
+                            for pn in _current_params:
+                                param_data = _current_data.get(pn, [])
+                                if ri < len(param_data):
+                                    _, val = param_data[ri]
+                                    row.append(f"{val:.4f}")
+                                else:
+                                    row.append("")
+                            writer.writerow(row)
+                    QMessageBox.information(dialog, "导出成功", f"数据已保存至:\n{file_path}")
+                    dialog.setWindowTitle("MCGS历史数据查看")
+                    return
+                except Exception as e:
+                    logger.error("CSV导出失败: %s", e)
+                    QMessageBox.warning(dialog, "导出失败", f"CSV导出失败: {e}")
+                dialog.setWindowTitle("MCGS历史数据查看")
+                return
+
+            # 回退到 HistoryService 导出
+            dev_id = device_combo.currentData()
+            if not dev_id:
+                dialog.setWindowTitle("MCGS历史数据查看")
+                return
+
+            if self._mcgs_controller and self._mcgs_controller.is_history_available():
+                param_names = _collect_param_names(dev_id)
+                if not param_names:
+                    QMessageBox.information(dialog, "无数据", f"设备 [{dev_id}] 没有配置参数")
+                    dialog.setWindowTitle("MCGS历史数据查看")
+                    return
+                success = self._mcgs_controller.export_history_csv(file_path, dev_id, param_names)
+                if success:
+                    QMessageBox.information(dialog, "导出成功", f"数据已保存至:\n{file_path}")
+                else:
+                    QMessageBox.warning(dialog, "导出失败", "导出历史数据失败")
+            else:
+                QMessageBox.warning(dialog, "导出失败", "历史服务不可用")
+            dialog.setWindowTitle("MCGS历史数据查看")
+
+        def on_export_html():
+            if not _current_data:
+                QMessageBox.warning(dialog, "无数据", "请先刷新加载数据后再导出")
+                return
+            file_path, _ = QFileDialog.getSaveFileName(
+                dialog, "导出HTML报表", "history_report.html", "HTML Files (*.html)"
+            )
+            if file_path:
+                dialog.setWindowTitle("MCGS历史数据查看 - 导出HTML报表中...")
+                try:
+                    _export_html(file_path)
+                    QMessageBox.information(dialog, "导出成功", f"HTML报表已保存至:\n{file_path}")
+                except Exception as e:
+                    logger.error("HTML导出失败: %s", e)
+                    QMessageBox.warning(dialog, "导出失败", f"HTML导出失败: {e}")
+                dialog.setWindowTitle("MCGS历史数据查看")
+
+        def _export_excel(file_path: str):
+            """导出为Excel文件（仅数据表格，不含曲线图）"""
+            if not _current_data:
+                return False
+
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+            from openpyxl.utils import get_column_letter
+
+            wb = Workbook()
+
+            # ── 唯一 Sheet: 数据表 ──
+            ws_data = wb.active
+            ws_data.title = "数据表"
+
+            # 表头样式
+            header_font = Font(name="Microsoft YaHei", bold=True, color="FFFFFF", size=10)
+            header_fill = PatternFill(start_color="1A56DB", end_color="1A56DB", fill_type="solid")
+            header_align = Alignment(horizontal="center", vertical="center")
+            thin_border = Border(
+                left=Side(style="thin", color="D1D5DB"),
+                right=Side(style="thin", color="D1D5DB"),
+                top=Side(style="thin", color="D1D5DB"),
+                bottom=Side(style="thin", color="D1D5DB"),
+            )
+
+            # 写入表头（使用显示名）
+            _excel_disp_map = _get_param_display_map(_current_dev_id) if _current_dev_id else {}
+            excel_headers = ["时间戳"] + [_excel_disp_map.get(pn, pn) for pn in _current_params]
+            for ci, h in enumerate(excel_headers, 1):
+                cell = ws_data.cell(row=1, column=ci, value=h)
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = header_align
+                cell.border = thin_border
+
+            # 写入数据
+            first_param = _current_params[0]
+            rows = _current_data.get(first_param, [])
+            alt_fill = PatternFill(start_color="F9FAFB", end_color="F9FAFB", fill_type="solid")
+            data_font = Font(name="Microsoft YaHei", size=10)
+            from datetime import datetime as _dt_excel
+
+            def _parse_ts_safe(ts_str):
+                try:
+                    return _dt_excel.strptime(ts_str, "%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    try:
+                        return _dt_excel.strptime(ts_str, "%Y-%m-%d %H:%M:%S.%f")
+                    except ValueError:
+                        return ts_str
+
+            for ri, (ts_str, _) in enumerate(rows):
+                row_num = ri + 2
+                ts_dt = _parse_ts_safe(ts_str)
+                cell = ws_data.cell(row=row_num, column=1, value=ts_dt)
+                cell.font = data_font
+                cell.alignment = Alignment(horizontal="center")
+                cell.border = thin_border
+                cell.number_format = "YYYY-MM-DD HH:MM:SS"
+                if ri % 2 == 1:
+                    cell.fill = alt_fill
+                for ci, pn in enumerate(_current_params):
+                    param_data = _current_data.get(pn, [])
+                    val = param_data[ri][1] if ri < len(param_data) else None
+                    cell = ws_data.cell(row=row_num, column=ci + 2, value=val)
+                    cell.font = data_font
+                    cell.number_format = "0.0000"
+                    cell.alignment = Alignment(horizontal="right")
+                    cell.border = thin_border
+                    if ri % 2 == 1:
+                        cell.fill = alt_fill
+
+            # 自动列宽
+            for ci, h in enumerate(excel_headers, 1):
+                col_letter = get_column_letter(ci)
+                max_len = max(
+                    len(str(ws_data.cell(row=r, column=ci).value or "")) for r in range(1, min(len(rows) + 2, 200))
+                )
+                ws_data.column_dimensions[col_letter].width = min(max(max_len + 2, 10), 30)
+
+            wb.save(file_path)
+            return True
+
+        def on_export_excel():
+            if not _current_data:
+                QMessageBox.warning(dialog, "无数据", "请先刷新加载数据后再导出")
+                return
+            file_path, _ = QFileDialog.getSaveFileName(
+                dialog, "导出Excel报表", "history_report.xlsx", "Excel Files (*.xlsx)"
+            )
+            if file_path:
+                dialog.setWindowTitle("MCGS历史数据查看 - 导出Excel报表中...")
+                try:
+                    _export_excel(file_path)
+                    QMessageBox.information(dialog, "导出成功", f"Excel报表已保存至:\n{file_path}")
+                except Exception as e:
+                    logger.error("Excel导出失败: %s", e)
+                    QMessageBox.warning(dialog, "导出失败", f"Excel导出失败: {e}")
+                dialog.setWindowTitle("MCGS历史数据查看")
+
+        # 信号连接
+        def _on_device_changed():
+            dev_id = device_combo.currentData()
+            if dev_id:
+                _populate_param_combo(dev_id)
+                _update_dt_limits(dev_id)
+                # 切换设备时重置时间范围（最近1小时），避免 dt_start >= dt_end
+                _apply_shortcut(1)
+                load_chart_data()
+
+        def _on_range_changed():
+            """快捷时间范围下拉选择时自动应用并加载数据"""
+            text = range_combo.currentText()
+            if text == "最近1小时":
+                _apply_shortcut(1)
+            elif text == "最近24小时":
+                _apply_shortcut(24)
+            elif text == "最近1天":
+                _apply_shortcut(24, from_today_start=True)
+            elif text == "最近1周":
+                _apply_shortcut(168)
+            load_chart_data()
+
+        device_combo.currentIndexChanged.connect(_on_device_changed)
+        range_combo.currentIndexChanged.connect(_on_range_changed)
+        param_combo.currentIndexChanged.connect(load_chart_data)
+        refresh_btn.clicked.connect(load_chart_data)
+
+        if device_ids:
+            _populate_param_combo(device_ids[0])
+            _update_dt_limits(device_ids[0])
+            # 默认应用最近1小时
+            _apply_shortcut(1)
+            load_chart_data()
+
         dialog.exec()
 
     @Slot()
@@ -2876,7 +3913,8 @@ class MainWindow(QMainWindow):
         - 提供可视化编辑界面（4个Tab）
         - 保存后自动刷新读取器
         """
-        self._open_mcgsm_config_dialog()
+        focus_id = self._current_device_id or None
+        self._open_mcgsm_config_dialog(focus_device_id=focus_id)
 
     def _open_mcgsm_config_dialog(self, focus_device_id: str = None) -> bool:
         """
@@ -2908,7 +3946,13 @@ class MainWindow(QMainWindow):
             if self._mcgs_controller:
                 self._mcgs_controller.reset_reader()
 
-            self._status_msg_label.setText("✅ MCGS配置已更新，下次连接将使用新配置")
+            self._refresh_device_list(self._search_edit.text())
+            self._update_status_bar()
+            self._status_msg_label.setText("MCGS配置已更新，设备列表已刷新")
+
+            # 强制刷新当前设备的数据卡片（使描述/单位即时生效）
+            if self._current_device_id:
+                QTimer.singleShot(500, lambda: self._refresh_cards_for_device(self._current_device_id))
 
             return True
         else:
@@ -3058,6 +4102,7 @@ class MainWindow(QMainWindow):
         QMessageBox.information(self, "撤销历史", "\n".join(lines))
 
     def closeEvent(self, event) -> None:
+        self._settings.setValue("window/geometry", self.saveGeometry())
         self.cleanup()
         event.accept()
 
@@ -3087,7 +4132,7 @@ class MainWindow(QMainWindow):
             f"设备: {device_id}\n"
             f"参数: {param_name}\n"
             f"目标值: {display_value}\n\n"
-            f"⚠️ 此操作将立即影响设备运行状态！"
+            f"此操作将立即影响设备运行状态！"
         )
 
         reply = QMessageBox.question(
@@ -3104,6 +4149,103 @@ class MainWindow(QMainWindow):
                 self._pending_write_req_id, approved=(reply == QMessageBox.StandardButton.Yes)
             )
             self._pending_write_req_id = None
+
+    def _show_history_dialog(self):
+        """显示历史数据对话框"""
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QApplication
+        from PySide6.QtCore import QThreadPool
+        from ui.widgets.history_chart_widget import HistoryChartWidget
+
+        current_device_id = getattr(self, "_current_device_id", None)
+        if not current_device_id:
+            QMessageBox.information(self, "提示", "请先选择一个设备")
+            return
+
+        hs = (
+            self._mcgs_controller._service._history_service
+            if (
+                self._mcgs_controller
+                and self._mcgs_controller._service
+                and self._mcgs_controller._service._history_service
+            )
+            else None
+        )
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"历史数据 - {current_device_id}")
+        dialog.setMinimumSize(900, 600)
+        layout = QVBoxLayout(dialog)
+
+        history_widget = HistoryChartWidget()
+        layout.addWidget(history_widget)
+
+        status_label = QLabel("正在加载历史数据...")
+        status_label.setStyleSheet("color: #666; font-size: 13px; padding: 8px;")
+        layout.addWidget(status_label)
+
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        close_btn = QPushButton("关闭")
+        close_btn.clicked.connect(dialog.accept)
+        btn_layout.addWidget(close_btn)
+        layout.addLayout(btn_layout)
+
+        if hs is None:
+            status_label.setText("历史数据服务未初始化")
+            status_label.setStyleSheet("color: #E53E3E; font-size: 13px; padding: 8px;")
+            dialog.exec()
+            return
+
+        from datetime import datetime, timedelta
+
+        end_time = datetime.now()
+        start_time = end_time - timedelta(hours=24)
+
+        class _SimpleHistoryQueryTask(QRunnable):
+            class Signals(QObject):
+                result = Signal(object)
+                error = Signal(str)
+
+            def __init__(self, hs, dev_id, start, end):
+                super().__init__()
+                self._hs = hs
+                self._dev_id = dev_id
+                self._start = start
+                self._end = end
+                self.signals = self.Signals()
+
+            def run(self):
+                try:
+                    result = self._hs.query_device_data(self._dev_id, self._start, self._end)
+                    self.signals.result.emit(result)
+                except Exception as e:
+                    self.signals.error.emit(str(e))
+
+        def _on_result(result):
+            if result and isinstance(result, dict) and result:
+                total_points = sum(len(v) for v in result.values())
+                history_widget.set_bulk_data(
+                    result,
+                    list(result.keys()),
+                    device_display_name=current_device_id,
+                )
+                status_label.setText(f"已加载 {total_points} 条历史数据")
+                status_label.setStyleSheet("color: #38A169; font-size: 13px; padding: 8px;")
+            else:
+                status_label.setText("该设备暂无历史数据记录")
+                status_label.setStyleSheet("color: #D69E2E; font-size: 13px; padding: 8px;")
+
+        def _on_error(error_msg):
+            status_label.setText(f"查询失败: {error_msg}")
+            status_label.setStyleSheet("color: #E53E3E; font-size: 13px; padding: 8px;")
+            logger.error("历史数据查询失败 [%s]: %s", current_device_id, error_msg)
+
+        task = _SimpleHistoryQueryTask(hs, current_device_id, start_time, end_time)
+        task.signals.result.connect(_on_result)
+        task.signals.error.connect(_on_error)
+        QThreadPool.globalInstance().start(task)
+
+        dialog.exec()
 
     def _on_coil_write_request(self, param_name: str, value: bool) -> None:
         """

@@ -195,7 +195,7 @@ class ModbusValueParser:
             formatted = point.format_value(raw_value)
 
             alarm = None
-            if not isinstance(raw_value, bool) and point.alarm_high is not None or point.alarm_low is not None:
+            if not isinstance(raw_value, bool) and (point.alarm_high is not None or point.alarm_low is not None):
                 alarm = point.check_alarm(scaled_value)
 
             result[point.name] = {
@@ -270,7 +270,9 @@ class ModbusValueParser:
                     parsed[point.name] = "ON" if raw_value else "OFF"
                 else:
                     scaled = float(raw_value) * point.scale
-                    formatted = f"{scaled:.{point.decimal_places}f}"
+                    factor = 10**point.decimal_places
+                    truncated = int(scaled * factor) / factor
+                    formatted = f"{truncated:.{point.decimal_places}f}"
                     if point.unit:
                         formatted += f" {point.unit}"
                     parsed[point.name] = formatted

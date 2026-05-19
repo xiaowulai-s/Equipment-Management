@@ -31,7 +31,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import Qt, QTimer, QDateTime, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QPen, QPainter
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -187,51 +187,14 @@ class HistoryChartWidget(QWidget):
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(8)
 
-        # ===== 工具栏 =====
-        toolbar = QHBoxLayout()
-        toolbar.setSpacing(10)
-
-        # 时间范围选择
-        time_label = QLabel("时间范围:")
-        time_label.setStyleSheet("color: #374151; font-size: 12px;")
-        toolbar.addWidget(time_label)
-
-        self._time_range_combo = QComboBox()
-        self._time_range_combo.addItems(["1小时", "6小时", "24小时", "7天"])
-        self._time_range_combo.setCurrentIndex(0)  # 默认1小时
-        self._time_range_combo.setMinimumWidth(100)
-        self._time_range_combo.currentIndexChanged.connect(self._on_time_range_changed)
-        toolbar.addWidget(self._time_range_combo)
-
-        toolbar.addStretch()
-
-        # 刷新按钮
-        self._refresh_btn = QPushButton("刷新")
-        self._refresh_btn.setFixedHeight(28)
-        self._refresh_btn.clicked.connect(self.refresh_chart)
-        toolbar.addWidget(self._refresh_btn)
-
-        # 导出CSV按钮
-        self._export_btn = QPushButton("导出CSV")
-        self._export_btn.setFixedHeight(28)
-        self._export_btn.clicked.connect(self._on_export_csv)
-        toolbar.addWidget(self._export_btn)
-
-        # 自动滚动开关
-        self._auto_scroll_check = QCheckBox("自动滚动")
-        self._auto_scroll_check.setChecked(True)
-        self._auto_scroll_check.stateChanged.connect(self._on_auto_scroll_changed)
-        toolbar.addWidget(self._auto_scroll_check)
-
-        main_layout.addLayout(toolbar)
-
-        # ===== 图表区域 =====
+        # ===== 图表区域（工具栏已由外部对话框提供）=====
         self._chart = QChart()
         self._chart.setTitle(f"设备 {self._device_id} 历史趋势" if self._device_id else "历史趋势图")
         self._chart.setTitleFont(QFont("Microsoft YaHei", 14, QFont.Weight.Bold))
         self._chart.setAnimationOptions(QChart.AnimationOption.SeriesAnimations)
         self._chart.legend().setAlignment(Qt.AlignmentFlag.AlignBottom)
-        self._chart.setTheme(QChart.ChartTheme.Light)
+        if hasattr(QChart.ChartTheme, "Light"):
+            self._chart.setTheme(QChart.ChartTheme.Light)
 
         self._chart_view = QChartView(self._chart)
         self._chart_view.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -288,14 +251,95 @@ class HistoryChartWidget(QWidget):
         # 添加数据点到缓冲区
         self._data_buffer[param_name].append((timestamp, value))
 
-        # 限制最大点数（超出时移除最旧的点）
+        # 限制最大点数（超出时移除最旧的点，同时从系列中移除）
         if len(self._data_buffer[param_name]) > self._max_points:
-            self._data_buffer[param_name] = self._data_buffer[param_name][-self._max_points :]
+            removed = self._data_buffer[param_name].pop(0)
+            series = self._series_map.get(param_name)
+            if series and series.count() > 0:
+                series.remove(0)
 
-        # 更新曲线数据
-        self._update_series(param_name)
+        # 实时追加到曲线（不重建整个系列，避免闪烁）
+        series = self._series_map.get(param_name)
+        if series is not None:
+            msecs = int(timestamp.timestamp() * 1000)
+            series.append(msecs, value)
 
-        logger.debug("添加数据点 [参数=%s, 值=%.2f, 总点数=%d]", param_name, value, len(self._data_buffer[param_name]))
+        # 自动移动X轴显示最新数据（显示最近30秒）
+        if self._data_buffer.get(param_name):
+            now = datetime.now()
+            self._axis_x.setRange(
+                QDateTime.fromMSecsSinceEpoch(int((now.timestamp() - 30) * 1000)),
+                QDateTime.fromMSecsSinceEpoch(int(now.timestamp() * 1000) + 1000),
+            )
+
+        logger.debug("实时曲线 [参数=%s, 值=%.2f, 总点数=%d]", param_name, value, len(self._data_buffer[param_name]))
+
+    def set_bulk_data(
+        self,
+        data_by_param: Dict[str, List[tuple]],
+        param_names: List[str],
+        display_names: Any = None,
+        device_display_name: str = "",
+    ) -> None:
+        """
+        批量设置所有参数的历史数据（替换而非追加）
+
+        Args:
+            data_by_param: {参数名: [(时间戳, 值), ...]} 格式的数据
+            param_names: 参数名称列表
+            display_names: 显示名称(list)或映射(dict)，与 param_names 同顺序
+            device_display_name: 设备显示名称
+        """
+        if not QTCHARTS_AVAILABLE:
+            return
+
+        self.clear_data()
+        self._data_buffer.clear()
+        self._color_index = 0
+
+        for i, param_name in enumerate(param_names):
+            points = data_by_param.get(param_name, [])
+            if not points:
+                continue
+
+            if isinstance(display_names, dict):
+                display_name = display_names.get(param_name, param_name)
+            elif isinstance(display_names, list) and i < len(display_names):
+                display_name = display_names[i]
+            else:
+                display_name = param_name
+            self._data_buffer[display_name] = []
+            self._create_series(display_name)
+
+            for ts, val in points:
+                self._data_buffer[display_name].append((ts, val))
+
+            self._update_series(display_name)
+
+        # 自动调整坐标轴范围以显示所有数据
+        if self._data_buffer:
+            all_ts = []
+            all_vals = []
+            for pts in self._data_buffer.values():
+                for ts, val in pts:
+                    all_ts.append(ts)
+                    all_vals.append(val)
+            if all_ts:
+                min_ts = min(all_ts)
+                max_ts = max(all_ts)
+                min_ms = int(min_ts.timestamp() * 1000)
+                max_ms = int(max_ts.timestamp() * 1000)
+                if max_ms - min_ms < 60000:
+                    max_ms = min_ms + 60000  # 至少1分钟范围
+                self._axis_x.setRange(
+                    QDateTime.fromMSecsSinceEpoch(min_ms),
+                    QDateTime.fromMSecsSinceEpoch(max_ms),
+                )
+
+                min_val = min(all_vals)
+                max_val = max(all_vals)
+                margin = (max_val - min_val) * 0.1 if max_val != min_val else 1.0
+                self._axis_y.setRange(min_val - margin, max_val + margin)
 
     def _create_series(self, param_name: str) -> None:
         """
@@ -468,36 +512,34 @@ class HistoryChartWidget(QWidget):
             with open(filepath, "w", newline="", encoding="utf-8-sig") as csvfile:
                 writer = csv.writer(csvfile)
 
-                # 写入表头
                 header = ["时间戳"] + list(self._data_buffer.keys())
                 writer.writerow(header)
 
-                # 找出最大行数
-                max_rows = max(len(data) for data in self._data_buffer.values()) if self._data_buffer else 0
+                all_ts_set = set()
+                for data in self._data_buffer.values():
+                    for ts, _ in data:
+                        all_ts_set.add(ts)
+                sorted_ts = sorted(all_ts_set)
 
-                # 按行写入数据
-                for row_idx in range(max_rows):
-                    row = []
-
-                    # 时间戳（取第一个参数的时间，或留空）
-                    first_param = list(self._data_buffer.keys())[0]
-                    if row_idx < len(self._data_buffer[first_param]):
-                        ts = self._data_buffer[first_param][row_idx][0]
-                        row.append(ts.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3])
-                    else:
-                        row.append("")
-
-                    # 各参数的值
-                    for param_name in self._data_buffer.keys():
-                        data = self._data_buffer[param_name]
-                        if row_idx < len(data):
-                            row.append(f"{data[row_idx][1]:.4f}")
+                param_keys = list(self._data_buffer.keys())
+                for ts in sorted_ts:
+                    row = [ts.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]]
+                    for pname in param_keys:
+                        pdata = self._data_buffer[pname]
+                        closest_val = None
+                        closest_diff = float("inf")
+                        for dts, dval in pdata:
+                            diff = abs((dts - ts).total_seconds())
+                            if diff < closest_diff:
+                                closest_diff = diff
+                                closest_val = dval
+                        if closest_val is not None:
+                            row.append(f"{closest_val:.4f}")
                         else:
                             row.append("")
-
                     writer.writerow(row)
 
-            logger.info("数据已导出到: %s (%d 行)", filepath, max_rows + 1)
+            logger.info("数据已导出到: %s (%d 行)", filepath, len(sorted_ts) + 1)
             return True
 
         except Exception as e:

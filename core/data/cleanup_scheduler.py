@@ -9,7 +9,7 @@
     - 历史数据点 (默认保留365天)
 
 使用方式:
-    scheduler = CleanupScheduler(db_manager)
+    scheduler = CleanupScheduler(db_manager, history_storage=history_storage)
     scheduler.start()  # 启动定时清理
     ...
     scheduler.stop()   # 停止定时清理
@@ -21,21 +21,57 @@ import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
-from PySide6.QtCore import QObject, QTimer
+from PySide6.QtCore import QObject, QTimer, QRunnable, QThreadPool, Signal, Slot
 
 logger = logging.getLogger(__name__)
 
 
+class _CleanupRunnable(QRunnable):
+    """后台清理任务 — 在 QThreadPool 中执行，避免阻塞 UI"""
+
+    def __init__(
+        self,
+        scheduler: CleanupScheduler,
+        db_manager,
+        retention_days: Dict[str, int],
+        history_storage=None,
+    ) -> None:
+        super().__init__()
+        self._scheduler = scheduler
+        self._db_manager = db_manager
+        self._retention_days = retention_days
+        self._history_storage = history_storage
+
+    def run(self) -> None:
+        total_deleted = 0
+
+        try:
+            deleted = self._scheduler._cleanup_device_status_history()
+            total_deleted += deleted
+
+            deleted = self._scheduler._cleanup_system_logs()
+            total_deleted += deleted
+
+            deleted = self._scheduler._cleanup_alarm_records()
+            total_deleted += deleted
+
+            deleted = self._scheduler._cleanup_historical_data()
+            total_deleted += deleted
+
+            if self._history_storage is not None:
+                try:
+                    self._history_storage.cleanup_old_data()
+                except Exception:
+                    logger.exception("HistoryStorage 清理失败")
+
+        except Exception:
+            logger.exception("执行数据清理任务时出错")
+
+        self._scheduler.cleanup_finished.emit(total_deleted)
+
+
 class CleanupScheduler(QObject):
-    """数据清理调度器
-
-    定期执行数据库清理任务，防止数据无限增长。
-    默认每天执行一次清理。
-
-    Attributes:
-        cleanup_interval_hours: 清理执行间隔（小时）
-        retention_days: 各类数据的保留天数配置
-    """
+    """数据清理调度器"""
 
     DEFAULT_RETENTION_DAYS = {
         "device_status_history": 30,
@@ -44,34 +80,37 @@ class CleanupScheduler(QObject):
         "historical_data": 365,
     }
 
+    cleanup_finished = Signal(int)
+
     def __init__(
         self,
         db_manager,
         cleanup_interval_hours: int = 24,
         retention_days: Optional[Dict[str, int]] = None,
+        history_storage=None,
         parent=None,
     ) -> None:
         super().__init__(parent)
         self._db_manager = db_manager
         self._cleanup_interval_hours = cleanup_interval_hours
         self._retention_days = retention_days or dict(self.DEFAULT_RETENTION_DAYS)
+        self._history_storage = history_storage
         self._timer: Optional[QTimer] = None
         self._is_running = False
 
+        self.cleanup_finished.connect(self._on_cleanup_finished)
+
     @property
     def is_running(self) -> bool:
-        """是否正在运行"""
         return self._is_running
 
     def start(self) -> None:
-        """启动定时清理任务"""
         if self._is_running:
             logger.warning("清理调度器已在运行")
             return
 
         self._timer = QTimer(self)
-        self._timer.timeout.connect(self._run_cleanup)
-        # 转换为毫秒
+        self._timer.timeout.connect(self._schedule_cleanup)
         interval_ms = self._cleanup_interval_hours * 60 * 60 * 1000
         self._timer.start(interval_ms)
         self._is_running = True
@@ -82,11 +121,9 @@ class CleanupScheduler(QObject):
             self._retention_days,
         )
 
-        # 启动时立即执行一次清理
-        self._run_cleanup()
+        self._schedule_cleanup()
 
     def stop(self) -> None:
-        """停止定时清理任务"""
         if not self._is_running:
             return
 
@@ -97,35 +134,16 @@ class CleanupScheduler(QObject):
         self._is_running = False
         logger.info("数据清理调度器已停止")
 
-    def _run_cleanup(self) -> None:
-        """执行清理任务"""
-        logger.info("开始执行数据清理任务...")
-        total_deleted = 0
+    def _schedule_cleanup(self) -> None:
+        logger.info("提交数据清理任务到后台线程...")
+        runnable = _CleanupRunnable(self, self._db_manager, self._retention_days, self._history_storage)
+        QThreadPool.globalInstance().start(runnable)
 
-        try:
-            # 清理设备状态历史
-            deleted = self._cleanup_device_status_history()
-            total_deleted += deleted
-
-            # 清理系统日志
-            deleted = self._cleanup_system_logs()
-            total_deleted += deleted
-
-            # 清理报警记录
-            deleted = self._cleanup_alarm_records()
-            total_deleted += deleted
-
-            # 清理历史数据点
-            deleted = self._cleanup_historical_data()
-            total_deleted += deleted
-
-            logger.info("数据清理完成，共清理 %d 条记录", total_deleted)
-
-        except Exception:
-            logger.exception("执行数据清理任务时出错")
+    @Slot(int)
+    def _on_cleanup_finished(self, total_deleted: int) -> None:
+        logger.info("数据清理完成，共清理 %d 条记录", total_deleted)
 
     def _cleanup_device_status_history(self) -> int:
-        """清理设备状态历史"""
         try:
             from sqlalchemy import delete
 
@@ -147,7 +165,6 @@ class CleanupScheduler(QObject):
             return 0
 
     def _cleanup_system_logs(self) -> int:
-        """清理系统日志"""
         try:
             from sqlalchemy import delete
 
@@ -167,7 +184,6 @@ class CleanupScheduler(QObject):
             return 0
 
     def _cleanup_alarm_records(self) -> int:
-        """清理报警记录"""
         try:
             from sqlalchemy import delete
 
@@ -187,7 +203,6 @@ class CleanupScheduler(QObject):
             return 0
 
     def _cleanup_historical_data(self) -> int:
-        """清理历史数据点"""
         try:
             from sqlalchemy import delete
 
@@ -207,17 +222,6 @@ class CleanupScheduler(QObject):
             return 0
 
     def cleanup_now(self) -> Dict[str, int]:
-        """立即执行清理，返回各类数据删除数量
-
-        Returns:
-            清理结果字典，如:
-            {
-                "device_status_history": 100,
-                "system_logs": 50,
-                "alarm_records": 20,
-                "historical_data": 1000,
-            }
-        """
         results = {}
 
         results["device_status_history"] = self._cleanup_device_status_history()
@@ -231,12 +235,6 @@ class CleanupScheduler(QObject):
         return results
 
     def update_retention_policy(self, data_type: str, days: int) -> None:
-        """更新数据保留策略
-
-        Args:
-            data_type: 数据类型，如 'device_status_history', 'system_logs' 等
-            days: 保留天数
-        """
         if data_type in self._retention_days:
             old_days = self._retention_days[data_type]
             self._retention_days[data_type] = days
@@ -250,5 +248,4 @@ class CleanupScheduler(QObject):
             logger.warning("未知的数据类型: %s", data_type)
 
     def get_retention_policy(self) -> Dict[str, int]:
-        """获取当前数据保留策略"""
         return dict(self._retention_days)

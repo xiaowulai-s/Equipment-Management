@@ -34,8 +34,14 @@ class MCGSReadResult:
     """MCGS单次读取+处理的结果"""
 
     __slots__ = (
-        "device_id", "success", "timestamp", "duration_ms",
-        "parsed_data", "raw_data", "alarms", "error_message",
+        "device_id",
+        "success",
+        "timestamp",
+        "duration_ms",
+        "parsed_data",
+        "raw_data",
+        "alarms",
+        "error_message",
     )
 
     def __init__(self, device_id: str):
@@ -50,10 +56,7 @@ class MCGSReadResult:
 
     def __repr__(self):
         status = "OK" if self.success else f"FAIL({self.error_message})"
-        return (
-            f"MCGSReadResult({self.device_id}, {status}, "
-            f"{len(self.parsed_data)}pts, {self.duration_ms:.1f}ms)"
-        )
+        return f"MCGSReadResult({self.device_id}, {status}, " f"{len(self.parsed_data)}pts, {self.duration_ms:.1f}ms)"
 
 
 class MCGSService:
@@ -161,17 +164,13 @@ class MCGSService:
 
             if self._anomaly_service is not None:
                 try:
-                    result.alarms = self._anomaly_service.check_device_data(
-                        device_id, read_result.parsed_data
-                    )
+                    result.alarms = self._anomaly_service.check_device_data(device_id, read_result.parsed_data)
                 except Exception as e:
                     logger.warning("[%s] 异常检测失败: %s", device_id, e)
 
             if self._history_service is not None:
                 try:
-                    self._history_service.save_device_data(
-                        device_id, read_result.parsed_data
-                    )
+                    self._history_service.save_device_data(device_id, read_result.parsed_data)
                 except Exception as e:
                     logger.warning("[%s] 历史存储失败: %s", device_id, e)
 
@@ -183,7 +182,9 @@ class MCGSService:
 
             logger.info(
                 "[%s] 处理完成 [点位=%d, 耗时=%.1fms]",
-                device_id, len(result.parsed_data), duration_ms,
+                device_id,
+                len(result.parsed_data),
+                duration_ms,
             )
 
         except Exception as e:
@@ -207,7 +208,7 @@ class MCGSService:
             logger.info("[%s] 设备已连接", device_id)
         else:
             DataBus.instance().publish_comm_error(device_id, "连接失败")
-            logger.warning("[%s] 设备连接失败", device_id)
+            logger.debug("[%s] 设备连接失败", device_id)
 
         return success
 
@@ -217,9 +218,9 @@ class MCGSService:
             return False
 
         try:
-            if hasattr(self._reader, 'disconnect_device'):
+            if hasattr(self._reader, "disconnect_device"):
                 self._reader.disconnect_device(device_id)
-            elif hasattr(self._reader, 'disconnect_all'):
+            elif hasattr(self._reader, "disconnect_all"):
                 self._reader.disconnect_all()
 
             DataBus.instance().publish_device_disconnected(device_id)
@@ -234,9 +235,7 @@ class MCGSService:
         """获取服务统计信息"""
         stats = dict(self._stats)
         if stats["total_reads"] > 0:
-            stats["success_rate"] = (
-                stats["successful_reads"] / stats["total_reads"] * 100
-            )
+            stats["success_rate"] = stats["successful_reads"] / stats["total_reads"] * 100
         else:
             stats["success_rate"] = 0.0
         return stats
@@ -250,9 +249,9 @@ class MCGSService:
         except Exception:
             pass
 
-        if self._reader and hasattr(self._reader, '_devices'):
+        if self._reader and hasattr(self._reader, "_devices"):
             device = self._reader._devices.get(device_id)
-            if device and hasattr(device, 'byte_order'):
+            if device and hasattr(device, "byte_order"):
                 return device.byte_order
 
         return "CDAB"
@@ -279,9 +278,7 @@ class MCGSService:
                         elif isinstance(val_str, (int, float)):
                             value = float(val_str)
 
-                    bus.publish_alarm(
-                        device_id, param_name, alarm_type, value
-                    )
+                    bus.publish_alarm(device_id, param_name, alarm_type, value)
                 except Exception as e:
                     logger.warning("发布报警失败: %s", e)
 

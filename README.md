@@ -1,14 +1,14 @@
-# 工业设备管理系统 (Equipment Management System) v2.0.0
+# 工业设备管理系统 (Equipment Management System) v2.1.0
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![PySide6](https://img.shields.io/badge/PySide6-6.6%2B-green.svg)](https://pypi.org/project/PySide6/)
-[![Version](https://img.shields.io/badge/Version-2.0.0-orange.svg)]()
+[![Version](https://img.shields.io/badge/Version-2.1.0-orange.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![MCGS](https://img.shields.io/badge/MCGS-Modbus_TCP-integrationred.svg)](MCGS.md)
 
 基于 **PySide6** 和 **Modbus 协议** 的工业设备上位机监控软件，采用 **四层解耦 + 服务化架构**，支持 **MCGS 触摸屏集成**、多设备并发管理、实时数据可视化和智能故障恢复。
 
-> **v2.0.0 正式发布** — 完整支持 MCGS 触摸屏 Modbus TCP 通信，数据实时读取与可视化已验证通过 ✅
+> **v2.1.0** — 日志系统重构 (structlog 中文完美显示)、编码安全加固、连接失败日志去重、PBKDF2 密码升级、冗余文件清理
 
 ---
 
@@ -157,49 +157,78 @@
 
 ```
 equipment-management/
-├── core/                              # 核心源码
-│   ├── foundation/                    # 基础设施层
-│   │   └── data_bus.py               # DataBus v2.0 (发布/订阅)
-│   ├── engine/                       # 引擎层
-│   │   └── gateway_engine.py         # 网关引擎
-│   ├── protocols/                    # 协议层
-│   │   ├── modbus_protocol.py        # Modbus TCP/RTU/ASCII
-│   │   └── byte_order_config.py      # 字节序配置
+├── main.py                           # 程序入口
+├── config.json                       # 系统配置
+├── config/
+│   └── devices.json                  # MCGS 设备配置
+├── core/                             # 核心源码
 │   ├── communication/                # 通信驱动层
-│   │   ├── tcp_driver.py             # TCP 驱动
-│   │   └── serial_driver.py          # 串口驱动
-│   ├── device/                       # 设备管理层 (v4.0)
-│   │   ├── device_manager_facade.py  # 统一入口
-│   │   ├── device_registry.py        # 注册中心
-│   │   ├── polling_scheduler.py      # 轮询调度
-│   │   └── fault_recovery_service.py # 故障恢复
-│   ├── services/                     # 业务服务层
-│   │   ├── mcgs_service.py           # MCGS 服务
-│   │   ├── audit_log_service.py      # 审计日志
-│   │   └── report_service.py         # 报表服务
-│   ├── utils/                        # 工具模块
-│   │   ├── mcgs_modbus_reader.py     # MCGS Modbus 读取器 ⭐
-│   │   ├── alarm_manager.py          # 报警管理
-│   │   └── data_exporter.py          # 数据导出
+│   │   ├── tcp_driver.py             # TCP 驱动 + FC08心跳 + KeepAlive
+│   │   ├── serial_driver.py          # 串口驱动 (TOCTOU安全)
+│   │   └── base_driver.py            # 驱动抽象基类
 │   ├── data/                         # 数据持久化层
 │   │   ├── models.py                 # ORM 模型 (7表)
-│   │   └── repository/               # Repository 模式
+│   │   ├── repository/               # Repository 模式 (5仓库)
+│   │   ├── cleanup_scheduler.py      # 定时数据清理
+│   │   └── historical_recorder.py    # 历史数据记录
+│   ├── device/                       # 设备管理层 (v4.0)
+│   │   ├── device_manager_facade.py  # 统一入口 (Facade)
+│   │   ├── device_manager.py         # 旧版管理器 (向后兼容)
+│   │   ├── device_registry.py        # 注册中心 (CRUD)
+│   │   ├── polling_scheduler.py      # 轮询调度
+│   │   ├── fault_recovery_service.py # 故障恢复
+│   │   ├── configuration_service.py  # 配置管理
+│   │   ├── device_factory.py         # 设备工厂
+│   │   ├── connection_factory.py     # 连接工厂
+│   │   ├── device_models.py          # 数据模型 (dataclass)
+│   │   └── interfaces.py             # 接口定义 (依赖注入)
+│   ├── engine/                       # 引擎层
+│   │   ├── gateway_engine.py         # 网关引擎
+│   │   ├── heartbeat_manager.py      # 心跳管理
+│   │   └── reconnect_policy.py       # 重连策略
+│   ├── foundation/                   # 基础设施层
+│   │   ├── data_bus.py               # DataBus (发布/订阅)
+│   │   ├── plugin_registry.py        # 插件注册表
+│   │   └── config_store.py           # 全局配置存储
+│   ├── protocols/                    # 协议层
+│   │   ├── modbus_protocol.py        # Modbus 协议实现
+│   │   └── byte_order_config.py      # 字节序配置
+│   ├── services/                     # 业务服务层
+│   │   ├── mcgs_service.py           # MCGS 读写服务
+│   │   ├── history_service.py        # 历史数据服务
+│   │   ├── report_service.py         # 报表服务
+│   │   └── anomaly_service.py        # 异常检测服务
+│   ├── utils/                        # 工具模块
+│   │   ├── mcgs_modbus_reader.py     # MCGS Modbus 读取器
+│   │   ├── alarm_manager.py          # 报警管理
+│   │   ├── history_storage.py        # 历史存储引擎
+│   │   ├── permission_manager.py     # 权限管理
+│   │   ├── data_exporter.py          # 数据导出
+│   │   └── logger.py                 # 结构化日志 (structlog)
+│   ├── plugins/                      # 协议插件
 │   └── version.py                    # 版本号 v2.0.0
 ├── ui/                               # UI 层
-│   ├── main_window.py                # 主窗口
-│   ├── controllers/
-│   │   ├── mcgs_controller.py        # MCGS 控制器 ⭐
-│   │   └── monitor_page_controller.py # 监控页控制器
-│   ├── dialogs/
-│   │   └── mcgs_config_dialog.py     # MCGS 配置对话框
-│   ├── widgets/                      # 自定义组件
+│   ├── main_window.py                # 主窗口 (信号总调度)
+│   ├── controllers/                  # 控制器层
+│   │   ├── mcgs_controller.py        # MCGS 通信控制器
+│   │   ├── device_controller.py      # 设备管理控制器
+│   │   ├── monitor_page_controller.py # 监控页控制器
+│   │   └── status_bar_controller.py  # 状态栏控制器
+│   ├── dialogs/                      # 对话框
+│   │   ├── mcgs_config_dialog.py     # MCGS 配置编辑器
+│   │   ├── device_scan_dialog.py     # 设备扫描对话框
+│   │   └── add_device_dialog.py      # 添加设备对话框
+│   ├── widgets/                      # 自定义组件库
 │   │   ├── visual.py                 # DataCard/Gauge/TrendChart
-│   │   └── history_chart_widget.py   # 历史趋势图
+│   │   ├── history_chart_widget.py   # 历史趋势图
+│   │   ├── dynamic_monitor_panel.py  # 动态监控面板
+│   │   └── __init__.py               # DeviceTree 等基础组件
+│   ├── panels/                       # 面板模块
 │   └── design_tokens.py              # 设计令牌系统
-├── config/
-│   └── devices.json                  # MCGS 设备配置 ⭐
-├── main.py                           # 程序入口
-├── MCGS.md                           # MCGS 集成文档 ⭐
+├── tests/                            # 测试
+├── docs/                             # 文档
+├── MCGS.md                           # MCGS 集成文档
+├── CHANGELOG.md                      # 变更日志
 └── README.md                         # 本文件
 ```
 
@@ -283,15 +312,17 @@ python main.py
 ## 测试
 
 ```bash
-# 运行全部测试
+# 运行所有测试
 pytest tests/ -v
 
-# 运行特定模块测试
-pytest tests/test_step2_2.py -v    # Modbus TCP 协议测试
-pytest tests/test_step4_1.py -v    # 设备模型测试
+# 运行基础功能测试
+pytest tests/test_basic.py -v
 
-# 性能测试
-python tests/test_ui_performance.py
+# 运行 MCGS 集成测试
+pytest tests/ -k mcgs -v
+
+# 运行覆盖率报告
+pytest tests/ --cov=core --cov-report=html
 ```
 
 ---
@@ -364,7 +395,7 @@ python tests/test_ui_performance.py
 - DesignTokens 设计令牌系统
 - 全局动画调度器（CPU 降低 80%+）
 - 动态监控面板 + 历史趋势图
-- 操作撤销 + 权限管理（三级 + SHA256）
+- 操作撤销 + 权限管理（三级 + PBKDF2-HMAC-SHA256）
 
 ### v1.6.0 ~ v1.0.0
 

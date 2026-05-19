@@ -21,6 +21,8 @@
 
 from __future__ import annotations
 
+import logging
+from datetime import datetime, timedelta
 from typing import Optional
 
 from PySide6.QtCore import Qt
@@ -38,6 +40,8 @@ from PySide6.QtWidgets import (
 )
 
 from core.utils.permission_manager import PermissionManager
+
+logger = logging.getLogger(__name__)
 
 
 class LoginDialog(QDialog):
@@ -62,6 +66,8 @@ class LoginDialog(QDialog):
         super().__init__(parent)
         self._pm = permission_manager
         self._username: Optional[str] = None
+        self._login_attempts = 0
+        self._login_lockout_until: Optional[datetime] = None
 
         self.setWindowTitle(title)
         self.setFixedSize(380, 280)
@@ -92,7 +98,7 @@ class LoginDialog(QDialog):
         # 表单布局
         form_layout = QFormLayout()
         form_layout.setSpacing(12)
-        form_layoutsetLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        form_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
 
         # 用户名输入框
         self._username_edit = QLineEdit()
@@ -106,7 +112,6 @@ class LoginDialog(QDialog):
         self._password_edit.setPlaceholderText("请输入密码")
         self._password_edit.setEchoMode(QLineEdit.EchoMode.Password)
         self._password_edit.setMinimumHeight(36)
-        self._password_edit.setText("admin123")  # 默认填充方便测试
         form_layout.addRow("密码:", self._password_edit)
 
         layout.addLayout(form_layout)
@@ -154,7 +159,7 @@ class LoginDialog(QDialog):
         layout.addWidget(button_box)
 
         # 帮助信息
-        help_label = QLabel("默认账户: admin/admin123  operator/operator123  viewer/viewer123")
+        help_label = QLabel("默认账户: admin / operator / viewer (首次登录后请修改密码)")
         help_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         help_label.setFont(QFont("Microsoft YaHei", 8))
         help_label.setStyleSheet("color: #9CA3AF; background: transparent;")
@@ -173,6 +178,12 @@ class LoginDialog(QDialog):
         username = self._username_edit.text().strip()
         password = self._password_edit.text()
 
+        # 暴力破解防护：检查是否被锁定
+        if self._login_lockout_until and datetime.now() < self._login_lockout_until:
+            remaining = int((self._login_lockout_until - datetime.now()).total_seconds())
+            QMessageBox.warning(self, "账户锁定", f"登录尝试次数过多，请在 {remaining} 秒后重试")
+            return
+
         # 输入验证
         if not username:
             QMessageBox.warning(self, "输入错误", "请输入用户名")
@@ -190,9 +201,16 @@ class LoginDialog(QDialog):
 
             if success:
                 self._username = username
+                self._login_attempts = 0
+                self._login_lockout_until = None
                 self.accept()
             else:
-                QMessageBox.warning(self, "登录失败", "用户名或密码错误，请重试。\n\n" "提示：检查大小写和空格。")
+                self._login_attempts += 1
+                if self._login_attempts >= 5:
+                    self._login_lockout_until = datetime.now() + timedelta(seconds=30)
+                    QMessageBox.warning(self, "账户锁定", "登录尝试次数过多，请30秒后重试")
+                else:
+                    QMessageBox.warning(self, "登录失败", "用户名或密码错误，请重试。\n\n" "提示：检查大小写和空格。")
                 # 清空密码框并重新聚焦
                 self._password_edit.clear()
                 self._password_edit.setFocus()

@@ -23,7 +23,6 @@ core/data/models
 :maxdepth: 2
 :caption: UI 模块
 
-ui/main_window_v2
 ui/styles
 ui/theme_manager
 ui/theme_toggle_button

@@ -307,24 +307,51 @@ class DeviceTree(QTreeWidget):
 
     def __init__(self, parent: QWidget = None):
         super().__init__(parent)
-        self.setHeaderLabels(["设备类型", "设备编号", "协议类型", "寄存器数量", "状态", "操作"])
+        self._context_menu_handler = None
+        self.setHeaderLabels(["设备类型", "设备编号", "寄存器数量", "设备状态", "操作"])
         self.setAlternatingRowColors(True)
         self.setIndentation(0)
         self.setAnimated(True)
         self.setSelectionBehavior(QTreeWidget.SelectionBehavior.SelectRows)
         self.setHeaderHidden(False)
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self._on_context_menu)
 
         header = self.header()
         header.setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
         header.setStretchLastSection(False)
-        # 设置各列比例
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)
-        self.setColumnWidth(5, 170)  # 操作列宽度
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
+        self.setColumnWidth(4, 170)
+
+    def _on_context_menu(self, pos):
+        from PySide6.QtWidgets import QMenu
+
+        item = self.itemAt(pos)
+        if item is None:
+            return
+        while item.parent():
+            item = item.parent()
+        device_id = item.data(0, Qt.ItemDataRole.UserRole)
+        if not device_id or not self._context_menu_handler:
+            return
+
+        menu = QMenu(self)
+        edit_action = menu.addAction("配置设备信息")
+        scan_action = menu.addAction("扫描设备")
+        menu.addSeparator()
+        copy_action = menu.addAction("复制设备")
+        delete_action = menu.addAction("删除设备")
+
+        edit_action.triggered.connect(lambda: self._context_menu_handler("edit", device_id))
+        scan_action.triggered.connect(lambda: self._context_menu_handler("scan", ""))
+        copy_action.triggered.connect(lambda: self._context_menu_handler("copy", device_id))
+        delete_action.triggered.connect(lambda: self._context_menu_handler("delete", device_id))
+
+        menu.exec(self.viewport().mapToGlobal(pos))
 
         self.setStyleSheet(
             """

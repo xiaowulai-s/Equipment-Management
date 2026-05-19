@@ -73,17 +73,35 @@ class ConfigStore(QObject):
             with open(self._devices_json_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
+            if not isinstance(data, dict):
+                logger.error("设备配置文件格式无效: 根元素应为对象, 当前为 %s", type(data).__name__)
+                return False
+
             self._json_devices = {}
             devices_list = data.get("devices", [])
-            if isinstance(devices_list, list):
-                for dev in devices_list:
-                    if isinstance(dev, dict) and "id" in dev:
-                        self._json_devices[dev["id"]] = dev
-            elif isinstance(devices_list, dict):
-                self._json_devices = devices_list
+            if not isinstance(devices_list, list):
+                logger.error("设备配置文件格式无效: 'devices' 应为数组")
+                return False
+
+            for dev in devices_list:
+                if not isinstance(dev, dict):
+                    logger.warning("跳过非对象类型的设备条目")
+                    continue
+                dev_id = dev.get("id")
+                if not dev_id:
+                    logger.warning("跳过缺少 'id' 字段的设备条目")
+                    continue
+                required_fields = ["ip", "port"]
+                missing = [f for f in required_fields if f not in dev]
+                if missing:
+                    logger.warning("设备 [%s] 缺少字段: %s", dev_id, ", ".join(missing))
+                self._json_devices[dev_id] = dev
 
             logger.info("设备配置已加载: %s (%d个设备)", json_path, len(self._json_devices))
             return True
+        except json.JSONDecodeError as e:
+            logger.error("设备配置文件JSON解析失败: %s (行%d列%d)", e.msg, e.lineno, e.colno)
+            return False
         except Exception as e:
             logger.error("加载设备配置失败: %s", e)
             return False

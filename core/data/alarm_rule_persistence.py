@@ -7,7 +7,7 @@ import uuid
 from typing import Any, Dict, List, Optional
 
 from core.utils.alarm_enums import AlarmLevel, AlarmRule, AlarmType
-from core.utils.logger_v2 import get_logger
+from core.utils.logger import get_logger
 
 from .models import DatabaseManager
 from .repository.alarm_rule_repository import AlarmRuleRepository
@@ -160,7 +160,12 @@ class AlarmRulePersistenceManager:
     def close(self) -> None:
         """Release any cached repository session."""
         if self._repository is not None:
-            self._repository._session.close()
+            try:
+                self._repository._session.commit()
+            except Exception:
+                logger.exception("提交报警规则事务失败")
+            finally:
+                self._repository._session.close()
             self._repository = None
         logger.info("报警规则持久化管理器已关闭")
 

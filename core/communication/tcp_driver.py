@@ -46,7 +46,7 @@ class TCPDriver(BaseDriver):
 
     # Modbus协议常量
     MODBUS_PROTOCOL_ID = 0x0000  # Modbus协议标识
-    FC_DIAGNOSTICS = 0x08        # 功能码：诊断
+    FC_DIAGNOSTICS = 0x08  # 功能码：诊断
     DIAG_SUBFUNC_RETURN_QUERY = 0x0000  # 子功能码：返回查询数据
 
     def __init__(self, host: str = "127.0.0.1", port: int = 502, parent=None):
@@ -62,10 +62,10 @@ class TCPDriver(BaseDriver):
         self._heartbeat_timer.timeout.connect(self._send_heartbeat)
 
         # 心跳配置参数
-        self._unit_id = 0x01              # 默认单元ID
+        self._unit_id = 0x01  # 默认单元ID
         self._heartbeat_interval_ms = 10000  # 心跳间隔：10秒
-        self._transaction_id = 0          # 事务ID计数器
-        self._heartbeat_enabled = True    # 心跳开关
+        self._transaction_id = 0  # 事务ID计数器
+        self._heartbeat_enabled = True  # 心跳开关
 
         # 统计信息
         self._heartbeat_sent_count = 0
@@ -129,6 +129,7 @@ class TCPDriver(BaseDriver):
                         self._heartbeat_timer.start(self._heartbeat_interval_ms)
                     else:
                         from PySide6.QtCore import QTimer
+
                         QTimer.singleShot(0, lambda: self._heartbeat_timer.start(self._heartbeat_interval_ms))
                     logger.info("Modbus FC08心跳已启动，间隔=%dms", self._heartbeat_interval_ms)
 
@@ -164,7 +165,7 @@ class TCPDriver(BaseDriver):
         """
         断开连接
         Disconnect from device
-        
+
         V01修复: 避免死锁 — 先释放标志位和socket，再在锁外等待线程退出
         """
         with self._lock:
@@ -300,24 +301,25 @@ class TCPDriver(BaseDriver):
 
                 # 构建MBAP Header（7字节）
                 heartbeat_request = struct.pack(
-                    ">HHHB",                    # 大端序网络字节
-                    trans_id,                   # Transaction ID: 自增计数器
-                    self.MODBUS_PROTOCOL_ID,    # Protocol ID: 0x0000 (Modbus)
-                    0x0006,                     # Length: 6 (UnitID 1B + PDU 5B)
-                    self._unit_id               # Unit ID: 默认0x01
+                    ">HHHB",  # 大端序网络字节
+                    trans_id,  # Transaction ID: 自增计数器
+                    self.MODBUS_PROTOCOL_ID,  # Protocol ID: 0x0000 (Modbus)
+                    0x0006,  # Length: 6 (UnitID 1B + PDU 5B)
+                    self._unit_id,  # Unit ID: 默认0x01
                 )
 
                 # 构建PDU（5字节）：功能码 + 子功能码 + 数据字段
                 heartbeat_request += struct.pack(
-                    ">BHH",                     # 大端序
-                    self.FC_DIAGNOSTICS,        # Function Code: 0x08 (Diagnostics)
+                    ">BHH",  # 大端序
+                    self.FC_DIAGNOSTICS,  # Function Code: 0x08 (Diagnostics)
                     self.DIAG_SUBFUNC_RETURN_QUERY,  # Sub-function: 0x0000 (Return Query Data)
-                    0x0000                      # Data Field: 0x0000 (要回显的数据)
+                    0x0000,  # Data Field: 0x0000 (要回显的数据)
                 )
 
                 # 验证报文长度（必须为12字节：MBAP 7B + PDU 5B）
-                assert len(heartbeat_request) == 12, \
-                    f"FC08心跳报文长度错误：期望12字节，实际{len(heartbeat_request)}字节"
+                assert (
+                    len(heartbeat_request) == 12
+                ), f"FC08心跳报文长度错误：期望12字节，实际{len(heartbeat_request)}字节"
 
                 # 发送心跳请求
                 self._socket.sendall(heartbeat_request)
@@ -328,14 +330,14 @@ class TCPDriver(BaseDriver):
                     "FC08心跳已发送 [TransID=%04X | UnitID=%02X | %d字节]",
                     trans_id,
                     self._unit_id,
-                    len(heartbeat_request)
+                    len(heartbeat_request),
                 )
 
             except (BrokenPipeError, ConnectionResetError, OSError) as e:
-                logger.warning("❌ FC08心跳发送失败，检测到连接断开: %s", e)
+                logger.warning("[FAIL] FC08心跳发送失败，检测到连接断开: %s", e)
                 self._handle_connection_loss()
             except Exception as e:
-                logger.exception("❌ FC08心跳发送时发生异常: %s", e)
+                logger.exception("[FAIL] FC08心跳发送时发生异常: %s", e)
 
     def _configure_keepalive(self, sock: socket.socket):
         """
@@ -358,38 +360,35 @@ class TCPDriver(BaseDriver):
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
 
             # 平台特定配置
-            if sys.platform.startswith('win'):
+            if sys.platform.startswith("win"):
                 # Windows平台使用IOCTL
                 # TCP_KEEPIDLE = 空闲时间（毫秒）
                 # TCP_KEEPINTVL = 探测间隔（毫秒）
                 # TCP_KEEPCNT = 探测次数
-                tcp_keepidle = 10 * 1000   # 10秒（转换为毫秒）
-                tcp_keepintvl = 5 * 1000   # 5秒
-                tcp_keepcnt = 3             # 3次
+                tcp_keepidle = 10 * 1000  # 10秒（转换为毫秒）
+                tcp_keepintvl = 5 * 1000  # 5秒
+                tcp_keepcnt = 3  # 3次
 
                 sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, tcp_keepidle)
                 sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, tcp_keepintvl)
                 sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, tcp_keepcnt)
 
-            elif sys.platform.startswith('linux'):
+            elif sys.platform.startswith("linux"):
                 # Linux平台直接使用TCP选项
-                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 10)   # 10秒
-                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 5)    # 5秒
-                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 3)      # 3次
+                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 10)  # 10秒
+                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 5)  # 5秒
+                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 3)  # 3次
 
             else:
                 # macOS/其他平台：仅启用基础KeepAlive（使用系统默认值）
                 logger.debug("使用系统默认TCP KeepAlive参数")
 
-            logger.info(
-                "✅ TCP KeepAlive已配置 [空闲=%ds | 间隔=%ds | 重试=%d次]",
-                10, 5, 3
-            )
+            logger.info("[OK] TCP KeepAlive已配置 [空闲=%ds | 间隔=%ds | 重试=%d次]", 10, 5, 3)
 
         except OSError as e:
-            logger.warning("⚠️ TCP KeepAlive配置失败（不影响主功能）: %s", e)
+            logger.warning("[WARN] TCP KeepAlive配置失败（不影响主功能）: %s", e)
         except Exception as e:
-            logger.warning("⚠️ TCP KeepAlive配置异常: %s", e)
+            logger.warning("[WARN] TCP KeepAlive配置异常: %s", e)
 
     def _reset_heartbeat_stats(self):
         """重置心跳统计信息"""
@@ -438,9 +437,9 @@ class TCPDriver(BaseDriver):
                          - 低带宽场景：30000ms（30秒）
         """
         if interval_ms < 1000:
-            logger.warning("⚠️ 心跳间隔过短(%dms)，可能导致网络拥塞", interval_ms)
+            logger.warning("[WARN] 心跳间隔过短(%dms)，可能导致网络拥塞", interval_ms)
         elif interval_ms > 60000:
-            logger.warning("⚠️ 心跳间隔过长(%dms)，可能无法及时检测断连", interval_ms)
+            logger.warning("[WARN] 心跳间隔过长(%dms)，可能无法及时检测断连", interval_ms)
 
         self._heartbeat_interval_ms = interval_ms
 
@@ -461,10 +460,10 @@ class TCPDriver(BaseDriver):
 
         if enabled and self._is_connected and not self._heartbeat_timer.isActive():
             self._heartbeat_timer.start(self._heartbeat_interval_ms)
-            logger.info("✅ FC08心跳已启用")
+            logger.info("[OK] FC08心跳已启用")
         elif not enabled:
             self._heartbeat_timer.stop()
-            logger.info("⏸️ FC08心跳已禁用")
+            logger.info("[PAUSE] FC08心跳已禁用")
 
     def get_heartbeat_stats(self) -> dict:
         """
@@ -487,5 +486,5 @@ class TCPDriver(BaseDriver):
             "success_rate": f"{success_rate:.1f}%",
             "last_heartbeat_time": self._last_heartbeat_time,
             "is_connected": self._is_connected,
-            "keepalive_configured": True  # 始终配置TCP KeepAlive
+            "keepalive_configured": True,  # 始终配置TCP KeepAlive
         }

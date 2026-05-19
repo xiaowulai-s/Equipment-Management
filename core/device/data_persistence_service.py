@@ -66,7 +66,8 @@ class DataPersistenceService:
 
         logger.info(
             "数据持久化服务已启动 [订阅模式=%s, 刷新间隔=%dms]",
-            self._auto_subscribe, self._buffer_flush_interval,
+            self._auto_subscribe,
+            self._buffer_flush_interval,
         )
 
     def stop(self) -> None:
@@ -79,7 +80,8 @@ class DataPersistenceService:
 
         logger.info(
             "数据持久化服务已停止 [记录=%d, 丢弃=%d]",
-            self._record_count, self._drop_count,
+            self._record_count,
+            self._drop_count,
         )
 
     def subscribe_to_databus(self) -> None:
@@ -92,7 +94,7 @@ class DataPersistenceService:
             return
 
         bus = DataBus.instance()
-        bus.subscribe('device_data_updated', self._on_data_updated)
+        bus.subscribe("device_data_updated", self._on_data_updated)
         self._is_subscribed = True
         logger.info("已订阅 DataBus.device_data_updated")
 
@@ -102,7 +104,7 @@ class DataPersistenceService:
             return
 
         bus = DataBus.instance()
-        bus.unsubscribe('device_data_updated', self._on_data_updated)
+        bus.unsubscribe("device_data_updated", self._on_data_updated)
         self._is_subscribed = False
         logger.info("已取消订阅 DataBus.device_data_updated")
 
@@ -121,7 +123,8 @@ class DataPersistenceService:
             if self._drop_count % 100 == 1:
                 logger.warning(
                     "持久化数据丢弃 [累计=%d, 原因=%s]",
-                    self._drop_count, str(e),
+                    self._drop_count,
+                    str(e),
                 )
 
     def persist_data(self, device_id: str, data: Dict) -> None:
@@ -133,9 +136,7 @@ class DataPersistenceService:
                         value = float(param_info["value"])
                     except (ValueError, TypeError):
                         continue
-                    self._data_buffer.append(
-                        (device_id, param_name, value, param_info.get("unit", ""))
-                    )
+                    self._data_buffer.append((device_id, param_name, value, param_info.get("unit", "")))
                     self._record_count += 1
 
             if len(self._data_buffer) >= MAX_BUFFER_SIZE:
@@ -147,20 +148,21 @@ class DataPersistenceService:
             if not self._data_buffer:
                 return
             buffer_copy = list(self._data_buffer)
-            self._data_buffer.clear()
 
         try:
             with self._db_manager.session() as session:
                 repo = HistoricalDataRepository(session)
                 data_points = [
-                    {"device_id": d[0], "parameter_name": d[1], "value": d[2], "unit": d[3]}
-                    for d in buffer_copy
+                    {"device_id": d[0], "parameter_name": d[1], "value": d[2], "unit": d[3]} for d in buffer_copy
                 ]
                 count = repo.batch_create(data_points)
                 logger.debug("批量写入 %d 条历史数据", count)
 
+            with self._lock:
+                del self._data_buffer[: len(buffer_copy)]
+
         except Exception as e:
-            logger.error("批量写入历史数据失败", error=str(e))
+            logger.error("批量写入历史数据失败 [保留%d条数据待重试]", len(buffer_copy))
 
     @property
     def buffer_size(self) -> int:

@@ -224,7 +224,7 @@ class AnimationScheduler(QObject):
 
             except Exception as e:
                 # 对象可能已被销毁，自动注销
-                print(f"⚠️ AnimationScheduler: Failed to update object ({e}), auto-unregistering")
+                print(f"[WARN] AnimationScheduler: Failed to update object ({e}), auto-unregistering")
                 self.unregister(animatable)
 
 
@@ -314,7 +314,7 @@ class OptimizedAnimatedStatusBadge(QWidget):
             scheduler.register(self)
             self._scheduler_registered = True
         except Exception as e:
-            print(f"⚠️ Failed to register to animation scheduler: {e}")
+            print(f"[WARN] Failed to register to animation scheduler: {e}")
             self._scheduler_registered = False
 
     def _unregister_from_scheduler(self) -> None:
@@ -471,20 +471,20 @@ def get_performance_comparison(device_count: int = 100) -> dict:
 
 
 if __name__ == "__main__":
-    print("🎬 Global Animation Scheduler System")
+    print("[AnimationScheduler] Global Animation Scheduler System")
     print("=" * 50)
 
     # 测试基本功能
     scheduler = AnimationScheduler.get_instance()
-    print(f"\n✅ Scheduler initialized")
+    print(f"\n[OK] Scheduler initialized")
     print(f"   Interval: {scheduler._interval}ms")
     print(f"   Running: {scheduler.is_running}")
 
     # 性能对比
-    print("\n📊 Performance Comparison:")
+    print("\n[STATS] Performance Comparison:")
     for count in [10, 50, 100, 200]:
         comparison = get_performance_comparison(count)
-        print(f"\n   📱 {count} devices:")
+        print(f"\n   [{count} devices]:")
         print(
             f"      Original: {comparison['original']['updates_per_second']:,} updates/sec, "
             f"{comparison['original']['cpu_usage_percent']}% CPU"
@@ -493,9 +493,9 @@ if __name__ == "__main__":
             f"      Optimized: {comparison['optimized']['updates_per_second']} updates/sec, "
             f"{comparison['optimized']['cpu_usage_percent']}% CPU"
         )
-        print(f"      ⚡ Improvement: {comparison['improvement']['cpu_reduction']} less CPU usage")
+        print(f"      [GAIN] Improvement: {comparison['improvement']['cpu_reduction']} less CPU usage")
 
-    print("\n💡 Usage Example:")
+    print("\n[USAGE] Usage Example:")
     print(
         """
     from ui.animation_scheduler import OptimizedAnimatedStatusBadge

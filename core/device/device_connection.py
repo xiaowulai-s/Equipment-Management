@@ -103,24 +103,19 @@ class DeviceConnection(QObject):
 
     # ==================== Qt 信号定义 ====================
 
-    connected = Signal(str)                    # device_id
-    disconnected = Signal(str)                 # device_id
-    connection_error = Signal(str, str)        # device_id, error_message
-    data_received = Signal(str, dict)          # device_id, data_dict
-    status_changed = Signal(int)               # DeviceStatus value
+    connected = Signal(str)  # device_id
+    disconnected = Signal(str)  # device_id
+    connection_error = Signal(str, str)  # device_id, error_message
+    data_received = Signal(str, dict)  # device_id, data_dict
+    status_changed = Signal(int)  # DeviceStatus value
 
-    error_occurred = Signal(str)               # error_message (兼容旧接口)
+    error_occurred = Signal(str)  # error_message (兼容旧接口)
 
     # v3.2 新增信号：写操作相关
     write_confirmation_required = Signal(str, int, bool, object)  # param_name, address, value, config
-    coil_written = Signal(str, int, bool)      # param_name, address, success
+    coil_written = Signal(str, int, bool)  # param_name, address, success
 
-    def __init__(
-        self,
-        device: Device,
-        factory: 'ConnectionFactory',
-        parent: Optional[QObject] = None
-    ) -> None:
+    def __init__(self, device: Device, factory: "ConnectionFactory", parent: Optional[QObject] = None) -> None:
         """
         初始化设备连接控制器（v3.2 配置驱动版本）
 
@@ -253,7 +248,7 @@ class DeviceConnection(QObject):
                 self.device_id,
                 self._device.connection_type,
                 self._device.connection_config.host,
-                self._device.connection_config.port
+                self._device.connection_config.port,
             )
 
             # ===== 步骤1: 检查是否使用模拟器 =====
@@ -268,9 +263,7 @@ class DeviceConnection(QObject):
             self._update_status(DeviceStatus.CONNECTING)
 
             # ===== 步骤3: 通过Factory创建Driver+Protocol =====
-            self._driver, self._protocol = self._factory.create(
-                conn_config, proto_config
-            )
+            self._driver, self._protocol = self._factory.create(conn_config, proto_config)
 
             if self._driver is None or self._protocol is None:
                 raise RuntimeError("工厂未能创建驱动或协议实例")
@@ -286,12 +279,12 @@ class DeviceConnection(QObject):
 
             # 同步字节序配置到协议层
             if proto_config.byte_order:
-                if hasattr(self._protocol, 'set_byte_order'):
+                if hasattr(self._protocol, "set_byte_order"):
                     self._protocol.set_byte_order(proto_config.byte_order)
 
             # ===== 步骤4: 执行实际连接 =====
             if not self._driver.connect():
-                raise ConnectionError(f"驱动连接失败: {conn_config.connection_type}")
+                raise DeviceConnectionError(f"驱动连接失败: {conn_config.connection_type}")
 
             # 初始化协议
             if not self._protocol.initialize():
@@ -355,6 +348,13 @@ class DeviceConnection(QObject):
 
             self._is_connected = True
             self._update_status(DeviceStatus.CONNECTED)
+
+            # 校验寄存器点配置
+            if not self._register_points:
+                logger.warning("设备 %s 模拟器已连接但未配置寄存器点，无法获取模拟数据", self.device_id)
+            else:
+                logger.info("设备 %s 模拟器已连接，已配置 %d 个寄存器点", self.device_id, len(self._register_points))
+
             self.connected.emit(self.device_id)
 
             logger.info("设备 %s 模拟器连接成功", self.device_id)
@@ -392,12 +392,12 @@ class DeviceConnection(QObject):
             if self._protocol is not None:
                 try:
                     # 断开信号连接
-                    if hasattr(self._protocol, 'data_updated'):
+                    if hasattr(self._protocol, "data_updated"):
                         try:
                             self._protocol.data_updated.disconnect(self._on_protocol_data)
                         except (TypeError, RuntimeError):
                             pass
-                    if hasattr(self._protocol, 'error_occurred'):
+                    if hasattr(self._protocol, "error_occurred"):
                         try:
                             self._protocol.error_occurred.disconnect(self._on_protocol_error)
                         except (TypeError, RuntimeError):
@@ -470,18 +470,12 @@ class DeviceConnection(QObject):
 
             # 正常通信模式
             if not self._is_connected or self._protocol is None:
-                logger.warning(
-                    "设备 %s 未连接或协议未初始化，无法轮询",
-                    self.device_id
-                )
+                logger.warning("设备 %s 未连接或协议未初始化，无法轮询", self.device_id)
                 return {}
 
             # v3.2 新增：如果没有配置寄存器点，使用旧的协议轮询方式（向后兼容）
             if not self._register_points:
-                logger.debug(
-                    "设备 %s 未配置寄存器点，使用协议默认轮询方式",
-                    self.device_id
-                )
+                logger.debug("设备 %s 未配置寄存器点，使用协议默认轮询方式", self.device_id)
                 data = self._protocol.poll_data()
                 if data:
                     self._current_data = dict(data)
@@ -502,6 +496,11 @@ class DeviceConnection(QObject):
             logger.error("设备 %s %s", self.device_id, error_msg)
             self._connection_error = error_msg
             self.connection_error.emit(self.device_id, error_msg)
+            # 触发断开重连（让 LifecycleManager 处理自动重连）
+            try:
+                self.disconnect()
+            except Exception:
+                pass
             return {}
 
     def read_registers(self, address: int, count: int) -> Optional[List[int]]:
@@ -525,10 +524,7 @@ class DeviceConnection(QObject):
             return None
 
         except Exception as e:
-            logger.error(
-                "设备 %s 读取寄存器 [addr=%d, count=%d] 失败: %s",
-                self.device_id, address, count, str(e)
-            )
+            logger.error("设备 %s 读取寄存器 [addr=%d, count=%d] 失败: %s", self.device_id, address, count, str(e))
             return None
 
     def write_register(self, address: int, value: int) -> bool:
@@ -552,10 +548,7 @@ class DeviceConnection(QObject):
             return False
 
         except Exception as e:
-            logger.error(
-                "设备 %s 写入寄存器 [addr=%d, value=%d] 失败: %s",
-                self.device_id, address, value, str(e)
-            )
+            logger.error("设备 %s 写入寄存器 [addr=%d, value=%d] 失败: %s", self.device_id, address, value, str(e))
             return False
 
     def write_registers(self, address: int, values: List[int]) -> bool:
@@ -580,18 +573,13 @@ class DeviceConnection(QObject):
 
         except Exception as e:
             logger.error(
-                "设备 %s 批量写入寄存器 [addr=%d, count=%d] 失败: %s",
-                self.device_id, address, len(values), str(e)
+                "设备 %s 批量写入寄存器 [addr=%d, count=%d] 失败: %s", self.device_id, address, len(values), str(e)
             )
             return False
 
     # ==================== 新增：批量写操作（FC15/FC16优化）====================
 
-    def batch_write_coils(
-        self,
-        operations: List[Dict[str, Any]],
-        require_confirm: bool = True
-    ) -> str:
+    def batch_write_coils(self, operations: List[Dict[str, Any]], require_confirm: bool = True) -> str:
         """
         批量写入多个线圈（FC15优化版本）
 
@@ -639,10 +627,7 @@ class DeviceConnection(QObject):
                 if not config.writable:
                     raise ValueError(f"参数 '{op['name']}' 不可写")
                 if config.data_type != RegisterDataType.COIL:
-                    raise ValueError(
-                        f"参数 '{op['name']}' 不是线圈类型 "
-                        f"(当前: {config.data_type.display_name})"
-                    )
+                    raise ValueError(f"参数 '{op['name']}' 不是线圈类型 " f"(当前: {config.data_type.display_name})")
                 address = config.address
             elif "address" in op:
                 address = op["address"]
@@ -650,18 +635,19 @@ class DeviceConnection(QObject):
                 raise ValueError("操作必须包含 'name' 或 'address' 字段")
 
             value = op.get("value", False)
-            validated_ops.append({
-                "name": op.get("name", f"@{address}"),
-                "address": address,
-                "value": bool(value),
-            })
+            validated_ops.append(
+                {
+                    "name": op.get("name", f"@{address}"),
+                    "address": address,
+                    "value": bool(value),
+                }
+            )
 
         # 步骤2：按地址排序
         validated_ops.sort(key=lambda x: x["address"])
 
         logger.info(
-            "设备 %s 批量线圈写请求 [操作数=%d, 需确认=%s]",
-            self.device_id, len(validated_ops), require_confirm
+            "设备 %s 批量线圈写请求 [操作数=%d, 需确认=%s]", self.device_id, len(validated_ops), require_confirm
         )
 
         # 如果需要确认，发射信号
@@ -676,18 +662,14 @@ class DeviceConnection(QObject):
                     "type": "batch_coils",
                     "operations": validated_ops,
                     "total_count": len(validated_ops),
-                }
+                },
             )
             return f"batch_{id(self)}"
 
         # 直接执行模式
         return self._execute_batch_coils(validated_ops)
 
-    def batch_write_registers(
-        self,
-        operations: List[Dict[str, Any]],
-        require_confirm: bool = True
-    ) -> str:
+    def batch_write_registers(self, operations: List[Dict[str, Any]], require_confirm: bool = True) -> str:
         """
         批量写入多个寄存器（FC16优化版本）
 
@@ -731,18 +713,19 @@ class DeviceConnection(QObject):
                 raise ValueError("操作必须包含 'name' 或 'address' 字段")
 
             value = op.get("value", 0)
-            validated_ops.append({
-                "name": op.get("name", f"@{address}"),
-                "address": address,
-                "value": int(value),
-            })
+            validated_ops.append(
+                {
+                    "name": op.get("name", f"@{address}"),
+                    "address": address,
+                    "value": int(value),
+                }
+            )
 
         # 按地址排序
         validated_ops.sort(key=lambda x: x["address"])
 
         logger.info(
-            "设备 %s 批量寄存器写请求 [操作数=%d, 需确认=%s]",
-            self.device_id, len(validated_ops), require_confirm
+            "设备 %s 批量寄存器写请求 [操作数=%d, 需确认=%s]", self.device_id, len(validated_ops), require_confirm
         )
 
         if require_confirm:
@@ -755,7 +738,7 @@ class DeviceConnection(QObject):
                     "type": "batch_registers",
                     "operations": validated_ops,
                     "total_count": len(validated_ops),
-                }
+                },
             )
             return f"batch_{id(self)}"
 
@@ -794,14 +777,11 @@ class DeviceConnection(QObject):
                         else:
                             fail_count += 1
                             errors.append(f"地址 {start_addr + i} 写入失败")
-                elif self._protocol is not None and hasattr(self._protocol, 'write_multiple_coils'):
+                elif self._protocol is not None and hasattr(self._protocol, "write_multiple_coils"):
                     # 真实设备：使用 FC15 批量写入
                     if self._protocol.write_multiple_coils(start_addr, values):
                         success_count += len(batch)
-                        logger.info(
-                            "批量写线圈成功 [起始=%d, 数量=%d]",
-                            start_addr, len(values)
-                        )
+                        logger.info("批量写线圈成功 [起始=%d, 数量=%d]", start_addr, len(values))
                     else:
                         fail_count += len(batch)
                         errors.append(f"FC15写入失败 [起始地址={start_addr}]")
@@ -817,16 +797,11 @@ class DeviceConnection(QObject):
         # 记录审计日志
         total = success_count + fail_count
         logger.info(
-            "设备 %s 批量线圈写入完成 [成功=%d, 失败=%d, 总计=%d]",
-            self.device_id, success_count, fail_count, total
+            "设备 %s 批量线圈写入完成 [成功=%d, 失败=%d, 总计=%d]", self.device_id, success_count, fail_count, total
         )
 
         if fail_count > 0:
-            self.coil_written.emit(
-                f"批量({success_count}/{total})",
-                -1,
-                fail_count == 0
-            )
+            self.coil_written.emit(f"批量({success_count}/{total})", -1, fail_count == 0)
 
         return f"batch_complete:{success_count}/{total}"
 
@@ -866,10 +841,7 @@ class DeviceConnection(QObject):
                     # 真实设备：使用 FC16 批量写入
                     if self._protocol.write_registers(start_addr, values):
                         success_count += len(batch)
-                        logger.info(
-                            "批量写寄存器成功 [起始=%d, 数量=%d]",
-                            start_addr, len(values)
-                        )
+                        logger.info("批量写寄存器成功 [起始=%d, 数量=%d]", start_addr, len(values))
                     else:
                         fail_count += len(batch)
                         errors.append(f"FC16写入失败 [起始地址={start_addr}]")
@@ -884,8 +856,7 @@ class DeviceConnection(QObject):
 
         total = success_count + fail_count
         logger.info(
-            "设备 %s 批量寄存器写入完成 [成功=%d, 失败=%d, 总计=%d]",
-            self.device_id, success_count, fail_count, total
+            "设备 %s 批量寄存器写入完成 [成功=%d, 失败=%d, 总计=%d]", self.device_id, success_count, fail_count, total
         )
 
         return f"batch_complete:{success_count}/{total}"
@@ -925,7 +896,9 @@ class DeviceConnection(QObject):
         if batch_count > 1:
             logger.debug(
                 "批量操作地址合并: %d 个操作 → %d 次通信 (减少 %d 次)",
-                original_count, batch_count, original_count - batch_count
+                original_count,
+                batch_count,
+                original_count - batch_count,
             )
 
         return batches
@@ -967,26 +940,21 @@ class DeviceConnection(QObject):
 
         # 检查数据类型是否为COIL
         if config.data_type != RegisterDataType.COIL:
-            raise ValueError(
-                f"参数 '{param_name}' 不是线圈类型 "
-                f"(当前类型: {config.data_type.display_name})"
-            )
+            raise ValueError(f"参数 '{param_name}' 不是线圈类型 " f"(当前类型: {config.data_type.display_name})")
 
         # 记录审计日志
         logger.info(
             "设备 %s 发起线圈写请求 [参数=%s, 地址=%d, 值=%s, 需确认=%s]",
-            self.device_id, param_name, config.address,
-            "ON" if value else "OFF", require_confirm
+            self.device_id,
+            param_name,
+            config.address,
+            "ON" if value else "OFF",
+            require_confirm,
         )
 
         if require_confirm:
             # 模式1：需要确认 → 发射信号，等待用户响应
-            self.write_confirmation_required.emit(
-                param_name,
-                config.address,
-                value,
-                config  # 传递完整配置对象供UI使用
-            )
+            self.write_confirmation_required.emit(param_name, config.address, value, config)  # 传递完整配置对象供UI使用
         else:
             # 模式2：不需要确认 → 直接执行
             self.confirm_write(param_name, value)
@@ -1029,14 +997,18 @@ class DeviceConnection(QObject):
         if success:
             logger.info(
                 "设备 %s 线圈写入成功 [参数=%s, 地址=%d, 值=%s]",
-                self.device_id, param_name, config.address,
-                "ON" if value else "OFF"
+                self.device_id,
+                param_name,
+                config.address,
+                "ON" if value else "OFF",
             )
         else:
             logger.error(
                 "设备 %s 线圈写入失败 [参数=%s, 地址=%d, 值=%s]",
-                self.device_id, param_name, config.address,
-                "ON" if value else "OFF"
+                self.device_id,
+                param_name,
+                config.address,
+                "ON" if value else "OFF",
             )
 
         return success
@@ -1074,10 +1046,7 @@ class DeviceConnection(QObject):
         old_device = self._device
         self._device = new_device
 
-        logger.info(
-            "设备 %s 配置已更新",
-            self.device_id
-        )
+        logger.info("设备 %s 配置已更新", self.device_id)
 
         # 如果协议存在，同步更新寄存器映射
         if self._protocol is not None:
@@ -1085,7 +1054,7 @@ class DeviceConnection(QObject):
 
             # 同步字节序配置
             if new_device.protocol_config.byte_order:
-                if hasattr(self._protocol, 'set_byte_order'):
+                if hasattr(self._protocol, "set_byte_order"):
                     self._protocol.set_byte_order(new_device.protocol_config.byte_order)
 
         # 处理模拟器状态变化
@@ -1101,7 +1070,7 @@ class DeviceConnection(QObject):
         """设置字节序（同时更新Device和Protocol）"""
         self._device.set_byte_order(config)
 
-        if self._protocol is not None and hasattr(self._protocol, 'set_byte_order'):
+        if self._protocol is not None and hasattr(self._protocol, "set_byte_order"):
             self._protocol.set_byte_order(config)
 
     def get_byte_order(self) -> ByteOrderConfig:
@@ -1116,8 +1085,9 @@ class DeviceConnection(QObject):
         """清除自定义字节序"""
         self._device.clear_byte_order()
 
-        if self._protocol is not None and hasattr(self._protocol, 'set_byte_order'):
+        if self._protocol is not None and hasattr(self._protocol, "set_byte_order"):
             from ..protocols.byte_order_config import DEFAULT_BYTE_ORDER
+
             self._protocol.set_byte_order(DEFAULT_BYTE_ORDER)
 
     # ==================== 内部辅助方法 ====================
@@ -1139,10 +1109,7 @@ class DeviceConnection(QObject):
             register_map = self._device.protocol_config.register_map
 
             if not register_map:
-                logger.debug(
-                    "设备 %s 未配置寄存器映射表",
-                    self.device_id
-                )
+                logger.debug("设备 %s 未配置寄存器映射表", self.device_id)
                 return
 
             self._register_points = []
@@ -1179,8 +1146,7 @@ class DeviceConnection(QObject):
                         self._register_points.append(rp)
                     else:
                         logger.warning(
-                            "设备 %s 寄存器配置缺少数据类型字段: %s",
-                            self.device_id, reg_config.get("name", "未知")
+                            "设备 %s 寄存器配置缺少数据类型字段: %s", self.device_id, reg_config.get("name", "未知")
                         )
 
                 except Exception as e:
@@ -1188,20 +1154,13 @@ class DeviceConnection(QObject):
                         "设备 %s 解析寄存器点配置失败 [name=%s]: %s",
                         self.device_id,
                         reg_config.get("name", "未知"),
-                        str(e)
+                        str(e),
                     )
 
-            logger.info(
-                "设备 %s 已加载 %d 个寄存器点配置",
-                self.device_id,
-                len(self._register_points)
-            )
+            logger.info("设备 %s 已加载 %d 个寄存器点配置", self.device_id, len(self._register_points))
 
         except Exception as e:
-            logger.error(
-                "设备 %s 解析寄存器映射表失败: %s",
-                self.device_id, str(e)
-            )
+            logger.error("设备 %s 解析寄存器映射表失败: %s", self.device_id, str(e))
             self._register_points = []
 
     def _poll_data_with_config(self) -> Dict[str, Any]:
@@ -1236,10 +1195,7 @@ class DeviceConnection(QObject):
             return result
 
         except Exception as e:
-            logger.error(
-                "设备 %s 配置驱动轮询失败: %s",
-                self.device_id, str(e)
-            )
+            logger.error("设备 %s 配置驱动轮询失败: %s", self.device_id, str(e))
             return {}
 
     def _group_points_by_fc(self) -> Dict[int, List[RegisterPointConfig]]:
@@ -1271,10 +1227,7 @@ class DeviceConnection(QObject):
 
         # 记录分组统计（调试用）
         for fc, points in groups.items():
-            logger.debug(
-                "设备 %s 功能码 FC%02d 分组: %d 个点",
-                self.device_id, fc, len(points)
-            )
+            logger.debug("设备 %s 功能码 FC%02d 分组: %d 个点", self.device_id, fc, len(points))
 
         return groups
 
@@ -1330,8 +1283,9 @@ class DeviceConnection(QObject):
         # 记录合并统计
         logger.debug(
             "地址连续性合并: %d 个点 → %d 个批次（减少 %d 次通信）",
-            len(points), len(batches),
-            len(points) - len(batches)
+            len(points),
+            len(batches),
+            len(points) - len(batches),
         )
 
         return batches
@@ -1362,10 +1316,7 @@ class DeviceConnection(QObject):
         end_addr = last_point.address + last_point.data_type.get_register_count()
         count = end_addr - start_addr
 
-        logger.debug(
-            "读取批次 [FC%02d, 起始=%d, 数量=%d]",
-            fc_code, start_addr, count
-        )
+        logger.debug("读取批次 [FC%02d, 起始=%d, 数量=%d]", fc_code, start_addr, count)
 
         try:
             raw_data = None
@@ -1389,27 +1340,18 @@ class DeviceConnection(QObject):
 
             # 处理原始数据
             if raw_data is None:
-                logger.warning(
-                    "读取失败 [FC%02d, addr=%d, count=%d]",
-                    fc_code, start_addr, count
-                )
+                logger.warning("读取失败 [FC%02d, addr=%d, count=%d]", fc_code, start_addr, count)
                 return None
 
             # 将原始数据按 RegisterPointConfig 格式化
             return self._format_batch_data(batch, raw_data, start_addr)
 
         except Exception as e:
-            logger.error(
-                "读取批次异常 [FC%02d, addr=%d]: %s",
-                fc_code, start_addr, str(e)
-            )
+            logger.error("读取批次异常 [FC%02d, addr=%d]: %s", fc_code, start_addr, str(e))
             return None
 
     def _format_batch_data(
-        self,
-        batch: List[RegisterPointConfig],
-        raw_data: Union[List[Any], List[int]],
-        start_addr: int
+        self, batch: List[RegisterPointConfig], raw_data: Union[List[Any], List[int]], start_addr: int
     ) -> Dict[str, Any]:
         """
         将批量读取的原始数据按配置格式化（v3.2 新增）
@@ -1442,15 +1384,13 @@ class DeviceConnection(QObject):
                 else:
                     logger.warning(
                         "数据索引越界 [参数=%s, 偏移=%d, 数据长度=%d]",
-                        rp.name, index_offset,
-                        len(raw_data) if isinstance(raw_data, list) else 0
+                        rp.name,
+                        index_offset,
+                        len(raw_data) if isinstance(raw_data, list) else 0,
                     )
 
             except Exception as e:
-                logger.error(
-                    "格式化数据失败 [参数=%s]: %s",
-                    rp.name, str(e)
-                )
+                logger.error("格式化数据失败 [参数=%s]: %s", rp.name, str(e))
                 continue
 
         return result
@@ -1462,7 +1402,7 @@ class DeviceConnection(QObject):
         index_offset: int,
     ) -> Optional[Union[bool, int, float]]:
         """Decode a single configured point from a batched Modbus read.
-        
+
         Step 8: Delegated to ModbusValueParser
         """
         try:
@@ -1498,17 +1438,14 @@ class DeviceConnection(QObject):
                 return self._simulator.write_register(address, int_val)
 
             # 真实设备模式
-            if self._protocol is not None and hasattr(self._protocol, 'write_single_coil'):
+            if self._protocol is not None and hasattr(self._protocol, "write_single_coil"):
                 return self._protocol.write_single_coil(address, value)
 
             logger.error("协议层不支持写线圈操作")
             return False
 
         except Exception as e:
-            logger.error(
-                "执行线圈写入失败 [地址=%d, 值=%s]: %s",
-                address, "ON" if value else "OFF", str(e)
-            )
+            logger.error("执行线圈写入失败 [地址=%d, 值=%s]: %s", address, "ON" if value else "OFF", str(e))
             return False
 
     def _init_simulator(self) -> None:
@@ -1531,9 +1468,14 @@ class DeviceConnection(QObject):
         更新连接状态（内部方法）
 
         同时更新 Device.status 和发射信号。
+
+        设计说明: Device 是 frozen dataclass, 不可直接修改字段。
+        使用 object.__setattr__ 绕过 frozen 限制是刻意为之,
+        因为 status 是运行时状态而非配置数据, 在连接生命周期中
+        需要动态更新而不应创建新的 Device 实例。
         """
-        # 更新 Device 的状态字段（允许修改运行时状态）
-        object.__setattr__(self._device, 'status', status)
+        # 更新 Device 的状态字段（绕过 frozen dataclass 限制, 因为 status 是运行时属性）
+        object.__setattr__(self._device, "status", status)
 
         # 发射状态变化信号
         self.status_changed.emit(int(status))
@@ -1565,10 +1507,7 @@ class DeviceConnection(QObject):
     # ==================== 魔术方法 ====================
 
     def __repr__(self) -> str:
-        return (
-            f"DeviceConnection(device_id={self.device_id}, "
-            f"connected={self._is_connected})"
-        )
+        return f"DeviceConnection(device_id={self.device_id}, " f"connected={self._is_connected})"
 
     def __del__(self):
         """析构时确保断开连接"""
@@ -1581,16 +1520,23 @@ class DeviceConnection(QObject):
 
 # ==================== 自定义异常类 ====================
 
-class ConnectionError(Exception):
+
+class DeviceConnectionError(Exception):
     """连接错误"""
+
     pass
 
 
 class ProtocolError(Exception):
     """协议错误"""
+
     pass
 
 
 class SimulatorError(Exception):
     """模拟器错误"""
+
     pass
+
+
+ConnectionError = DeviceConnectionError

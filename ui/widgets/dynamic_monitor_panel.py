@@ -73,12 +73,13 @@ class SwitchCard(QFrame):
         """初始化UI"""
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setFrameShadow(QFrame.Shadow.Raised)
-        self.setFixedWidth(140)
+        self.setMinimumWidth(150)
+        self.setMaximumWidth(190)
         self.setFixedHeight(110)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 10, 12, 10)
-        layout.setSpacing(8)
+        layout.setContentsMargins(10, 8, 10, 8)
+        layout.setSpacing(6)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # 参数名称标签
@@ -86,6 +87,8 @@ class SwitchCard(QFrame):
         name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         name_label.setFont(QFont("Microsoft YaHei", 9))
         name_label.setStyleSheet("color: #374151; background: transparent;")
+        name_label.setWordWrap(True)
+        name_label.setMaximumHeight(28)
         layout.addWidget(name_label)
 
         # 开关按钮/指示灯
@@ -206,36 +209,31 @@ class ValueCard(QFrame):
         """初始化UI"""
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setFrameShadow(QFrame.Shadow.Raised)
-        self.setFixedWidth(160)
+        self.setMinimumWidth(170)
+        self.setMaximumWidth(200)
         self.setFixedHeight(110)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 10, 12, 10)
-        layout.setSpacing(6)
-        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setContentsMargins(10, 8, 10, 8)
+        layout.setSpacing(4)
 
-        # 参数名称标签
+        # 参数名称标签（加粗 + 自动换行）
         name_label = QLabel(self._config.name)
         name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        name_label.setFont(QFont("Microsoft YaHei", 9))
-        name_label.setStyleSheet("color: #374151; background: transparent;")
+        name_label.setFont(QFont("Microsoft YaHei", 9, QFont.Weight.Bold))
+        name_label.setStyleSheet("color: #374151; background: transparent; font-weight: bold;")
+        name_label.setWordWrap(True)
+        name_label.setMaximumHeight(28)
         layout.addWidget(name_label)
 
-        # 数值显示（大字体）
+        # 数值 + 单位 显示在同一行（大字体加粗，单位已包含在数据值中）
         self.value_label = QLabel("--")
         self.value_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.value_label.setFont(QFont("Consolas", 22, QFont.Weight.Bold))
-        self.value_label.setStyleSheet("color: #111827; background: transparent;")
+        self.value_label.setFont(QFont("Consolas", 20, QFont.Weight.Bold))
+        self.value_label.setStyleSheet("color: #111827; background: transparent; font-weight: bold;")
+        self.value_label.setWordWrap(True)
+        self.value_label.setMaximumHeight(36)
         layout.addWidget(self.value_label)
-
-        # 单位标签
-        unit_text = self._config.unit or ""
-        if unit_text:
-            unit_label = QLabel(unit_text)
-            unit_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            unit_label.setFont(QFont("Microsoft YaHei", 9))
-            unit_label.setStyleSheet("color: #6B7280; background: transparent;")
-            layout.addWidget(unit_label)
 
         # 地址信息（小字）
         addr_label = QLabel(f"@{self._config.address}")
@@ -246,10 +244,10 @@ class ValueCard(QFrame):
 
     def update_value(self, value_str: str, alarm_status: Optional[str] = None) -> None:
         """
-        更新数值显示
+        更新数值显示（value_str 已包含单位，如 "9.90 ℃"）
 
         Args:
-            value_str: 格式化后的字符串值（如 "25.60 ℃"）
+            value_str: 格式化后的完整字符串（如 "25.60 ℃"）
             alarm_status: 报警状态 ("high"/"low"/None)
         """
         self.value_label.setText(value_str)
@@ -293,6 +291,9 @@ class DynamicMonitorPanel(QWidget):
     # ✅ 新增信号：批量写操作请求
     batch_write_requested = Signal(str, list)  # device_id, [(name, value), ...]
 
+    # 新增信号：历史数据请求
+    history_requested = Signal()
+
     # 布局常量
     MAX_COLUMNS = 4  # 每行最多4个卡片
 
@@ -309,6 +310,38 @@ class DynamicMonitorPanel(QWidget):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
+
+        # 工具栏（包含历史数据入口）
+        toolbar = QHBoxLayout()
+        toolbar.setContentsMargins(12, 8, 12, 4)
+
+        self._device_label = QLabel(f"设备: {self.device_id}")
+        self._device_label.setStyleSheet("font-weight: bold; color: #374151;")
+        toolbar.addWidget(self._device_label)
+
+        toolbar.addStretch()
+
+        history_btn = QPushButton("[历史] 历史数据")
+        history_btn.setStyleSheet(
+            """
+            QPushButton {
+                background-color: transparent;
+                border: 1px solid #D1D5DB;
+                border-radius: 6px;
+                padding: 6px 16px;
+                color: #4B5563;
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background-color: #F3F4F6;
+                border-color: #9CA3AF;
+            }
+        """
+        )
+        history_btn.clicked.connect(lambda: self.history_requested.emit())
+        toolbar.addWidget(history_btn)
+
+        main_layout.addLayout(toolbar)
 
         # 创建滚动区域
         scroll_area = QScrollArea()
@@ -552,18 +585,19 @@ class DynamicMonitorPanel(QWidget):
 
     def clear(self) -> None:
         """清空所有卡片"""
-        # 移除所有卡片控件
         while self._grid_layout.count():
             item = self._grid_layout.takeAt(0)
             widget = item.widget()
             if widget is not None:
+                try:
+                    widget.toggled.disconnect(self._on_switch_toggled)
+                except (TypeError, RuntimeError):
+                    pass
                 widget.deleteLater()
 
-        # 清空内部状态
         self._card_widgets.clear()
         self._register_points.clear()
 
-        # 显示空状态提示
         self._empty_label.show()
 
     def get_card_count(self) -> int:
