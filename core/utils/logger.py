@@ -21,17 +21,17 @@ from core.data.models import DatabaseManager, SystemLogModel
 
 
 def _create_console_handler(log_level: str) -> logging.Handler:
-    """编码安全的控制台处理器，兼容 Windows GBK 终端"""
-    encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
+    """UTF-8编码控制台处理器，兼容所有终端环境"""
     try:
-        "\u4e2d".encode(encoding)
-    except (UnicodeEncodeError, LookupError):
-        encoding = "utf-8"
-    handler = logging.StreamHandler(sys.stdout)
+        utf8_stream = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    except (AttributeError, OSError):
+        utf8_stream = sys.stdout
+    handler = logging.StreamHandler(utf8_stream)
     handler.setLevel(getattr(logging, log_level.upper()))
-    handler.setFormatter(
-        logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
-    )
+    handler.setFormatter(logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S"
+    ))
     return handler
 
 
